@@ -13,8 +13,10 @@ name = "asm6502-lsp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "crossbeam-channel",
  "lsp-server",
  "lsp-types",
+ "serde",
  "serde_json",
  "tracing",
  "tracing-subscriber",
