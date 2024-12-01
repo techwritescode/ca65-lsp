@@ -4,11 +4,11 @@ use std::{
     usize,
 };
 
-use lsp_types::Uri;
+use crate::codespan::FileId;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Symbol {
-    pub uri: Uri,
+    pub file_id: FileId,
     pub label: String,
     pub line: usize,
 }
@@ -36,17 +36,17 @@ pub fn init_symbol_cache() {
     _ = SYMBOL_CACHE.set(Arc::new(Mutex::new(SymbolCache(Vec::new()))));
 }
 
-pub fn symbol_cache_reset(uri: &Uri) {
+pub fn symbol_cache_reset(file_id: FileId) {
     let mut cache = SYMBOL_CACHE
         .get()
         .expect("Symbol cache not initialized")
         .lock()
         .expect("Symbol cache mutex poisoned");
 
-    cache.retain(|symbol| &symbol.uri != uri);
+    cache.retain(|symbol| symbol.file_id != file_id);
 }
 
-pub fn symbol_cache_insert(uri: &Uri, line: usize, label: String) {
+pub fn symbol_cache_insert(file_id: FileId, line: usize, label: String) {
     let mut cache = SYMBOL_CACHE
         .get()
         .expect("Symbol cache not initialized")
@@ -55,7 +55,7 @@ pub fn symbol_cache_insert(uri: &Uri, line: usize, label: String) {
     cache.push(Symbol {
         label,
         line,
-        uri: uri.clone(),
+        file_id,
     });
 }
 
