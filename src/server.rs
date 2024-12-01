@@ -60,7 +60,7 @@ impl Server {
     }
 
     fn dispatch_notification(&self, notification: Notification) -> Result<()> {
-        tracing::error!("Notification: {}", notification.method);
+        // tracing::error!("Notification: {}", notification.method);
         match notification.method.as_str() {
             DidChangeTextDocument::METHOD => {
                 let notification = cast_notif::<DidChangeTextDocument>(notification)?;
@@ -79,7 +79,7 @@ impl Server {
             DidOpenTextDocument::METHOD => {
                 let notification = cast_notif::<DidOpenTextDocument>(notification)?;
 
-                tracing::info!("{:#?}", notification);
+                // tracing::info!("{:#?}", notification);
 
                 let uri = notification.text_document.uri;
                 let text = notification.text_document.text;
@@ -228,7 +228,7 @@ impl Server {
                 {
                     let parsed_ident = parse_ident(maybe_ident);
                     symbol_cache_insert(uri, i, parsed_ident.clone());
-                    tracing::info!("Ident {}", parsed_ident.clone());
+                    // tracing::info!("Ident {}", parsed_ident.clone());
                 }
             }
         }

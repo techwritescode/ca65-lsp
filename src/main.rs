@@ -10,7 +10,9 @@ use tracing::Level;
 use tracing_subscriber::{filter, layer::SubscriberExt, Layer, Registry};
 
 fn main() -> Result<(), Box<dyn Error + Sync + Send>> {
-    let log = File::create("/home/simon/asm6502-lsp/asm.log").expect("failed to open log");
+    let current_path = std::env::current_dir().expect("Failed to get working directory");
+    let log_path = std::path::Path::new(&current_path).join("asm.log");
+    let log = File::create(log_path).expect("failed to open log");
 
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_target(false)
@@ -32,7 +34,9 @@ fn main() -> Result<(), Box<dyn Error + Sync + Send>> {
     let (id, _) = connection.initialize_start()?;
 
     let server_capabilities = ServerCapabilities {
-        text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
+        text_document_sync: Some(TextDocumentSyncCapability::Kind(
+            TextDocumentSyncKind::INCREMENTAL,
+        )),
         hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
         completion_provider: Some(lsp_types::CompletionOptions {
             ..Default::default()
