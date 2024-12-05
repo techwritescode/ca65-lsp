@@ -1,8 +1,7 @@
-use std::{collections::HashMap, error::Error, fs::File};
+use std::{collections::HashMap, fs::File};
 
 use codespan::{
-    byte_span_to_range, get_line, get_line_source, get_word_at_position, range_to_byte_span,
-    FileId, Files,
+    byte_span_to_range, get_line, get_word_at_position, range_to_byte_span, FileId, Files,
 };
 mod instructions;
 mod parser;
@@ -14,7 +13,7 @@ use tokio::sync::Mutex;
 use tower_lsp::{
     jsonrpc::Result,
     lsp_types::{
-        Diagnostic, DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
+        DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
         GotoDefinitionResponse, Hover, HoverParams, InitializeParams, InitializeResult, Location,
         MarkedString, Position, ServerCapabilities, TextDocumentContentChangeEvent,
         TextDocumentItem, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
@@ -74,16 +73,16 @@ impl LanguageServer for Asm {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let mut state = self.state.lock().await;
         tracing::info!("{:#?}", params);
-        let id = get_or_insert_source(&mut state, &params.text_document);
+        _ = get_or_insert_source(&mut state, &params.text_document);
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let mut state = self.state.lock().await;
-        let id = reload_source(&mut state, &params.text_document, params.content_changes);
+        _ = reload_source(&mut state, &params.text_document, params.content_changes);
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
-        let mut state = self.state.lock().await;
+        let state = self.state.lock().await;
 
         if let Some(id) = state
             .sources
@@ -121,7 +120,7 @@ impl LanguageServer for Asm {
         &self,
         params: GotoDefinitionParams,
     ) -> Result<Option<GotoDefinitionResponse>> {
-        let mut state = self.state.lock().await;
+        let state = self.state.lock().await;
 
         if let Some(id) = state
             .sources
