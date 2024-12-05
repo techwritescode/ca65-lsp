@@ -1,6 +1,6 @@
 use core::panic;
 
-use tower_lsp::lsp_types::{Location, Position, Range, Url};
+use tower_lsp::lsp_types::{Position, Range, Url};
 
 #[derive(Debug, PartialEq)]
 pub enum LocationError {
