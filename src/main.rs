@@ -1,43 +1,39 @@
 mod asm_server;
+mod codespan;
+mod configuration;
+mod diagnostics;
 mod instructions;
+mod logger;
 mod parser;
 mod symbol_cache;
 
 use asm_server::Asm;
-use std::fs::File;
 use tower_lsp::{LspService, Server};
-use tracing::Level;
-use tracing_subscriber::{filter, layer::SubscriberExt, Layer, Registry};
-
-mod codespan;
+use tracing_subscriber::{layer::SubscriberExt, Registry};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let current_path = std::env::current_dir().expect("Failed to get working directory");
-    let log_path = std::path::Path::new(&current_path).join("asm.log");
-    let log = File::create(log_path).expect("failed to open log");
-
-    let fmt_layer = tracing_subscriber::fmt::layer()
-        .with_target(false)
-        .with_ansi(false)
-        .with_writer(log)
-        .with_filter(filter::LevelFilter::from_level(Level::DEBUG));
-
-    tracing::subscriber::set_global_default(Registry::default().with(fmt_layer))?;
-
-    std::panic::set_hook(Box::new(|err| {
-        tracing::error!("{:#?}", err);
-    }));
-
-    tracing::error!("Starting up");
-
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
     symbol_cache::init_symbol_cache();
     instructions::init_instruction_map();
 
-    let (service, socket) = LspService::new(|client| Asm::new(client));
+    let (service, socket) = LspService::new(|client| {
+        let fmt_layer = tracing_subscriber::fmt::layer()
+            .with_target(false)
+            .with_ansi(false)
+            .with_writer(logger::LogWriter::new(client.clone()));
+
+        tracing::subscriber::set_global_default(Registry::default().with(fmt_layer))
+            .expect("Failed to set logger");
+        std::panic::set_hook(Box::new(|err| {
+            tracing::error!("{:#?}", err);
+        }));
+        tracing::error!("Starting up");
+
+        Asm::new(client)
+    });
     Server::new(stdin, stdout)
         .interleave(socket)
         .serve(service)

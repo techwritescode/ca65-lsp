@@ -9,12 +9,13 @@ pub fn parse_ident(ident: &str) -> String {
 pub fn is_identifier(ident: &str) -> bool {
     for (i, char) in ident.as_bytes().iter().enumerate() {
         if !(char.is_ascii_alphanumeric() || *char == b'_') {
-            if *char == b':' && i == ident.len() - 1 {
-                return true;
+            if (*char == b':' && i == ident.len() - 1) || (i == 0 && *char == b'@') {
+            } else {
+                // tracing::error!("Failed {}", ident);
+                return false;
             }
-
-            return false;
         }
     }
+    tracing::error!("{}", ident);
     true
 }

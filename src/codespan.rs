@@ -23,6 +23,7 @@ impl FileId {
     }
 }
 
+#[allow(dead_code)]
 pub struct File {
     pub name: String,
     pub source: String,
@@ -176,7 +177,11 @@ impl Files {
     }
 }
 
-fn position_to_byte_index(files: &Files, id: FileId, position: Position) -> anyhow::Result<usize> {
+pub fn position_to_byte_index(
+    files: &Files,
+    id: FileId,
+    position: Position,
+) -> anyhow::Result<usize> {
     let line_span = files.get(id).line_span(position.line as usize)?;
     let byte_offset = position.character as usize;
 
@@ -216,6 +221,7 @@ pub fn get_line(files: &Files, id: FileId, line_index: usize) -> anyhow::Result<
     Ok(file.line_span(line_index)?)
 }
 
+#[allow(dead_code)]
 pub fn get_line_source(files: &Files, id: FileId, span: Span) -> anyhow::Result<&str> {
     let file = files.get(id);
 
@@ -232,7 +238,7 @@ pub fn get_word_at_position(files: &Files, id: FileId, position: Position) -> an
 
 fn find_word_at_pos(line: &str, col: usize) -> (usize, usize) {
     let line_ = format!("{} ", line);
-    let is_ident_char = |c: char| c.is_alphanumeric() || c == '_' || c == '.';
+    let is_ident_char = |c: char| c.is_alphanumeric() || c == '_' || c == '@';
 
     let start = line_
         .chars()
