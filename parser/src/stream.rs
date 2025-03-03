@@ -19,7 +19,7 @@ impl Stream {
         if self.position >= self.input.len() {
             None
         } else {
-            self.input.chars().nth(self.position)
+            Some(self.input.as_bytes()[self.position] as char)
         }
     }
 
@@ -27,7 +27,7 @@ impl Stream {
         if self.position + 1 >= self.input.len() {
             None
         } else {
-            self.input.chars().nth(self.position + 1)
+            Some(self.input.as_bytes()[self.position + 1] as char)
         }
     }
 
@@ -36,9 +36,9 @@ impl Stream {
     }
 
     pub fn advance(&mut self) -> Option<char> {
-        let c = self.input.chars().nth(self.position);
+        let c = self.input.as_bytes()[self.position] as char;
         self.position += 1;
-        c
+        Some(c)
     }
 
     pub fn match_char(&mut self, expected: char) -> bool {
