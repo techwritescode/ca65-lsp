@@ -1,6 +1,6 @@
-use std::fmt;
 use crate::instructions::Instructions;
 use crate::stream::Stream;
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum Token {
@@ -21,6 +21,7 @@ pub enum Token {
     EOL,
     String(String),
     Macro(String),
+    Or,
 }
 
 impl fmt::Display for Token {
@@ -95,9 +96,14 @@ impl Tokenizer {
                 let number = self.hex_number();
                 Some(Token::Number(number))
             }
+            Some('%') => {
+                let number = self.bin_number();
+                Some(Token::Number(number))
+            }
             Some('=') => Some(Token::Equal),
             Some('#') => Some(Token::Hash),
             Some(',') => Some(Token::Comma),
+            Some('|') => Some(Token::Or),
             Some(' ' | '\t' | '\r') => None,
             Some('\n') => Some(Token::EOL),
             None => Some(Token::EOF),
@@ -134,26 +140,42 @@ impl Tokenizer {
     }
 
     fn hex_number(&mut self) -> String {
-        while !self.input.at_end() && self.input.peek().is_some_and(|c| match c {
-            '0'..='9' | 'A'..='F' => true,
-            _ => false,
-        }) {
+        while !self.input.at_end()
+            && self.input.peek().is_some_and(|c| match c {
+                '0'..='9' | 'A'..='F' => true,
+                _ => false,
+            })
+        {
             self.input.advance();
         }
 
-        let text = String::from_utf8(self.input[self.start..self.input.pos()].to_vec()).expect("Failed to read string");
+        let text = String::from_utf8(self.input[self.start..self.input.pos()].to_vec())
+            .expect("Failed to read string");
+        text
+    }
+
+    fn bin_number(&mut self) -> String {
+        while !self.input.at_end()
+            && self.input.peek().is_some_and(|c| match c {
+                '0' | '1' => true,
+                _ => false,
+            })
+        {
+            self.input.advance();
+        }
+
+        let text = String::from_utf8(self.input[self.start..self.input.pos()].to_vec())
+            .expect("Failed to read string");
         text
     }
 
     fn comment(&mut self) {
-        while !self.input.at_end() && self.input.peek() != Some('\n') {
-            self.input.advance();
-        }
+        while !self.input.at_end() && self.input.advance().unwrap() != '\n' {}
 
-        println!(
-            "Comment: {}",
-            String::from_utf8(self.input[self.start..self.input.pos()].to_vec()).unwrap()
-        );
+        // println!(
+        //     "Comment: {}",
+        //     String::from_utf8(self.input[self.start..self.input.pos()].to_vec()).unwrap()
+        // );
     }
 
     fn string(&mut self) -> String {
@@ -161,7 +183,6 @@ impl Tokenizer {
         while !self.input.at_end() && self.input.advance() != Some('"') {}
 
         let string = String::from_utf8(self.input[self.start..self.input.pos()].to_vec()).unwrap();
-        println!("String: {string}");
 
         string
     }

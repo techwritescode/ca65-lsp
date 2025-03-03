@@ -1,6 +1,6 @@
 .include "test3.s"
 
-PPU_STATUS = $8006
+PPU_STATUS = $8006 ; test
 
 test1:
     lda $0

@@ -24,5 +24,6 @@ fn main() {
     println!("{:#?}", tokens);
 
     let mut parser = parser::Parser::new(tokens);
-    println!("{:#?}", parser.parse());
+    let ast = parser.parse();
+    println!("{:#?}", ast);
 }
