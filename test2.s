@@ -8,6 +8,8 @@ test1:
 @test:
     jsr test
 @loop:
+    inc
+    bit #imm, zp
     sta $08
     lda PPU_STATUS
     jsr @loop
