@@ -1,0 +1,3 @@
+file ::= macro | constant_assignment | label | instruction
+
+constant_assignment ::= IDENTIFIER '=' LITERAL
