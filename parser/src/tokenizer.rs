@@ -1,9 +1,8 @@
 use crate::instructions::Instructions;
 use crate::stream::Stream;
-use std::fmt;
 
 #[derive(Debug, Clone)]
-pub enum Token {
+pub enum TokenType {
     Label(String),
     Instruction(String),
     Identifier(String),
@@ -24,20 +23,21 @@ pub enum Token {
     Or,
 }
 
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
+#[derive(Debug, Clone)]
+pub struct Token {
+    pub token_type: TokenType,
+    pub lexeme: String,
+    pub index: usize,
 }
 
-pub struct Tokenizer {
+pub struct Tokenizer<'a> {
     input: Stream,
     start: usize,
-    instructions: Instructions,
+    instructions: &'a Instructions,
 }
 
-impl Tokenizer {
-    pub fn new(input: String, instructions: Instructions) -> Self {
+impl<'a> Tokenizer<'a> {
+    pub fn new(input: String, instructions: &'a Instructions) -> Self {
         Tokenizer {
             input: Stream::new(input),
             start: 0,
@@ -66,47 +66,47 @@ impl Tokenizer {
             Some('.') => {
                 self.input.advance();
                 let m = self.identifier();
-                Some(Token::Macro(m))
+                self.make_token(TokenType::Macro(m))
             }
             Some('"') => {
                 let text = self.string();
-                Some(Token::String(text))
+                self.make_token(TokenType::String(text))
             }
-            Some('(') => Some(Token::LeftParen),
-            Some(')') => Some(Token::RightParen),
+            Some('(') => self.make_token(TokenType::LeftParen),
+            Some(')') => self.make_token(TokenType::RightParen),
             Some('a'..='z' | 'A'..='Z') => {
                 let name = self.identifier();
                 if self.instructions.is_instruction(&name) {
-                    Some(Token::Instruction(name))
+                    self.make_token(TokenType::Instruction(name))
                 } else {
-                    Some(Token::Identifier(name))
+                    self.make_token(TokenType::Identifier(name))
                 }
             }
             Some('@') => {
                 self.input.advance();
                 let ident = self.identifier();
-                Some(Token::Identifier(ident))
+                self.make_token(TokenType::Identifier(ident))
             }
-            Some(':') => Some(Token::Colon),
+            Some(':') => self.make_token(TokenType::Colon),
             Some('0'..='9') => {
                 let number = self.number();
-                Some(Token::Number(number))
+                self.make_token(TokenType::Number(number))
             }
             Some('$') => {
                 let number = self.hex_number();
-                Some(Token::Number(number))
+                self.make_token(TokenType::Number(number))
             }
             Some('%') => {
                 let number = self.bin_number();
-                Some(Token::Number(number))
+                self.make_token(TokenType::Number(number))
             }
-            Some('=') => Some(Token::Equal),
-            Some('#') => Some(Token::Hash),
-            Some(',') => Some(Token::Comma),
-            Some('|') => Some(Token::Or),
+            Some('=') => self.make_token(TokenType::Equal),
+            Some('#') => self.make_token(TokenType::Hash),
+            Some(',') => self.make_token(TokenType::Comma),
+            Some('|') => self.make_token(TokenType::Or),
             Some(' ' | '\t' | '\r') => None,
-            Some('\n') => Some(Token::EOL),
-            None => Some(Token::EOF),
+            Some('\n') => self.make_token(TokenType::EOL),
+            None => self.make_token(TokenType::EOF),
             _ => {
                 unreachable!("Unexpected character {:?}", c)
             }
@@ -185,5 +185,13 @@ impl Tokenizer {
         let string = String::from_utf8(self.input[self.start..self.input.pos()].to_vec()).unwrap();
 
         string
+    }
+
+    fn make_token(&self, token_type: TokenType) -> Option<Token> {
+        Some(Token {
+            token_type,
+            lexeme: String::from_utf8(self.input[self.start..self.input.pos()].to_vec()).unwrap(),
+            index: self.start,
+        })
     }
 }

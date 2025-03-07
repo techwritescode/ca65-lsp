@@ -1,32 +1,17 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::fs::File;
-use std::io::Write;
-use std::path::Path;
 use std::process::Output;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
-
-use crate::codespan::{
-    byte_span_to_range, get_line, get_word_at_position, position_to_byte_index, range_to_byte_span,
-    FileId, Files,
-};
+use lazy_static::lazy_static;
+use crate::codespan::{byte_index_to_position, byte_span_to_range, get_line, get_word_at_position, range_to_byte_span, FileId, Files};
 use crate::configuration::{load_project_configuration, Configuration};
 use crate::instructions;
-use crate::parser::{is_identifier, parse_ident};
-use crate::symbol_cache::{
-    symbol_cache_fetch, symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
-};
-use tempfile::NamedTempFile;
+use crate::symbol_cache::{symbol_cache_fetch, symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use tokio::time;
-use tower_lsp::lsp_types::{
-    CompletionItem, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
-    DocumentSymbolParams, DocumentSymbolResponse, HoverContents, MessageType, OneOf,
-    SymbolInformation,
-};
+use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity, DocumentSymbolParams, DocumentSymbolResponse, HoverContents, InsertTextFormat, MessageType, OneOf, SymbolInformation};
 use tower_lsp::{
     jsonrpc::Result,
     lsp_types::{
@@ -38,8 +23,7 @@ use tower_lsp::{
     },
     Client, LanguageServer,
 };
-
-use streaming_iterator::StreamingIterator;
+use parser::instructions::Instructions;
 
 struct State {
     sources: HashMap<Url, FileId>,
@@ -106,50 +90,51 @@ impl Asm {
 
     async fn index(&self, file_id: &FileId) {
         let state = self.state.lock().await;
-        parse_labels(&state.files, *file_id);
-        let orig_source = state.files.get(*file_id).name.trim_start_matches("file://");
-        let orig_source = Path::new(orig_source).parent();
-        let mut source = NamedTempFile::new().unwrap();
-        source
-            .write_all(state.files.source(*file_id).as_bytes())
-            .unwrap();
-        let source_path = source.path();
-        let temp_path = NamedTempFile::new().unwrap();
-
-        if let Some(compiler) = self.configuration.get_ca65_path() {
-            let output = tokio::process::Command::new(compiler.to_str().unwrap())
-                .args(vec![
-                    source_path.to_str().unwrap(),
-                    "-o",
-                    temp_path.path().to_str().unwrap(),
-                    "-I",
-                    orig_source
-                        .unwrap_or(Path::new(
-                            &std::env::current_dir().expect("Failed to get current dir"),
-                        ))
-                        .to_str()
-                        .unwrap(),
-                ])
-                .output()
-                .await
-                .unwrap();
-            let mut errors = vec![];
-            if !output.status.success() {
-                errors.extend(
-                    make_diagnostics_from_ca65_output(&state.files, *file_id, &output).await,
-                );
-            }
-            self.client
-                .publish_diagnostics(
-                    Url::parse(state.files.get(*file_id).name.as_str()).unwrap(),
-                    errors,
-                    None,
-                )
-                .await;
-        }
+        self.parse_labels(&state.files, *file_id).await;
+        // let orig_source = state.files.get(*file_id).name.trim_start_matches("file://");
+        // let orig_source = Path::new(orig_source).parent();
+        // let mut source = NamedTempFile::new().unwrap();
+        // source
+        //     .write_all(state.files.source(*file_id).as_bytes())
+        //     .unwrap();
+        // let source_path = source.path();
+        // let temp_path = NamedTempFile::new().unwrap();
+        //
+        // if let Some(compiler) = self.configuration.get_ca65_path() {
+        //     let output = tokio::process::Command::new(compiler.to_str().unwrap())
+        //         .args(vec![
+        //             source_path.to_str().unwrap(),
+        //             "-o",
+        //             temp_path.path().to_str().unwrap(),
+        //             "-I",
+        //             orig_source
+        //                 .unwrap_or(Path::new(
+        //                     &std::env::current_dir().expect("Failed to get current dir"),
+        //                 ))
+        //                 .to_str()
+        //                 .unwrap(),
+        //         ])
+        //         .output()
+        //         .await
+        //         .unwrap();
+        //     let mut errors = vec![];
+        //     if !output.status.success() {
+        //         errors.extend(
+        //             make_diagnostics_from_ca65_output(&state.files, *file_id, &output).await,
+        //         );
+        //     }
+        //     self.client
+        //         .publish_diagnostics(
+        //             Url::parse(state.files.get(*file_id).name.as_str()).unwrap(),
+        //             errors,
+        //             None,
+        //         )
+        //         .await;
+        // }
     }
 }
 
+#[allow(dead_code)]
 async fn make_diagnostics_from_ca65_output(
     files: &Files,
     file_id: FileId,
@@ -169,7 +154,7 @@ async fn make_diagnostics_from_ca65_output(
             get_line(&files, file_id, message[1].parse::<usize>().unwrap() - 1).unwrap();
         let range = byte_span_to_range(&files, file_id, line_span).unwrap();
         let severity = match message[2] {
-            "Error" => Some(DiagnosticSeverity::Error),
+            "Error" => Some(DiagnosticSeverity::ERROR),
             _ => None,
         };
         diagnostics.push(Diagnostic::new(
@@ -193,7 +178,7 @@ impl LanguageServer for Asm {
             server_info: None,
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
-                    TextDocumentSyncKind::Incremental,
+                    TextDocumentSyncKind::INCREMENTAL,
                 )),
                 definition_provider: Some(tower_lsp::lsp_types::OneOf::Left(true)),
                 completion_provider: Some(tower_lsp::lsp_types::CompletionOptions {
@@ -210,40 +195,6 @@ impl LanguageServer for Asm {
         Ok(())
     }
 
-    async fn document_symbol(
-        &self,
-        params: DocumentSymbolParams,
-    ) -> Result<Option<DocumentSymbolResponse>> {
-        self.client
-            .log_message(MessageType::Error, "Outline".to_string())
-            .await;
-        let state = self.state.lock().await;
-
-        if let Some(id) = state.sources.get(&params.text_document.uri) {
-            let mut symbols = vec![];
-            for symbol in symbol_cache_get().iter() {
-                if symbol.file_id == *id {
-                    symbols.push(SymbolInformation {
-                        name: symbol.label.clone(),
-                        container_name: None,
-                        kind: tower_lsp::lsp_types::SymbolKind::Function,
-                        location: Location::new(
-                            params.text_document.uri.clone(),
-                            tower_lsp::lsp_types::Range {
-                                start: Position::new(symbol.line as u32, 0),
-                                end: Position::new(symbol.line as u32, symbol.label.len() as u32),
-                            },
-                        ),
-                        tags: None,
-                        deprecated: None,
-                    });
-                }
-            }
-            return Ok(Some(DocumentSymbolResponse::Flat(symbols)));
-        }
-        Ok(None)
-    }
-
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let mut state = self.state.lock().await;
         let id = get_or_insert_source(&mut state, &params.text_document);
@@ -256,41 +207,6 @@ impl LanguageServer for Asm {
         _ = self.queue.send(id).await;
     }
 
-    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
-        let state = self.state.lock().await;
-
-        if let Some(id) = state
-            .sources
-            .get(&params.text_document_position_params.text_document.uri)
-        {
-            let position = params.text_document_position_params.position;
-            let word =
-                get_word_at_position(&state.files, *id, position).expect("Word out of bounds");
-
-            let mut symbols = symbol_cache_fetch(word.to_string());
-            symbols.sort_by(|sym, _| {
-                if sym.file_id == *id {
-                    return Ordering::Less;
-                }
-                Ordering::Equal
-            });
-            let documentation = symbols
-                .first()
-                .map_or(None, |symbol| {
-                    Some(format!("```ca65\n{}\n```", symbol.comment.clone()))
-                })
-                .map(MarkedString::from_markdown);
-            return Ok(documentation.map_or(None, |doc| {
-                Some(Hover {
-                    range: None,
-                    contents: HoverContents::Scalar(doc),
-                })
-            }));
-        }
-
-        Ok(None)
-    }
-
     async fn goto_definition(
         &self,
         params: GotoDefinitionParams,
@@ -301,30 +217,6 @@ impl LanguageServer for Asm {
             .sources
             .get(&params.text_document_position_params.text_document.uri)
         {
-            let mut parser = tree_sitter::Parser::new();
-            parser.set_language(&tree_sitter_ca65::LANGUAGE.into());
-            let tree = parser
-                .parse(state.files.get(*id).source.as_bytes(), None)
-                .unwrap();
-
-            let byte = position_to_byte_index(
-                &state.files,
-                *id,
-                params.text_document_position_params.position,
-            )
-            .unwrap();
-
-            let mut node = tree.root_node();
-            loop {
-                let child = node.first_named_child_for_byte(byte);
-                if let Some(child) = child {
-                    node = child;
-                } else {
-                    tracing::error!("{}", node.to_sexp());
-                    break;
-                }
-            }
-
             let word = get_word_at_position(
                 &state.files,
                 *id,
@@ -367,7 +259,76 @@ impl LanguageServer for Asm {
         Ok(None)
     }
 
-    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        let state = self.state.lock().await;
+
+        if let Some(id) = state
+            .sources
+            .get(&params.text_document_position_params.text_document.uri)
+        {
+            let position = params.text_document_position_params.position;
+            let word =
+                get_word_at_position(&state.files, *id, position).expect("Word out of bounds");
+
+            let mut symbols = symbol_cache_fetch(word.to_string());
+            symbols.sort_by(|sym, _| {
+                if sym.file_id == *id {
+                    return Ordering::Less;
+                }
+                Ordering::Equal
+            });
+            let documentation = symbols
+                .first()
+                .map_or(None, |symbol| {
+                    Some(format!("```ca65\n{}\n```", symbol.comment.clone()))
+                })
+                .map(MarkedString::from_markdown);
+            return Ok(documentation.map_or(None, |doc| {
+                Some(Hover {
+                    range: None,
+                    contents: HoverContents::Scalar(doc),
+                })
+            }));
+        }
+
+        Ok(None)
+    }
+
+    async fn document_symbol(
+        &self,
+        params: DocumentSymbolParams,
+    ) -> Result<Option<DocumentSymbolResponse>> {
+        self.client
+            .log_message(MessageType::ERROR, "Outline".to_string())
+            .await;
+        let state = self.state.lock().await;
+
+        if let Some(id) = state.sources.get(&params.text_document.uri) {
+            let mut symbols = vec![];
+            for symbol in symbol_cache_get().iter() {
+                if symbol.file_id == *id {
+                    symbols.push(SymbolInformation {
+                        name: symbol.label.clone(),
+                        container_name: None,
+                        kind: tower_lsp::lsp_types::SymbolKind::FUNCTION,
+                        location: Location::new(
+                            params.text_document.uri.clone(),
+                            tower_lsp::lsp_types::Range {
+                                start: Position::new(symbol.line as u32, 0),
+                                end: Position::new(symbol.line as u32, symbol.label.len() as u32),
+                            },
+                        ),
+                        tags: None,
+                        deprecated: None,
+                    });
+                }
+            }
+            return Ok(Some(DocumentSymbolResponse::Flat(symbols)));
+        }
+        Ok(None)
+    }
+
+    async fn completion(&self, _params: CompletionParams) -> Result<Option<CompletionResponse>> {
         let mut completion_items: Vec<CompletionItem> = vec![];
         for (opcode, description) in instructions::INSTRUCTION_MAP
             .get()
@@ -385,6 +346,13 @@ impl LanguageServer for Asm {
                 "".to_owned(),
             ));
         }
+        completion_items.push(CompletionItem{
+            label: ".proc".to_string(),
+            kind: Some(CompletionItemKind::FUNCTION),
+            insert_text: Some(".proc $1\n\t$0\n.endproc ; End $1".to_string()),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            ..Default::default()
+        });
         Ok(Some(CompletionResponse::Array(completion_items)))
     }
 }
@@ -422,52 +390,36 @@ fn reload_source(
     }
 }
 
-fn parse_labels(files: &Files, id: FileId) {
-    symbol_cache_reset(id);
+lazy_static!{
+    static ref INSTRUCTIONS: Instructions = Instructions::load();
+}
 
-    let mut parser = tree_sitter::Parser::new();
-    parser
-        .set_language(&tree_sitter_ca65::LANGUAGE.into())
-        .expect("Failed to load grammar");
+impl Asm {
+    async fn parse_labels(&self, files: &Files, id: FileId) {
+        symbol_cache_reset(id);
 
-    let source = files.get(id).source.as_bytes();
-    let mut tree = parser.parse(source, None).unwrap();
+        let source = files.get(id).source.clone();
+        let instructions = &INSTRUCTIONS;
 
-    let query = tree_sitter::Query::new(
-        &tree_sitter_ca65::LANGUAGE.into(),
-        "(label (identifier) @name) (constant (identifier) @name) @constant",
-    )
-    .expect("Failed to build query");
+        let tokens = parser::tokenizer::Tokenizer::new(source, instructions).parse().expect("tokenization failed");
+        self.client.log_message(MessageType::LOG, format!("Tokens: {:#?}", tokens)).await;
+        let ast = parser::parser::Parser::new(&tokens).parse();
+        self.client.log_message(MessageType::LOG, format!("Ast: {:#?}", ast)).await;
 
-    let mut cursor = tree_sitter::QueryCursor::new();
-    let mut matches = cursor.matches(&query, tree.root_node(), source);
-
-    while let Some(m) = matches.next() {
-        tracing::error!("{:#?}", m);
-        match m.pattern_index {
-            0 => {
-                let name = m.captures[0].node.utf8_text(source).unwrap().to_string();
-                symbol_cache_insert(
-                    id,
-                    m.captures[0].node.range().start_point.row,
-                    name.clone(),
-                    name + ":",
-                    SymbolType::Label,
-                );
+        self.client.log_message(MessageType::ERROR, "Looking for labels".to_string()).await;
+        for node in ast.iter() {
+            match node {
+                parser::parser::Operation::Label(name) => {
+                    let pos = byte_index_to_position(files, id, name.index).expect("Index out of bounds");
+                    symbol_cache_insert(id, pos.line as usize, name.lexeme.clone(), "".to_string(), SymbolType::Label);
+                },
+                parser::parser::Operation::ConstantAssign(constant) => {
+                    let pos = byte_index_to_position(files, id, constant.name.index).expect("Index out of bounds");
+                    symbol_cache_insert(id, pos.line as usize, constant.name.lexeme.clone(), "".to_string(), SymbolType::Label);
+                }
+                _ => {}
             }
-            1 => {
-                let name = m.nodes_for_capture_index(0).next().unwrap();
-                let name_str = name.utf8_text(source).unwrap().to_string();
-                let constant = m.nodes_for_capture_index(1).next().unwrap();
-                symbol_cache_insert(
-                    id,
-                    name.range().start_point.row,
-                    name_str,
-                    constant.utf8_text(source).unwrap().to_string(),
-                    SymbolType::Constant,
-                );
-            }
-            _ => {}
         }
+        self.client.log_message(MessageType::ERROR, "Looking for labels END".to_string()).await;
     }
 }

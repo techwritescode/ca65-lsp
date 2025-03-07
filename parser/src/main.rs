@@ -19,7 +19,7 @@ fn main() {
     let mut buf = String::new();
     file.read_to_string(&mut buf).expect("Failed to read file");
 
-    let mut tokenizer = tokenizer::Tokenizer::new(buf, instructions);
+    let mut tokenizer = tokenizer::Tokenizer::new(buf, &instructions);
     let tokens = tokenizer.parse().expect("Failed to parse tokens");
     println!("{:#?}", tokens);
 

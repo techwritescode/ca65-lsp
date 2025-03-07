@@ -1,2 +1,3 @@
 [workspace]
 members = ["lsp", "parser"]
+resolver = "2"

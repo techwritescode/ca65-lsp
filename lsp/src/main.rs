@@ -4,12 +4,10 @@ mod configuration;
 mod diagnostics;
 mod instructions;
 mod logger;
-mod parser;
 mod symbol_cache;
 
 use asm_server::Asm;
 use tower_lsp::{LspService, Server};
-use tracing_subscriber::{layer::SubscriberExt, Registry};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -20,22 +18,21 @@ async fn main() -> anyhow::Result<()> {
     instructions::init_instruction_map();
 
     let (service, socket) = LspService::new(|client| {
-        let fmt_layer = tracing_subscriber::fmt::layer()
-            .with_target(false)
-            .with_ansi(false)
-            .with_writer(logger::LogWriter::new(client.clone()));
-
-        tracing::subscriber::set_global_default(Registry::default().with(fmt_layer))
-            .expect("Failed to set logger");
-        std::panic::set_hook(Box::new(|err| {
-            tracing::error!("{:#?}", err);
-        }));
-        tracing::error!("Starting up");
+        // let fmt_layer = tracing_subscriber::fmt::layer()
+        //     .with_target(false)
+        //     .with_ansi(false)
+        //     .with_writer(logger::LogWriter::new(client.clone()));
+        //
+        // tracing::subscriber::set_global_default(Registry::default().with(fmt_layer))
+        //     .expect("Failed to set logger");
+        // std::panic::set_hook(Box::new(|err| {
+        //     tracing::error!("{:#?}", err);
+        // }));
+        // tracing::error!("Starting up");
 
         Asm::new(client)
     });
-    Server::new(stdin, stdout)
-        .interleave(socket)
+    Server::new(stdin, stdout, socket)
         .serve(service)
         .await;
 

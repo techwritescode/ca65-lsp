@@ -20,7 +20,7 @@ impl io::Write for LspLogger {
         tokio::spawn(async move {
             client
                 .log_message(
-                    tower_lsp::lsp_types::MessageType::Log,
+                    tower_lsp::lsp_types::MessageType::LOG,
                     String::from_utf8(message).unwrap(),
                 )
                 .await;
