@@ -23,7 +23,7 @@ fn main() {
     let tokens = tokenizer.parse().expect("Failed to parse tokens");
     println!("{:#?}", tokens);
 
-    let mut parser = parser::Parser::new(tokens);
+    let mut parser = parser::Parser::new(&tokens);
     let ast = parser.parse();
     println!("{:#?}", ast);
 }
