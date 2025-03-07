@@ -11,8 +11,19 @@ env:
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os:
+          - name: ubuntu
+            version: ubuntu-latest
+            executable: ca65-lsp
+          - name: macos
+            version: macos-latest
+            executable: ca65-lsp
+          - name: windows
+            version: windows-latest
+            executable: ca65-lsp.exe
+    runs-on: ${{matrix.os.version}}
 
     steps:
     - uses: actions/checkout@v4
@@ -21,6 +32,7 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4.6.1
+      uses: actions/upload-artifact@v4
       with:
-        path: target/release/ca65-lsp
+        name: ca65-lsp-${{matrix.os.name}}
+        path: target/release/${{matrix.os.executable}}
