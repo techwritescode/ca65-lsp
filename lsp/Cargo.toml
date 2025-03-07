@@ -1,5 +1,5 @@
 [package]
-name = "asm6502-lsp"
+name = "ca65-lsp"
 version = "0.1.0"
 edition = "2021"
 
