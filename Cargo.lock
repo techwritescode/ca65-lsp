@@ -24,24 +24,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcfed56ad506cb2c684a14971b8861fdc3baaaae314b9e5f9bb532cbe3ba7a4f"
 
 [[package]]
-name = "asm6502-lsp"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "lazy_static",
- "parser",
- "serde",
- "serde_json",
- "streaming-iterator",
- "tempfile",
- "tokio",
- "toml",
- "tower-lsp",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "async-trait"
 version = "0.1.87"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -101,6 +83,24 @@ name = "bytes"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f61dac84819c6588b558454b194026eb1f09c293b9036ae9b159e74e73ab6cf9"
+
+[[package]]
+name = "ca65-lsp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "lazy_static",
+ "parser",
+ "serde",
+ "serde_json",
+ "streaming-iterator",
+ "tempfile",
+ "tokio",
+ "toml",
+ "tower-lsp",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "cfg-if"
