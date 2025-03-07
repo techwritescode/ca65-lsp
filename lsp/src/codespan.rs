@@ -4,8 +4,8 @@ use tower_lsp::lsp_types::{Position, Range, Url};
 
 #[derive(Debug, PartialEq)]
 pub enum LocationError {
-    OutOfBounds { given: u32, span: Span },
-    InvalidCharBoundary { given: u32 },
+    OutOfBounds { given: usize, span: Span },
+    InvalidCharBoundary { given: usize },
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -27,12 +27,12 @@ impl FileId {
 pub struct File {
     pub name: String,
     pub source: String,
-    line_starts: Vec<u32>,
+    line_starts: Vec<usize>,
 }
 
-fn get_line_starts(contents: &str) -> Vec<u32> {
+fn get_line_starts(contents: &str) -> Vec<usize> {
     std::iter::once(0)
-        .chain(contents.match_indices('\n').map(|(i, _)| i as u32 + 1))
+        .chain(contents.match_indices('\n').map(|(i, _)| i + 1))
         .collect()
 }
 
@@ -52,12 +52,12 @@ impl File {
         self.line_starts = line_starts;
     }
 
-    fn line_start(&self, line_index: usize) -> anyhow::Result<u32> {
+    fn line_start(&self, line_index: usize) -> anyhow::Result<usize> {
         use std::cmp::Ordering;
 
         match line_index.cmp(&self.last_line_index()) {
             Ordering::Less => Ok(self.line_starts[line_index]),
-            Ordering::Equal => Ok(self.source.len() as u32),
+            Ordering::Equal => Ok(self.source.len()),
             Ordering::Greater => {
                 tracing::error!("Line index out of bounds");
                 panic!("Line index out of bounds")
@@ -76,7 +76,7 @@ impl File {
         Ok(Span::new(line_start, next_line_start))
     }
 
-    fn location(&self, byte_index: u32) -> Result<Position, LocationError> {
+    fn location(&self, byte_index: usize) -> Result<Position, LocationError> {
         match self.line_starts.binary_search(&byte_index) {
             Ok(line) => Ok(Position {
                 line: line as u32,
@@ -95,7 +95,7 @@ impl File {
                     .source
                     .get((line_start_index as usize)..(byte_index as usize))
                     .ok_or_else(|| {
-                        let given = byte_index;
+                        let given = byte_index as usize;
                         if given >= self.source_span().end() {
                             let span = self.source_span();
                             LocationError::OutOfBounds { given, span }
@@ -120,26 +120,26 @@ impl File {
     }
 
     fn source_span(&self) -> Span {
-        Span::new(0, self.source.len() as u32)
+        Span::new(0, self.source.len())
     }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Span {
-    start: u32,
-    end: u32,
+    start: usize,
+    end: usize,
 }
 
 impl Span {
-    pub fn new(start: u32, end: u32) -> Self {
+    pub fn new(start: usize, end: usize) -> Self {
         Self { start, end }
     }
 
-    fn start(self) -> u32 {
+    fn start(self) -> usize {
         self.start
     }
 
-    fn end(self) -> u32 {
+    fn end(self) -> usize {
         self.end
     }
 }
@@ -200,7 +200,7 @@ pub fn range_to_byte_span(
 pub fn byte_index_to_position(
     files: &Files,
     id: FileId,
-    byte_index: u32,
+    byte_index: usize,
 ) -> Result<Position, LocationError> {
     let file = files.get(id);
     let location = file.location(byte_index)?;
@@ -218,14 +218,14 @@ pub fn byte_span_to_range(files: &Files, id: FileId, span: Span) -> Result<Range
 pub fn get_line(files: &Files, id: FileId, line_index: usize) -> anyhow::Result<Span> {
     let file = files.get(id);
 
-    Ok(file.line_span(line_index)?)
+    file.line_span(line_index)
 }
 
 #[allow(dead_code)]
 pub fn get_line_source(files: &Files, id: FileId, span: Span) -> anyhow::Result<&str> {
     let file = files.get(id);
 
-    Ok(file.source_slice(span)?)
+    file.source_slice(span)
 }
 
 pub fn get_word_at_position(files: &Files, id: FileId, position: Position) -> anyhow::Result<&str> {

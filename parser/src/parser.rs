@@ -1,73 +1,60 @@
-use crate::tokenizer::Token;
-
-// macro_rules! match_token {
-//     ($stream:expr, $token:pat) => {{
-//         match $stream.peek() {
-//             Some($token) => {
-//                 $stream.advance();
-//                 true
-//             }
-//             _ => false,
-//         }
-//     }};
-// }
+use crate::tokenizer::{Token, TokenType};
 
 macro_rules! consume_token {
     ($stream:expr, $token:pat, $error:literal) => {
-        match $stream.peek() {
-            Some($token) => $stream.advance(),
-            _ => {
-                panic!("Syntax Error: {}", $error);
-            }
+        if let Some(Token { token_type: $token, .. }) = $stream.peek() {
+            $stream.advance();
+        } else {
+            panic!("Syntax Error: {}", $error);
         }
     };
 }
 
 macro_rules! consume_token2 {
     ($stream:expr, $token:pat => $out:ident, $error:literal) => {
-        match $stream.peek() {
-            Some($token) => {
-                $stream.advance();
-                $out
-            }
-            _ => {
-                panic!("Syntax Error: {}", $error);
-            }
+        if let Some(Token { token_type: $token, .. }) = $stream.peek() {
+            $stream.advance();
+            $out
+        } else {
+            unreachable!();
         }
     };
 }
 
 macro_rules! check_token {
     ($stream:expr, $token:pat) => {
-        match $stream.peek() {
-            Some($token) => {
-                $stream.advance();
-                true
-            }
-            _ => false,
+        if let Some(Token { token_type: $token, .. }) = $stream.peek() {
+            $stream.advance();
+            true
+        } else {
+            false
         }
     };
 }
 
 macro_rules! check_token2 {
     ($stream:expr, $token:pat => $out:ident) => {
-        match $stream.peek() {
-            Some($token) => {
-                $stream.advance();
-                Some($out)
+        if let Some(tok) = $stream.peek() {
+            match tok.token_type {
+                $token => {
+                    $stream.advance();
+                    Some($out)
+                }
+                _ => None,
             }
-            _ => None,
+        } else {
+            None
         }
     };
 }
 
-pub struct TokenStream {
-    tokens: Vec<Token>,
+pub struct TokenStream<'a> {
+    tokens: &'a Vec<Token>,
     position: usize,
 }
 
-impl TokenStream {
-    pub fn new(tokens: Vec<Token>) -> Self {
+impl<'a> TokenStream<'a> {
+    pub fn new(tokens: &'a Vec<Token>) -> Self {
         Self {
             tokens,
             position: 0,
@@ -103,41 +90,39 @@ impl TokenStream {
 
 #[derive(Debug)]
 pub struct ConstantAssign {
-    name: String,
-    value: Token,
+    pub name: Token,
+    pub value: Token,
 }
 
 #[derive(Debug)]
 pub enum Expression {
     Immediate(Box<Expression>),
-    Unary(Token, Box<Expression>),
+    Unary(TokenType, Box<Expression>),
     Literal(String),
 }
 
 #[derive(Debug)]
 pub struct Instruction {
-    mnemonic: String,
-    parameters: Vec<Expression>,
+    pub mnemonic: String,
+    pub parameters: Vec<Expression>,
 }
 
 #[derive(Debug)]
 pub enum Operation {
     ConstantAssign(ConstantAssign),
     Include(String),
-    Label(String),
+    Label(Token),
     Instruction(Instruction),
 }
 
-pub struct Parser {
-    tokens: TokenStream,
-    position: usize,
+pub struct Parser<'a> {
+    tokens: TokenStream<'a>,
 }
 
-impl Parser {
-    pub fn new(tokens: Vec<Token>) -> Self {
+impl<'a> Parser<'a> {
+    pub fn new(tokens: &'a Vec<Token>) -> Self {
         Self {
             tokens: TokenStream::new(tokens),
-            position: 0,
         }
     }
 
@@ -145,15 +130,11 @@ impl Parser {
         let mut operations = vec![];
 
         while !self.tokens.at_end() {
-            if self.tokens.peek().is_some_and(|t| match t {
-                Token::EOL => true,
-                _ => false,
-            }) {
+            if self.tokens.peek().is_some_and(|t| matches!(t.token_type, TokenType::EOL)) {
                 self.tokens.advance();
                 continue;
             }
             if let Some(operation) = self.parse_macro() {
-                println!("Received Token {:#?}", operation);
                 operations.push(operation);
             }
         }
@@ -162,12 +143,12 @@ impl Parser {
     }
 
     fn parse_macro(&mut self) -> Option<Operation> {
-        if let Some(ident) = check_token2!(self.tokens, Token::Macro(i) => i) {
+        if let Some(ident) = check_token2!(self.tokens, TokenType::Macro(i) => i) {
             match ident.as_str() {
                 ".include" => {
                     let path =
-                        consume_token2!(self.tokens, Token::String(s) => s, "Expected String");
-                    consume_token!(self.tokens, Token::EOL, "Expected EOL");
+                        consume_token2!(self.tokens, TokenType::String(s) => s, "Expected String");
+                    consume_token!(self.tokens, TokenType::EOL, "Expected EOL");
                     println!("Include {path}");
                     return Some(Operation::Include(path));
                 }
@@ -179,49 +160,36 @@ impl Parser {
     }
 
     fn parse_assignment(&mut self) -> Option<Operation> {
-        match self.tokens.peek() {
-            Some(Token::Identifier(ident)) => {
+        if let Some(token) = self.tokens.peek() {
+            if let TokenType::Identifier(_) = token.token_type.clone() {
                 self.tokens.advance();
-                if check_token!(self.tokens, Token::Equal) {
+                if check_token!(self.tokens, TokenType::Equal) {
                     let operation = Operation::ConstantAssign(ConstantAssign {
-                        name: ident.to_string(),
+                        name: token,
                         value: self.tokens.advance().expect("Unexpected EOF"),
                     });
 
-                    consume_token!(self.tokens, Token::EOL, "Missing Newline");
+                    consume_token!(self.tokens, TokenType::EOL, "Missing Newline");
 
                     return Some(operation);
                 }
-                if check_token!(self.tokens, Token::Colon) {
-                    return self.parse_label(ident);
+                if check_token!(self.tokens, TokenType::Colon) {
+                    return self.parse_label(token);
                 }
-                // match self.tokens.peek() {
-                //     Some(Token::Identifier(ident)) => {
-                //         self.tokens.advance();
-                //         println!("Assignment to ident: {}", ident);
-                //     },
-                //     Some(Token::Number(num)) => {
-                //         self.tokens.advance();
-                //     }
-                //     _ => {
-                //         panic!("Unexpected Token: {}", self.tokens.peek().unwrap());
-                //     }
-                // }
             }
-            _ => {}
         }
         self.parse_instruction()
     }
 
     fn parse_instruction(&mut self) -> Option<Operation> {
-        if let Some(mnemonic) = check_token2!(self.tokens, Token::Instruction(i) => i) {
+        if let Some(mnemonic) = check_token2!(self.tokens, TokenType::Instruction(i) => i) {
             let mut parameters = vec![];
-            if check_token!(self.tokens, Token::EOL) {
+            if check_token!(self.tokens, TokenType::EOL) {
                 println!("No Parameters")
             } else {
                 parameters.push(self.parse_expression());
-                while !self.tokens.at_end() && !check_token!(self.tokens, Token::EOL) {
-                    consume_token!(self.tokens, Token::Comma, "Expected Comma");
+                while !self.tokens.at_end() && !check_token!(self.tokens, TokenType::EOL) {
+                    consume_token!(self.tokens, TokenType::Comma, "Expected Comma");
                     parameters.push(self.parse_expression());
                 }
             }
@@ -234,7 +202,7 @@ impl Parser {
         panic!("Syntax Error: {:?}", self.tokens.peek());
     }
 
-    fn parse_label(&mut self, name: String) -> Option<Operation> {
+    fn parse_label(&mut self, name: Token) -> Option<Operation> {
         Some(Operation::Label(name))
     }
 
@@ -243,17 +211,17 @@ impl Parser {
     }
 
     fn parse_unary(&mut self) -> Expression {
-        if (check_token!(self.tokens, Token::Hash)) {
+        if check_token!(self.tokens, TokenType::Hash) {
             return Expression::Immediate(Box::from(self.parse_unary()));
         }
         self.parse_primary()
     }
 
     fn parse_primary(&mut self) -> Expression {
-        if let Some(num) = check_token2!(self.tokens, Token::Number(i) => i) {
+        if let Some(num) = check_token2!(self.tokens, TokenType::Number(i) => i) {
             return Expression::Literal(num);
         }
-        if let Some(ident) = check_token2!(self.tokens, Token::Identifier(i) => i) {
+        if let Some(ident) = check_token2!(self.tokens, TokenType::Identifier(i) => i) {
             return Expression::Literal(ident);
         }
         panic!("Syntax Error: {:?}", self.tokens.peek());
