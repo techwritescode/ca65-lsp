@@ -1,17 +1,27 @@
+use crate::codespan::{
+    byte_index_to_position, byte_span_to_range, get_line, get_word_at_position, range_to_byte_span,
+    FileId, Files,
+};
+use crate::configuration::{load_project_configuration, Configuration};
+use crate::symbol_cache::{
+    symbol_cache_fetch, symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
+};
+use crate::{instructions, symbol_cache};
+use lazy_static::lazy_static;
+use parser::instructions::Instructions;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::process::Output;
 use std::sync::Arc;
 use std::time::Duration;
-use lazy_static::lazy_static;
-use crate::codespan::{byte_index_to_position, byte_span_to_range, get_line, get_word_at_position, range_to_byte_span, FileId, Files};
-use crate::configuration::{load_project_configuration, Configuration};
-use crate::instructions;
-use crate::symbol_cache::{symbol_cache_fetch, symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use tokio::time;
-use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity, DocumentSymbolParams, DocumentSymbolResponse, HoverContents, InsertTextFormat, MessageType, OneOf, SymbolInformation};
+use tower_lsp::lsp_types::{
+    CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, Diagnostic,
+    DiagnosticSeverity, DocumentSymbolParams, DocumentSymbolResponse, HoverContents,
+    InsertTextFormat, MessageType, OneOf, SymbolInformation,
+};
 use tower_lsp::{
     jsonrpc::Result,
     lsp_types::{
@@ -23,7 +33,6 @@ use tower_lsp::{
     },
     Client, LanguageServer,
 };
-use parser::instructions::Instructions;
 
 struct State {
     sources: HashMap<Url, FileId>,
@@ -346,7 +355,7 @@ impl LanguageServer for Asm {
                 "".to_owned(),
             ));
         }
-        completion_items.push(CompletionItem{
+        completion_items.push(CompletionItem {
             label: ".proc".to_string(),
             kind: Some(CompletionItemKind::FUNCTION),
             insert_text: Some(".proc $1\n\t$0\n.endproc ; End $1".to_string()),
@@ -390,7 +399,7 @@ fn reload_source(
     }
 }
 
-lazy_static!{
+lazy_static! {
     static ref INSTRUCTIONS: Instructions = Instructions::load();
 }
 
@@ -401,25 +410,49 @@ impl Asm {
         let source = files.get(id).source.clone();
         let instructions = &INSTRUCTIONS;
 
-        let tokens = parser::tokenizer::Tokenizer::new(source, instructions).parse().expect("tokenization failed");
-        self.client.log_message(MessageType::LOG, format!("Tokens: {:#?}", tokens)).await;
+        let tokens = parser::tokenizer::Tokenizer::new(source, instructions)
+            .parse()
+            .expect("tokenization failed");
+        self.client
+            .log_message(MessageType::LOG, format!("Tokens: {:#?}", tokens))
+            .await;
         let ast = parser::parser::Parser::new(&tokens).parse();
-        self.client.log_message(MessageType::LOG, format!("Ast: {:#?}", ast)).await;
+        self.client
+            .log_message(MessageType::LOG, format!("Ast: {:#?}", ast))
+            .await;
 
-        self.client.log_message(MessageType::ERROR, "Looking for labels".to_string()).await;
+        self.client
+            .log_message(MessageType::ERROR, "Looking for labels".to_string())
+            .await;
         for node in ast.iter() {
             match node {
                 parser::parser::Operation::Label(name) => {
-                    let pos = byte_index_to_position(files, id, name.index).expect("Index out of bounds");
-                    symbol_cache_insert(id, pos.line as usize, name.lexeme.clone(), "".to_string(), SymbolType::Label);
-                },
+                    let pos =
+                        byte_index_to_position(files, id, name.index).expect("Index out of bounds");
+                    symbol_cache_insert(
+                        id,
+                        pos.line as usize,
+                        name.lexeme.clone(),
+                        "".to_string(),
+                        SymbolType::Label,
+                    );
+                }
                 parser::parser::Operation::ConstantAssign(constant) => {
-                    let pos = byte_index_to_position(files, id, constant.name.index).expect("Index out of bounds");
-                    symbol_cache_insert(id, pos.line as usize, constant.name.lexeme.clone(), "".to_string(), SymbolType::Label);
+                    let pos = byte_index_to_position(files, id, constant.name.index)
+                        .expect("Index out of bounds");
+                    symbol_cache_insert(
+                        id,
+                        pos.line as usize,
+                        constant.name.lexeme.clone(),
+                        "".to_string(),
+                        SymbolType::Label,
+                    );
                 }
                 _ => {}
             }
         }
-        self.client.log_message(MessageType::ERROR, "Looking for labels END".to_string()).await;
+        self.client
+            .log_message(MessageType::ERROR, "Looking for labels END".to_string())
+            .await;
     }
 }
