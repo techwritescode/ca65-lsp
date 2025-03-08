@@ -149,7 +149,7 @@ impl<'a> Parser<'a> {
                     let path =
                         consume_token2!(self.tokens, TokenType::String(s) => s, "Expected String");
                     consume_token!(self.tokens, TokenType::EOL, "Expected EOL");
-                    println!("Include {path}");
+                    // println!("Include {path}");
                     return Some(Operation::Include(path));
                 }
                 _ => panic!("Unexpected Macro: {}", ident),
@@ -185,7 +185,7 @@ impl<'a> Parser<'a> {
         if let Some(mnemonic) = check_token2!(self.tokens, TokenType::Instruction(i) => i) {
             let mut parameters = vec![];
             if check_token!(self.tokens, TokenType::EOL) {
-                println!("No Parameters")
+                // println!("No Parameters")
             } else {
                 parameters.push(self.parse_expression());
                 while !self.tokens.at_end() && !check_token!(self.tokens, TokenType::EOL) {
