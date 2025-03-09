@@ -376,7 +376,6 @@ impl LanguageServer for Asm {
 				..Default::default()
 			})
 		);
-
         Ok(Some(CompletionResponse::Array(completion_items)))
     }
 }
