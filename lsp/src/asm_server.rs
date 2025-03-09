@@ -34,6 +34,45 @@ use tower_lsp::{
     Client, LanguageServer,
 };
 
+struct BlockControlCommand {
+	opening: &'static str,
+	closing: &'static str,
+}
+static BLOCK_CONTROL_COMMANDS: &[BlockControlCommand] = &[
+	BlockControlCommand {
+		opening: ".scope",
+		closing: ".endscope",
+	},
+	BlockControlCommand {
+		opening: ".proc",
+		closing: ".endproc",
+	},
+	BlockControlCommand {
+		opening: ".macro",
+		closing: ".endmacro",
+	},
+	BlockControlCommand {
+		opening: ".enum",
+		closing: ".endenum",
+	},
+	BlockControlCommand {
+		opening: ".union",
+		closing: ".endunion",
+	},
+	BlockControlCommand {
+		opening: ".if",
+		closing: ".endif",
+	},
+	BlockControlCommand {
+		opening: ".repeat",
+		closing: ".endrepeat",
+	},
+	BlockControlCommand {
+		opening: ".struct",
+		closing: ".endstruct",
+	},
+];
+
 struct State {
     sources: HashMap<Url, FileId>,
     files: Files,
@@ -355,13 +394,15 @@ impl LanguageServer for Asm {
                 "".to_owned(),
             ));
         }
-        completion_items.push(CompletionItem {
-            label: ".proc".to_string(),
-            kind: Some(CompletionItemKind::FUNCTION),
-            insert_text: Some(".proc $1\n\t$0\n.endproc ; End $1".to_string()),
-            insert_text_format: Some(InsertTextFormat::SNIPPET),
-            ..Default::default()
-        });
+		for command in BLOCK_CONTROL_COMMANDS {
+			completion_items.push(CompletionItem {
+				label: command.opening.to_string(),
+				kind: Some(CompletionItemKind::FUNCTION),
+				insert_text: Some(format!("{} $1\n\t$0\n{} ; End $1", command.opening, command.closing)),
+				insert_text_format: Some(InsertTextFormat::SNIPPET),
+				..Default::default()
+			});
+		}
         Ok(Some(CompletionResponse::Array(completion_items)))
     }
 }
