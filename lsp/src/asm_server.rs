@@ -34,6 +34,17 @@ use tower_lsp::{
     Client, LanguageServer,
 };
 
+static BLOCK_CONTROL_COMMANDS: &[&'static str] = &[
+	"scope",
+	"proc",
+	"macro",
+	"enum",
+	"union",
+	"if",
+	"repeat",
+	"struct",
+];
+
 struct State {
     sources: HashMap<Url, FileId>,
     files: Files,
@@ -355,13 +366,15 @@ impl LanguageServer for Asm {
                 "".to_owned(),
             ));
         }
-        completion_items.push(CompletionItem {
-            label: ".proc".to_string(),
-            kind: Some(CompletionItemKind::FUNCTION),
-            insert_text: Some(".proc $1\n\t$0\n.endproc ; End $1".to_string()),
-            insert_text_format: Some(InsertTextFormat::SNIPPET),
-            ..Default::default()
-        });
+		for command in BLOCK_CONTROL_COMMANDS {
+			completion_items.push(CompletionItem {
+				label: (*command).to_string(),
+				kind: Some(CompletionItemKind::FUNCTION),
+				insert_text: Some(format!(".{} $1\n\t$0\n.end{} ; End $1", *command, *command)),
+				insert_text_format: Some(InsertTextFormat::SNIPPET),
+				..Default::default()
+			});
+		}
         Ok(Some(CompletionResponse::Array(completion_items)))
     }
 }
