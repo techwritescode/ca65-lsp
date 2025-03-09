@@ -366,15 +366,16 @@ impl LanguageServer for Asm {
                 "".to_owned(),
             ));
         }
-		for command in BLOCK_CONTROL_COMMANDS {
-			completion_items.push(CompletionItem {
+		completion_items.extend(BLOCK_CONTROL_COMMANDS
+			.iter()
+			.map(|command| CompletionItem {
 				label: (*command).to_string(),
 				kind: Some(CompletionItemKind::FUNCTION),
 				insert_text: Some(format!(".{} $1\n\t$0\n.end{} ; End $1", *command, *command)),
 				insert_text_format: Some(InsertTextFormat::SNIPPET),
 				..Default::default()
-			});
-		}
+			})
+		);
         Ok(Some(CompletionResponse::Array(completion_items)))
     }
 }
