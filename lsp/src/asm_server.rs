@@ -34,43 +34,15 @@ use tower_lsp::{
     Client, LanguageServer,
 };
 
-struct BlockControlCommand {
-	opening: &'static str,
-	closing: &'static str,
-}
-static BLOCK_CONTROL_COMMANDS: &[BlockControlCommand] = &[
-	BlockControlCommand {
-		opening: ".scope",
-		closing: ".endscope",
-	},
-	BlockControlCommand {
-		opening: ".proc",
-		closing: ".endproc",
-	},
-	BlockControlCommand {
-		opening: ".macro",
-		closing: ".endmacro",
-	},
-	BlockControlCommand {
-		opening: ".enum",
-		closing: ".endenum",
-	},
-	BlockControlCommand {
-		opening: ".union",
-		closing: ".endunion",
-	},
-	BlockControlCommand {
-		opening: ".if",
-		closing: ".endif",
-	},
-	BlockControlCommand {
-		opening: ".repeat",
-		closing: ".endrepeat",
-	},
-	BlockControlCommand {
-		opening: ".struct",
-		closing: ".endstruct",
-	},
+static BLOCK_CONTROL_COMMANDS: &[&'static str] = &[
+	"scope",
+	"proc",
+	"macro",
+	"enum",
+	"union",
+	"if",
+	"repeat",
+	"struct",
 ];
 
 struct State {
@@ -396,9 +368,9 @@ impl LanguageServer for Asm {
         }
 		for command in BLOCK_CONTROL_COMMANDS {
 			completion_items.push(CompletionItem {
-				label: command.opening.to_string(),
+				label: (*command).to_string(),
 				kind: Some(CompletionItemKind::FUNCTION),
-				insert_text: Some(format!("{} $1\n\t$0\n{} ; End $1", command.opening, command.closing)),
+				insert_text: Some(format!(".{} $1\n\t$0\n.end{} ; End $1", *command, *command)),
 				insert_text_format: Some(InsertTextFormat::SNIPPET),
 				..Default::default()
 			});
