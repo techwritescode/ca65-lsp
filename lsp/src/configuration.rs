@@ -17,12 +17,13 @@ pub struct Configuration {
 
 impl Configuration {
     pub fn new(path: PathBuf) -> Self {
-        let mut file = File::open(path.clone()).expect("Failed to open configuration");
-        let mut buf: String = "".to_owned();
-        file.read_to_string(&mut buf)
-            .expect("Failed to read configuration");
+        // let mut file = File::open(path.clone()).expect("Failed to open configuration");
+        // let mut buf: String = "".to_owned();
+        // file.read_to_string(&mut buf)
+        //     .expect("Failed to read configuration");
 
-        toml::from_str(buf.as_str()).unwrap()
+        // toml::from_str(buf.as_str()).unwrap()
+        Self { toolchain: Toolchain{ cc65: Some("C:/Users/TaylorPlewe/webroot/cc65/bin".to_string()) } }
     }
 
     pub fn get_ca65_path(&self) -> Option<PathBuf> {

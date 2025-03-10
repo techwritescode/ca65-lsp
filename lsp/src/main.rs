@@ -16,6 +16,7 @@ async fn main() -> anyhow::Result<()> {
 
     symbol_cache::init_symbol_cache();
     instructions::init_instruction_map();
+    instructions::init_full_instruction_map();
 
     let (service, socket) = LspService::new(|client| {
         // let fmt_layer = tracing_subscriber::fmt::layer()

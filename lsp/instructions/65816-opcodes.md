@@ -1,3 +1,5 @@
+{adc}
+{:}
 ADC - Add with Carry
 ====================
 
@@ -30,9 +32,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `ADC [dp], Y`     | DP Indirect Long Indexed, Y | `$77` | 2     | 6 |
 `ADC sr, S`       | Stack Relative            | `$63`   | 2     | 4 |
 `ADC (sr, S), Y`  | SR Indirect Indexed, Y    | `$73`   | 2     | 7 |
+{.}
 
-
-
+{and}
+{:}
 AND - And Accumulator with Memory
 =================================
 
@@ -63,9 +66,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `AND [dp], Y`     | DP Indirect Long Indexed, Y | `$37` | 2     | 6 |
 `AND sr, S`       | Stack Relative            | `$23`   | 2     | 4 |
 `AND (sr, S), Y`  | SR Indirect Indexed, Y    | `$33`   | 2     | 7 |
+{.}
 
-
-
+{asl}
+{:}
 ASL - Arithmetic Shift Left
 ===========================
 
@@ -88,7 +92,7 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `ASL dp`          | Direct Page               | `$06`   | 2     | 5 |
 `ASL addr, X`     | Absolute Indexed, X       | `$1E`   | 3     | 7 |
 `ASL dp, X`       | Direct Page Indexed, X    | `$16`   | 2     | 6 |
-
+{.}
 
 
 Branches
@@ -121,9 +125,10 @@ Syntax          | Name                      | Condition       |     | Opcode| By
 `BVS near`        | Branch if Overflow Set    | overflow set    | v=1 | `$70`   | 2     | 2 |
 `BRA near`        | Branch Always             | always          |     | `$80`   | 2     | 3 |
 `BRL label`       | Branch Always Long        | always          |     | `$82`   | 3     | 4
+{.}
 
-
-
+{bit}
+{:}
 BIT - Test Memory Bits against Accumulator
 ==========================================
 
@@ -149,9 +154,11 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `BIT dp`          | Direct Page               | `$24`   | 2     | 3 |
 `BIT addr, X`     | Absolute Indexed, X       | `$3C`   | 3     | 4 |
 `BIT dp, X`       | Direct Page Indexed, X    | `$34`   | 2     | 4 |
+{.}
 
-
-
+{brk}
+{cop}
+{:}
 Software Interrupts
 ===================
 
@@ -192,9 +199,13 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `BRK param`       | Interrupt                 | `$00`   | 2     | 7 |
 `COP param`       | Interrupt                 | `$02`   | 2     | 7 |
+{.}
 
-
-
+{clc}
+{cld}
+{cli}
+{clv}
+{:}
 Clear Status Flags
 ==================
 
@@ -228,11 +239,12 @@ Syntax          | Name                      | Opcode| Bytes | Cycles |
 `CLI`             | Clear Interrupt Disable Flag | `$58`| 1     | 2
 `CLD`             | Clear Decimal Flag        | `$D8`   | 1     | 2
 `CLV`             | Clear Overflow Flag       | `$B8`   | 1     | 2
+{.}
 
-
-
+{cmp}
+{:}
 CMP - Compare Accumulator with Memory
-=====================================
+================================
 
 **Flags affected**: `n-----zc`
 
@@ -263,9 +275,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `CMP [dp], Y`     | DP Indirect Long Indexed, Y | `$D7` | 2     | 6 |
 `CMP sr, S`       | Stack Relative            | `$C3`   | 2     | 4 |
 `CMP (sr, S), Y`  | SR Indirect Indexed, Y    | `$D3`   | 2     | 7 |
+{.}
 
-
-
+{cpx}
+{:}
 CPX - Compare Index Register X with Memory
 ==========================================
 
@@ -286,9 +299,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `CPX #const`      | Immediate                 | `$E0`   | 2 / 3 | 2 |
 `CPX addr`        | Absolute                  | `$EC`   | 3     | 4 |
 `CPX dp`          | Direct Page               | `$E4`   | 2     | 3 |
+{.}
 
-
-
+{cpy}
+{:}
 CPY - Compare Index Register Y with Memory
 ==========================================
 
@@ -309,9 +323,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `CPY #const`      | Immediate                 | `$C0`   | 2 / 3 | 2 |
 `CPY addr`        | Absolute                  | `$CC`   | 3     | 4 |
 `CPY dp`          | Direct Page               | `$C4`   | 2     | 3 |
+{.}
 
-
-
+{dec}
+{:}
 DEC - Decrement
 ===============
 
@@ -332,9 +347,11 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `DEC dp`          | Direct Page               | `$C6`   | 2     | 5 |
 `DEC addr, X`     | Absolute Indexed, X       | `$DE`   | 3     | 7 |
 `DEC dp, X`       | Direct Page Indexed, X    | `$D6`   | 2     | 6 |
+{.}
 
-
-
+{dex}
+{dey}
+{:}
 DEX, DEY - Decrement Index Registers
 ====================================
 
@@ -352,9 +369,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `DEX`             | Implied                   | `$CA`   | 1     | 2
 `DEY`             | Implied                   | `$88`   | 1     | 2
+{.}
 
-
-
+{eor}
+{:}
 EOR - Exclusive OR Accumulator with Memory
 ==========================================
 
@@ -385,9 +403,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `EOR [dp], Y`     | DP Indirect Long Indexed, Y | `$57` | 2     | 6 |
 `EOR sr, S`       | Stack Relative            | `$43`   | 2     | 4 |
 `EOR (sr, S), Y`  | SR Indirect Indexed, Y    | `$53`   | 2     | 7 |
+{.}
 
-
-
+{inc}
+{:}
 INC - Increment
 ===============
 
@@ -408,9 +427,11 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `INC dp`          | Direct Page               | `$E6`   | 2     | 5 |
 `INC addr, X`     | Absolute Indexed, X       | `$FE`   | 3     | 7 |
 `INC dp, X`       | Direct Page Indexed, X    | `$F6`   | 2     | 6 |
+{.}
 
-
-
+{inx}
+{iny}
+{:}
 INX, INY - Increment Index Registers
 ====================================
 
@@ -428,9 +449,11 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `INX`             | Implied                   | `$E8`   | 1     | 2
 `INY`             | Implied                   | `$C8`   | 1     | 2
+{.}
 
-
-
+{jmp}
+{jml}
+{:}
 JMP, JML - Jump
 ===============
 
@@ -450,6 +473,7 @@ NOTES:
  * The `JMP (addr)` instruction will always read the new program counter from Bank 0 (ie, `JMP ($8888)` will read 2 bytes from `$00:8888`).
  * The `JML [addr]` instruction will always read the new program counter from Bank 0 (ie, `JML [$9999]` will read 3 bytes from `$00:9999`).
  * The `JMP (addr, X)` instruction will read the new program counter from the Program Bank (`PBR`) (ie, `JMP ($AAAA, X)` will read 2 bytes from `PBR:{$AAAA + X}`).
+{.}
 
 
 <table>
@@ -468,8 +492,9 @@ NOTES:
 </tbody>
 </table>
 
-
-
+{jsr}
+{jsl}
+{:}
 JSR, JSL - Jump to Subroutine
 =============================
 
@@ -477,17 +502,26 @@ JSR, JSL - Jump to Subroutine
 
 **JSR:**
 `PC` ← `PC - 1`
+
 `S` ← `S - 2`
+
 `[S+2]` ← `PC.h`
+
 `[S+1]` ← `PC.l`
+
 `PC` ← `M`
 
 **JSL:**
 `PC` ← `PC - 1`
+
 `S` ← `S - 3`
+
 `[S+3]` ← `PBR`
+
 `[S+2]` ← `PC.h`
+
 `[S+1]` ← `PC.l`
+
 `PBR:PC` ← `M`
 
 NOTE: The `JSR (addr, X)` instruction will read the subroutine address from the Program Bank (`PBR`) (ie, `JSR {$8888, X}` will read 2 bytes from `PBR:{$8888 + X}`).
@@ -498,9 +532,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `JSR addr`        | Absolute                  | `$20`   | 3     | 6
 `JSR (addr, X)`   | Absolute Indexed Indirect, X | `$FC`| 3     | 8
 `JSL long`        | Absolute Long             | `$22`   | 4     | 8
+{.}
 
-
-
+{lda}
+{:}
 LDA - Load Accumulator from Memory
 ==================================
 
@@ -531,9 +566,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `LDA [dp], Y`     | DP Indirect Long Indexed, Y | `$B7` | 2     | 6 |
 `LDA sr, S`       | Stack Relative            | `$A3`   | 2     | 4 |
 `LDA (sr, S), Y`  | SR Indirect Indexed, Y    | `$B3`   | 2     | 7 |
+{.}
 
-
-
+{ldx}
+{:}
 LDX - Load Index Register X from Memory
 =======================================
 
@@ -554,9 +590,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `LDX dp`          | Direct Page               | `$A6`   | 2     | 3 |
 `LDX addr, Y`     | Absolute Indexed, Y       | `$BE`   | 3     | 4 |
 `LDX dp, Y`       | Direct Page Indexed, Y    | `$B6`   | 2     | 4 |
+{.}
 
-
-
+{ldy}
+{:}
 LDY - Load Index Register Y from Memory
 =======================================
 
@@ -577,9 +614,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `LDY dp`          | Direct Page               | `$A4`   | 2     | 3 |
 `LDY addr, X`     | Absolute Indexed, X       | `$BC`   | 3     | 4 |
 `LDY dp, X`       | Direct Page Indexed, X    | `$B4`   | 2     | 4 |
+{.}
 
-
-
+{lsr}
+{:}
 LSR - Logical Shift Right
 =========================
 
@@ -604,9 +642,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `LSR dp`          | Direct Page               | `$46`   | 2     | 5 |
 `LSR addr, X`     | Absolute Indexed, X       | `$5E`   | 3     | 7 |
 `LSR dp, X`       | Direct Page Indexed, X    | `$56`   | 2     | 6 |
+{.}
 
-
-
+{mvn}
+{:}
 MVN - Block Move Next
 =====================
 
@@ -667,9 +706,10 @@ NOTES:
 Syntax                | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------------|---------------------------|-------|-------|--------|
 `MVN srcBank, destBank` | Block Move                | `$54`   | 3     |  | 7 per byte moved
+{.}
 
-
-
+{mvp}
+{:}
 MVP - Block Move Previous
 =========================
 
@@ -726,8 +766,10 @@ Syntax                | Addressing Mode           | Opcode| Bytes | Cycles |
 [^mvp-more-positive]: MVP more positive source: W65C816S 8/16–bit Microprocessor Datasheet,
     Table 5-7 Instruction Operation, 9b Block Move Positive,
     by Western Design Center, Inc
+{.}
 
-
+{nop}
+{:}
 NOP - No Operation
 ==================
 
@@ -739,9 +781,9 @@ NOP - No Operation
 Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `NOP`             | Implied                   | `$EA`   | 1     | 2 |
+{.}
 
-
-
+{ora}
 ORA - OR Accumulator with Memory
 ================================
 
@@ -772,9 +814,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `ORA [dp], Y`     | DP Indirect Long Indexed, Y | `$17` | 2     | 6 |
 `ORA sr, S`       | Stack Relative            | `$03`   | 2     | 4 |
 `ORA (sr, S), Y`  | SR Indirect Indexed, Y    | `$13`   | 2     | 7 |
+{.}
 
-
-
+{pea}
+{:}
 PEA - Push Effective Absolute Address
 =====================================
 
@@ -788,9 +831,9 @@ PEA - Push Effective Absolute Address
 Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `PEA addr`        | Stack (Absolute)          | `$F4`   | 3     | 5
+{.}
 
-
-
+{pei}
 PEI - Push Effective Indirect Address
 =====================================
 
@@ -804,10 +847,11 @@ PEI - Push Effective Indirect Address
 Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `PEI (dp)`        | Stack (DP Indirect)       | `$D4`   | 2     | 6 |
+{.}
 
 
-
-
+{per}
+{:}
 PER - Push Effective PC Relative Indirect Address
 =================================================
 
@@ -822,7 +866,7 @@ PER - Push Effective PC Relative Indirect Address
 Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `PER label`       | Stack (PC Relative Long)  | `$62`   | 3     | 6
-
+{.}
 
 
 Push to Stack
@@ -831,27 +875,39 @@ Push to Stack
 **Flags affected**: `--------`
 
 **8 bit register:**
+
 `S` ← `S - 1`
+
 `[S+1]` ← `R`
 
+---
 **16 bit register:**
+
 `S` ← `S - 2`
+
 `[S+2]` ← `R.h`
+
 `[S+1]` ← `R.l`
 
 ---
 Syntax          | Name                      | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `PHA`             | Push Accumulator          | `$48`   | 1     | 3 |
-`PHB`             | Push Data Bank            | `$8B`   | 1     | 3
-`PHD`             | Push Direct Page Register | `$0B`   | 1     | 4
-`PHK`             | Push Program Bank Register| `$4B`   | 1     | 3
-`PHP`             | Push Processor Status Register| `$08`| 1     | 3
+`PHB`             | Push Data Bank            | `$8B`   | 1     | 3 |
+`PHD`             | Push Direct Page Register | `$0B`   | 1     | 4 |
+`PHK`             | Push Program Bank Register| `$4B`   | 1     | 3 |
+`PHP`             | Push Processor Status Register| `$08`| 1     | 3 |
 `PHX`             | Push Index Register X     | `$DA`   | 1     | 3 |
 `PHY`             | Push Index Register Y     | `$5A`   | 1     | 3 |
+{.}
 
-
-
+{pla}
+{plb}
+{pld}
+{plp}
+{plx}
+{ply}
+{:}
 Pull from Stack
 ================
 
@@ -901,9 +957,10 @@ Syntax          | Name                      | Opcode| Bytes | Cycles |
 `PLP`             | Pull Processor Status Register| `$28`| 1     | 4
 `PLX`             | Pull Index Register X     | `$FA`   | 1     | 4 |
 `PLY`             | Pull Index Register Y     | `$7A`   | 1     | 4 |
+{.}
 
-
-
+{rep}
+{:}
 REP - Reset Status Bits
 =======================
 
@@ -925,9 +982,10 @@ REP - Reset Status Bits
 Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `REP #const`      | Immediate                 | `$C2`   | 2     | 3
+{.}
 
-
-
+{rol}
+{:}
 ROL - Rotate Left
 =================
 
@@ -950,9 +1008,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `ROL dp`          | Direct Page               | `$26`   | 2     | 5 |
 `ROL addr, X`     | Absolute Indexed, X       | `$3E`   | 3     | 7 |
 `ROL dp, X`       | Direct Page Indexed, X    | `$36`   | 2     | 6 |
+{.}
 
-
-
+{ror}
+{:}
 ROR - Rotate Right
 ==================
 
@@ -975,9 +1034,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `ROR dp`          | Direct Page               | `$66`   | 2     | 5 |
 `ROR addr, X`     | Absolute Indexed, X       | `$7E`   | 3     | 7 |
 `ROR dp, X`       | Direct Page Indexed, X    | `$76`   | 2     | 6 |
+{.}
 
-
-
+{rti}
+{:}
 RTI - Return From Interrupt
 ===========================
 
@@ -1005,9 +1065,11 @@ the index registers will be set to 0.
 Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `RTI`             | Stack (return interrupt)  | `$40`   | 1     | 6 |
+{.}
 
-
-
+{rts}
+{rtl}
+{:}
 RTS, RTL - Return From Subroutine
 =================================
 
@@ -1032,9 +1094,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `RTS`             | Stack (return)            | `$60`   | 1     | 6
 `RTL`             | Stack (return long)       | `$6B`   | 1     | 6
+{.}
 
-
-
+{sbc}
+{:}
 SBC - Subtract with Borrow from Accumulator
 ===========================================
 
@@ -1069,9 +1132,12 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `SBC [dp], Y`     | DP Indirect Long Indexed, Y | `$F7` | 2     | 6 |
 `SBC sr, S`       | Stack Relative            | `$E3`   | 2     | 4 |
 `SBC (sr, S), Y`  | SR Indirect Indexed, Y    | `$F3`   | 2     | 7 |
+{.}
 
-
-
+{sec}
+{sed}
+{sei}
+{:}
 Set Status Flags
 ================
 
@@ -1098,9 +1164,10 @@ Syntax          | Name                      | Opcode| Bytes | Cycles |
 `SEC`             | Set Carry Flag            | `$38`   | 1     | 2
 `SEI`             | Set Interrupt Disable Flag | `$78`  | 1     | 2
 `SED`             | Set Decimal Flag          | `$F8`   | 1     | 2
+{.}
 
-
-
+{sep}
+{:}
 SEP - Set Status Bits
 =====================
 
@@ -1115,9 +1182,10 @@ the index registers will be set to 0.
 Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `SEP #const`      | Immediate                 | `$E2`   | 2     | 3
+{.}
 
-
-
+{sta}
+{:}
 STA - Store Accumulator to Memory
 =================================
 
@@ -1142,9 +1210,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `STA [dp], Y`     | DP Indirect Long Indexed, Y | `$97` | 2     | 6 |
 `STA sr, S`       | Stack Relative            | `$83`   | 2     | 4 |
 `STA (sr, S), Y`  | SR Indirect Indexed, Y    | `$93`   | 2     | 7 |
+{.}
 
-
-
+{stp}
+{:}
 STP - Stop the Processor
 ========================
 
@@ -1158,9 +1227,10 @@ Note, this instruction can cause some builds of snes9x to freeze.
 Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `STP`             | Implied                   | `$DB`   | 1     | 3
+{.}
 
-
-
+{stx}
+{:}
 STX - Store Index Register X to Memory
 ======================================
 
@@ -1174,9 +1244,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `STX addr`        | Absolute                  | `$8E`   | 3     | 4 |
 `STX dp`          | Direct Page               | `$86`   | 2     | 3 |
 `STX dp, Y`       | Direct Page Indexed, Y    | `$96`   | 2     | 4 |
+{.}
 
-
-
+{sty}
+{:}
 STY - Store Index Register Y to Memory
 ======================================
 
@@ -1190,9 +1261,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `STY addr`        | Absolute                  | `$8C`   | 3     | 4 |
 `STY dp`          | Direct Page               | `$84`   | 2     | 3 |
 `STY dp, X`       | Direct Page Indexed, X    | `$94`   | 2     | 4 |
+{.}
 
-
-
+{stz}
+{:}
 STZ - Store Zero to Memory
 ==========================
 
@@ -1207,9 +1279,21 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `STZ dp`          | Direct Page               | `$64`   | 2     | 3 |
 `STZ addr, X`     | Absolute Indexed, X       | `$9E`   | 3     | 5 |
 `STZ dp, X`       | Direct Page Indexed, X    | `$74`   | 2     | 4 |
+{.}
 
-
-
+{tax}
+{tay}
+{tcd}
+{tcs}
+{tdc}
+{tsc}
+{tsx}
+{txa}
+{txs}
+{txy}
+{tya}
+{tyx}
+{:}
 Transfer Registers
 ==================
 
@@ -1256,10 +1340,11 @@ Syntax          | Name                      | Opcode| Bytes | Cycles |
 `TXY`             | Transfer X to Y           | `$9B`   | 1     | 2
 `TYA`             | Transfer Y to A           | `$98`   | 1     | 2
 `TYX`             | Transfer Y to X           | `$BB`   | 1     | 2
+{.}
 
 
-
-
+{trb}
+{:}
 TRB - Test and Reset Memory Bits Against Accumulator
 ====================================================
 
@@ -1275,9 +1360,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `TRB addr`        | Absolute                  | `$1C`   | 3     | 6 |
 `TRB dp`          | Direct Page               | `$14`   | 2     | 5 |
+{.}
 
-
-
+{tsb}
+{:}
 TSB - Test and Set Memory Bits Against Accumulator
 ==================================================
 
@@ -1293,9 +1379,10 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `TSB addr`        | Absolute                  | `$0C`   | 3     | 6 |
 `TSB dp`          | Direct Page               | `$04`   | 2     | 5 |
+{.}
 
-
-
+{wai}
+{:}
 WAI - Wait for Interrupt
 ========================
 
@@ -1320,9 +1407,10 @@ handler.
 Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `WAI`             | Implied                   | `$CB`   | 1     | 3 | additional cycles needed by interrupt handler to restart the processor
+{.}
 
-
-
+{wdm}
+{:}
 WDM - Reserved for Future Expansion
 ===================================
 
@@ -1338,6 +1426,7 @@ instructions into software breakpoints.
 
 This instruction has a non-standard syntax.  Some assemblers will use `wdm #1`,
 while other assemblers use `wdm 1`.
+{.}
 
 <table>
 <thead>
@@ -1350,8 +1439,8 @@ while other assemblers use `wdm 1`.
 </tbody>
 </table>
 
-
-
+{xba}
+{:}
 XBA - Exchange the B and A Accumulators
 =======================================
 
@@ -1371,9 +1460,10 @@ XBA - Exchange the B and A Accumulators
 Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `XBA`             | Implied                   | `$EB`   | 1     | 3
+{.}
 
-
-
+{xce}
+{:}
 XCE - Exchange Carry and Emulation Bits
 =======================================
 
@@ -1406,16 +1496,5 @@ Note: Emulation mode will set bit 4 (x) of the status register, which will also 
 Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
 `XCE`             | Implied                   | `$FB`   | 1     | 2
-
-
-Sources
-=======
- * A 65816 Primer, by Brett Tabke
- * W65C816S 8/16–bit Microprocessor Datasheet by The Western Design Center, Inc
- * Programming the 65816, by David Eyes and Ron Lichty
- * [All_About_Your_64 - 65816 Reference](http://www.unusedino.de/ec64/technical/aay/c64/ebmain.htm),
-   by Ninja/The Dreams in 1995-2005
- * [higan](https://github.com/higan-emu/higan/) source code,
-   [wdc65816 directory](https://github.com/higan-emu/higan/tree/master/higan/component/processor/wdc65816),
-   by Near
+{.}
 
