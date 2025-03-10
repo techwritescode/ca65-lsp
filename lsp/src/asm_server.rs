@@ -300,7 +300,43 @@ impl LanguageServer for Asm {
             let documentation = symbols
                 .first()
                 .map_or(None, |symbol| {
-                    Some(format!("```ca65\n{}\n```", symbol.comment.clone()))
+                    Some(r#"
+ADC - Add with Carry
+====================
+
+**Flags affected**: `nv----zc`
+
+`A` ← `A + M + c`
+
+---
+`n` ← Most significant bit of result
+
+`v` ← Signed overflow of result
+
+`z` ← Set if the result is zero
+
+`c` ← Carry from ALU (bit 8/16 of result)
+
+---
+Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
+----------------|---------------------------|-------|-------|--------|
+`ADC #const`      | Immediate                 | `$69`   | 2 / 3 | 2 |
+`ADC addr`        | Absolute                  | `$6D`   | 3     | 4 |
+`ADC long`        | Absolute Long             | `$6F`   | 4     | 5 |
+`ADC dp`          | Direct Page               | `$65`   | 2     | 3 |
+`ADC (dp)`        | Direct Page Indirect      | `$72`   | 2     | 5 |
+`ADC [dp]`        | Direct Page Indirect Long | `$67`   | 2     | 6 |
+`ADC addr, X`     | Absolute Indexed, X       | `$7D`   | 3     | 4 |
+`ADC long, X`     | Absolute Long Indexed, X  | `$7F`   | 4     | 5 |
+`ADC addr, Y`     | Absolute Indexed, Y       | `$79`   | 3     | 4 |
+`ADC dp, X`       | Direct Page Indexed, X    | `$75`   | 2     | 4 |
+`ADC (dp, X)`     | Direct Page Indirect, X   | `$61`   | 2     | 6 |
+`ADC (dp), Y`     | DP Indirect Indexed, Y    | `$71`   | 2     | 5 |
+`ADC [dp], Y`     | DP Indirect Long Indexed, Y | `$77` | 2     | 6 |
+`ADC sr, S`       | Stack Relative            | `$63`   | 2     | 4 |
+`ADC (sr, S), Y`  | SR Indirect Indexed, Y    | `$73`   | 2     | 7 |
+
+                    "#.to_string())
                 })
                 .map(MarkedString::from_markdown);
             return Ok(documentation.map_or(None, |doc| {
