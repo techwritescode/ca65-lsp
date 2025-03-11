@@ -101,13 +101,13 @@ impl<'a> TokenStream<'a> {
             self.position += 1;
         }
         let token = self.previous();
-        println!("Advancing {:#?}", token);
+        // println!("Advancing {:#?}", token);
         token
     }
 
     pub fn peek(&self) -> Option<Token> {
         if !self.at_end() {
-            println!("Peeking {:#?}", self.tokens[self.position]);
+            // println!("Peeking {:#?}", self.tokens[self.position]);
             return Some(self.tokens[self.position].clone());
         }
         None
@@ -126,13 +126,13 @@ impl<'a> TokenStream<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ConstantAssign {
     pub name: Token,
     pub value: Expression,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     Immediate(Box<Expression>),
     Unary(TokenType, Box<Expression>),
@@ -142,13 +142,13 @@ pub enum Expression {
     Math(TokenType, Box<Expression>, Box<Expression>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Instruction {
     pub mnemonic: String,
     pub parameters: Vec<Expression>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Operation {
     ConstantAssign(ConstantAssign),
     Include(String),
@@ -157,10 +157,10 @@ pub enum Operation {
     ControlCommand(ControlCommand),
     MacroInvocation(MacroInvocation),
     MacroPack(String),
-    Scope(String, Vec<Option<Operation>>),
+    Scope(String, Vec<Operation>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ControlCommandType {
     Procedure(String),
     Macro,
@@ -171,12 +171,12 @@ pub enum ControlCommandType {
     Reserve(Expression),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ControlCommand {
     pub control_type: ControlCommandType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MacroInvocation {
     pub name: Token,
     pub parameters: Vec<Expression>,
@@ -278,12 +278,12 @@ impl<'a> Parser<'a> {
                 ".scope" => {
                     let ident = consume_token2!(self.tokens, TokenType::Identifier(s) => s, "Expected Identifier");
                     self.consume_newline();
-                    let mut commands = vec![];
+                    let mut commands: Vec<Option<Operation>> = vec![];
                     while !self.tokens.at_end() {
                         if let Some(m) = check_token2!(self.tokens, TokenType::Macro(m) => m) {
                             if m == ".endscope" {
                                 self.tokens.advance();
-                                return Some(Operation::Scope(ident, commands));
+                                return Some(Operation::Scope(ident, commands.iter().filter(|c| c.is_some()).cloned().map(|c| c.unwrap()).collect()));
                             }
                         }
                         commands.push(self.parse_command());
