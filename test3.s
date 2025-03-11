@@ -1,4 +1,1 @@
-test123:
-    lda $08
-test1:
-    sta $08
+TEST=20 .bitxor 10
