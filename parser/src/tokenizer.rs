@@ -72,7 +72,11 @@ impl<'a> Tokenizer<'a> {
             Some('.') => {
                 self.input.advance();
                 let m = self.identifier();
-                self.make_token(TokenType::Macro(m))
+                match m.as_str() {
+                    ".bitor" => self.make_token(TokenType::BitwiseOr),
+                    ".bitand" => self.make_token(TokenType::BitwiseAnd),
+                    _ => self.make_token(TokenType::Macro(m))
+                }
             }
             Some('"') => {
                 let text = self.string();
