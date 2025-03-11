@@ -14,6 +14,7 @@ ADC - Add with Carry
 `z` ← Set if the result is zero
 
 `c` ← Carry from ALU (bit 8/16 of result)
+
 ---
 Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
@@ -94,7 +95,17 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `ASL dp, X`       | Direct Page Indexed, X    | `$16`   | 2     | 6 |
 {.}
 
-
+{bcc}
+{bcs}
+{bne}
+{beq}
+{bpl}
+{bmi}
+{bvc}
+{bvs}
+{bra}
+{brl}
+{:}
 Branches
 ========
 
@@ -232,6 +243,7 @@ Clear Status Flags
 **CLV:**
 
 `v` ← `0`
+
 ---
 Syntax          | Name                      | Opcode| Bytes | Cycles |
 ----------------|---------------------------|-------|-------|--------|
@@ -868,7 +880,14 @@ Syntax          | Addressing Mode           | Opcode| Bytes | Cycles |
 `PER label`       | Stack (PC Relative Long)  | `$62`   | 3     | 6
 {.}
 
-
+{pha}
+{phb}
+{phd}
+{phk}
+{php}
+{phx}
+{phy}
+{:}
 Push to Stack
 =============
 
