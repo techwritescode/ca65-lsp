@@ -119,7 +119,7 @@ impl<'a> TokenStream<'a> {
 #[derive(Debug)]
 pub struct ConstantAssign {
     pub name: Token,
-    pub value: Token,
+    pub value: Expression,
 }
 
 #[derive(Debug)]
@@ -251,10 +251,10 @@ impl<'a> Parser<'a> {
                     consume_token!(self.tokens, TokenType::Equal, "Expected Equal");
                     let operation = Operation::ConstantAssign(ConstantAssign {
                         name: token,
-                        value: self.tokens.advance().expect("Unexpected EOF"),
+                        value: self.parse_expression(),
                     });
 
-                    consume_token!(self.tokens, TokenType::EOL, "Missing Newline");
+                    self.consume_newline();
 
                     return Some(operation);
                 }
@@ -372,5 +372,15 @@ impl<'a> Parser<'a> {
             }
         }
         parameters
+    }
+    
+    fn consume_newline(&mut self) {
+        if check_token!(self.tokens, TokenType::EOL) {
+            self.tokens.advance();
+        } else if self.tokens.at_end() {
+            // Do nothing
+        } else {
+            panic!("Syntax Error: Expected newline, got {:#?}", self.tokens.peek());
+        }
     }
 }

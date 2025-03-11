@@ -1,1 +1,1 @@
-TEST=20 .bitxor 10
+TEST=20 .bitor 10
