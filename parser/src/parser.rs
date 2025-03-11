@@ -2,7 +2,10 @@ use crate::tokenizer::{Token, TokenType};
 
 macro_rules! match_token {
     ($stream:expr, $token:pat) => {
-        if let Some(Token { token_type: $token, .. }) = $stream.peek() {
+        if let Some(Token {
+            token_type: $token, ..
+        }) = $stream.peek()
+        {
             $stream.advance();
             true
         } else {
@@ -27,10 +30,12 @@ macro_rules! match_token2 {
     };
 }
 
-
 macro_rules! consume_token {
     ($stream:expr, $token:pat, $error:literal) => {
-        if let Some(Token { token_type: $token, .. }) = $stream.peek() {
+        if let Some(Token {
+            token_type: $token, ..
+        }) = $stream.peek()
+        {
             $stream.advance();
         } else {
             panic!("Syntax Error: {} {:#?}", $error, $stream.peek());
@@ -40,7 +45,10 @@ macro_rules! consume_token {
 
 macro_rules! consume_token2 {
     ($stream:expr, $token:pat => $out:ident, $error:literal) => {
-        if let Some(Token { token_type: $token, .. }) = $stream.peek() {
+        if let Some(Token {
+            token_type: $token, ..
+        }) = $stream.peek()
+        {
             $stream.advance();
             $out
         } else {
@@ -51,7 +59,10 @@ macro_rules! consume_token2 {
 
 macro_rules! check_token {
     ($stream:expr, $token:pat) => {
-        if let Some(Token { token_type: $token, .. }) = $stream.peek() {
+        if let Some(Token {
+            token_type: $token, ..
+        }) = $stream.peek()
+        {
             true
         } else {
             false
@@ -63,9 +74,7 @@ macro_rules! check_token2 {
     ($stream:expr, $token:pat => $out:ident) => {
         if let Some(tok) = $stream.peek() {
             match tok.token_type {
-                $token => {
-                    Some($out)
-                }
+                $token => Some($out),
                 _ => None,
             }
         } else {
@@ -98,6 +107,7 @@ impl<'a> TokenStream<'a> {
 
     pub fn peek(&self) -> Option<Token> {
         if !self.at_end() {
+            println!("Peeking {:#?}", self.tokens[self.position]);
             return Some(self.tokens[self.position].clone());
         }
         None
@@ -146,16 +156,19 @@ pub enum Operation {
     Instruction(Instruction),
     ControlCommand(ControlCommand),
     MacroInvocation(MacroInvocation),
+    MacroPack(String),
+    Scope(String, Vec<Option<Operation>>),
 }
 
 #[derive(Debug)]
 pub enum ControlCommandType {
-    Procedure,
+    Procedure(String),
     Macro,
     Scope,
     Enum,
     SetCPU(String),
     Segment(String),
+    Reserve(Expression),
 }
 
 #[derive(Debug)]
@@ -184,12 +197,8 @@ impl<'a> Parser<'a> {
         let mut operations = vec![];
 
         while !self.tokens.at_end() {
-            if self.tokens.peek().is_some_and(|t| matches!(t.token_type, TokenType::EOL)) {
-                self.tokens.advance();
-                continue;
-            }
             if let Some(operation) = self.parse_command() {
-                println!("{:#?}", operation);
+                // println!("{:#?}", operation);
                 operations.push(operation);
             }
         }
@@ -203,38 +212,101 @@ impl<'a> Parser<'a> {
                 TokenType::Instruction(_) => self.parse_instruction(),
                 TokenType::Macro(_) => self.parse_macro(),
                 TokenType::Identifier(_) => self.parse_assignment(),
-                _ => None
+                TokenType::EOL => {
+                    self.tokens.advance();
+                    None
+                },
+                _ => None,
             };
 
-            if let Some(operation) = operation {
-                return Some(operation);
-            }
+            return operation;
         }
         panic!("Syntax Error: Unexpected token {:#?}", self.tokens.peek());
     }
 
     fn parse_macro(&mut self) -> Option<Operation> {
-        if let Some(ident) = check_token2!(self.tokens, TokenType::Macro(i) => i) {
-            self.tokens.advance();
+        if let Some(ident) = match_token2!(self.tokens, TokenType::Macro(i) => i) {
             match ident.as_str() {
+                ".macpack" => {
+                    let pack = consume_token2!(self.tokens, TokenType::Identifier(i) => i, "Expected Identifier");
+                    self.consume_newline();
+                    return Some(Operation::MacroPack(pack));
+                }
                 ".include" => {
                     let path =
                         consume_token2!(self.tokens, TokenType::String(s) => s, "Expected String");
-                    consume_token!(self.tokens, TokenType::EOL, "Expected EOL");
+                    self.consume_newline();
                     // println!("Include {path}");
                     return Some(Operation::Include(path));
                 }
                 ".setcpu" => {
-                    let cpu = consume_token2!(self.tokens, TokenType::String(s) => s, "Expected String");
+                    let cpu =
+                        consume_token2!(self.tokens, TokenType::String(s) => s, "Expected String");
                     consume_token!(self.tokens, TokenType::EOL, "Expected EOL");
 
-                    return Some(Operation::ControlCommand(ControlCommand{control_type: ControlCommandType::SetCPU(cpu) }));
+                    return Some(Operation::ControlCommand(ControlCommand {
+                        control_type: ControlCommandType::SetCPU(cpu),
+                    }));
                 }
                 ".segment" => {
-                    let segment = consume_token2!(self.tokens, TokenType::String(s) => s, "Expected String");
-                    consume_token!(self.tokens, TokenType::EOL, "Expected EOL");
+                    let segment =
+                        consume_token2!(self.tokens, TokenType::String(s) => s, "Expected String");
+                    self.consume_newline();
 
-                    return Some(Operation::ControlCommand(ControlCommand{control_type: ControlCommandType::Segment(segment) }));
+                    return Some(Operation::ControlCommand(ControlCommand {
+                        control_type: ControlCommandType::Segment(segment),
+                    }));
+                }
+                ".proc" => {
+                    let ident = consume_token2!(self.tokens, TokenType::Identifier(s) => s, "Expected Identifier");
+                    while !self.tokens.at_end() {
+                        if let Some(m) = check_token2!(self.tokens, TokenType::Macro(i) => i) {
+                            if m == ".endproc" {
+                                self.tokens.advance();
+                                return Some(Operation::ControlCommand(ControlCommand {
+                                    control_type: ControlCommandType::Procedure(ident),
+                                }));
+                            }
+                        }
+                        self.tokens.advance();
+                    }
+                    panic!(
+                        "Syntax Error: Unexpected token {:#?}, expected .endproc",
+                        self.tokens.peek()
+                    );
+                }
+                ".scope" => {
+                    let ident = consume_token2!(self.tokens, TokenType::Identifier(s) => s, "Expected Identifier");
+                    self.consume_newline();
+                    let mut commands = vec![];
+                    while !self.tokens.at_end() {
+                        if let Some(m) = check_token2!(self.tokens, TokenType::Macro(m) => m) {
+                            if m == ".endscope" {
+                                self.tokens.advance();
+                                return Some(Operation::Scope(ident, commands));
+                            }
+                        }
+                        commands.push(self.parse_command());
+                    }
+                    panic!(
+                        "Syntax Error: Unexpected token {:#?}, expected .endproc",
+                        self.tokens.peek()
+                    );
+                }
+                ".res" => {
+                    let right = self.parse_expression();
+                    self.consume_newline();
+
+                    return Some(Operation::ControlCommand(ControlCommand {
+                        control_type: ControlCommandType::Reserve(right),
+                    }));
+                }
+                ".zeropage" => {
+                    self.consume_newline();
+
+                    return Some(Operation::ControlCommand(ControlCommand {
+                        control_type: ControlCommandType::Segment("zeropage".to_string()),
+                    }));
                 }
                 _ => panic!("Unexpected Macro: {}", ident),
             }
@@ -287,7 +359,10 @@ impl<'a> Parser<'a> {
 
     fn parse_macro_invocation(&mut self) -> Option<Operation> {
         let parameters = self.parse_parameters();
-        Some(Operation::MacroInvocation(MacroInvocation { name: self.tokens.previous().unwrap(), parameters }))
+        Some(Operation::MacroInvocation(MacroInvocation {
+            name: self.tokens.previous().unwrap(),
+            parameters,
+        }))
     }
 
     fn parse_expression(&mut self) -> Expression {
@@ -297,6 +372,14 @@ impl<'a> Parser<'a> {
     fn parse_math_expression(&mut self) -> Expression {
         let left = self.parse_unary();
 
+        if match_token!(self.tokens, TokenType::Multiply) {
+            let right = self.parse_math_expression();
+            return Expression::Math(TokenType::Multiply, Box::new(left), Box::new(right));
+        }
+        if match_token!(self.tokens, TokenType::Divide) {
+            let right = self.parse_math_expression();
+            return Expression::Math(TokenType::Divide, Box::new(left), Box::new(right));
+        }
         if match_token!(self.tokens, TokenType::BitwiseAnd) {
             let right = self.parse_math_expression();
             return Expression::Math(TokenType::BitwiseAnd, Box::new(left), Box::new(right));
@@ -347,9 +430,10 @@ impl<'a> Parser<'a> {
             self.tokens.advance();
             return Expression::Literal(num);
         }
-        if let Some(ident) = check_token2!(self.tokens, TokenType::Identifier(i) => i) {
-            self.tokens.advance();
-            return Expression::Literal(ident);
+        if check_token!(self.tokens, TokenType::ScopeSeparator)
+            || check_token!(self.tokens, TokenType::Identifier(_))
+        {
+            return self.parse_identifier();
         }
         if check_token!(self.tokens, TokenType::LeftParen) {
             self.tokens.advance();
@@ -362,9 +446,7 @@ impl<'a> Parser<'a> {
 
     fn parse_parameters(&mut self) -> Vec<Expression> {
         let mut parameters = vec![];
-        if check_token!(self.tokens, TokenType::EOL) {
-            println!("No Parameters")
-        } else {
+        if !check_token!(self.tokens, TokenType::EOL) {
             parameters.push(self.parse_expression());
             while !self.tokens.at_end() && !check_token!(self.tokens, TokenType::EOL) {
                 consume_token!(self.tokens, TokenType::Comma, "Expected Comma");
@@ -373,14 +455,38 @@ impl<'a> Parser<'a> {
         }
         parameters
     }
-    
+
     fn consume_newline(&mut self) {
         if check_token!(self.tokens, TokenType::EOL) {
             self.tokens.advance();
         } else if self.tokens.at_end() {
             // Do nothing
         } else {
-            panic!("Syntax Error: Expected newline, got {:#?}", self.tokens.peek());
+            panic!(
+                "Syntax Error: Expected newline, got {:#?}",
+                self.tokens.peek()
+            );
         }
+    }
+
+    fn parse_identifier(&mut self) -> Expression {
+        let mut token_string = "".to_owned();
+        if check_token!(self.tokens, TokenType::ScopeSeparator) {
+            self.tokens.advance();
+            token_string = "::".to_string();
+        }
+
+        let start =
+            consume_token2!(self.tokens, TokenType::Identifier(i) => i, "Expected Identifier");
+        token_string.push_str(start.as_str());
+
+        while !self.tokens.at_end() && match_token!(self.tokens, TokenType::ScopeSeparator) {
+            let start =
+                consume_token2!(self.tokens, TokenType::Identifier(i) => i, "Expected Identifier");
+            token_string.push_str("::");
+            token_string.push_str(start.as_str());
+        }
+
+        Expression::Literal(token_string.to_string())
     }
 }
