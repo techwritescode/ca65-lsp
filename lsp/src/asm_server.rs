@@ -290,39 +290,34 @@ impl LanguageServer for Asm {
             let word =
                 get_word_at_position(&state.files, *id, position).expect("Word out of bounds");
 
-            if let Some(map) = instructions::FULL_INSTRUCTION_MAP.get() {
-                if let Some(desc) = map.get(word) {
-                    return Ok(
-                        Some(
-                            Hover {
-                                range: None,
-                                contents: HoverContents::Scalar(MarkedString::from_markdown(desc.clone())),
-                            }
-                        )
-                    );
-                }
+			// hovering over instruction?
+            if let Some(desc) = instructions::FULL_INSTRUCTION_MAP.get().unwrap().get(word) {
+				return Ok(Some(Hover {
+					range: None,
+					contents: HoverContents::Scalar(MarkedString::from_markdown(desc.clone())),
+				}));
             }
 
-            // let mut symbols = symbol_cache_fetch(word.to_string());
-            // symbols.sort_by(|sym, _| {
-            //     if sym.file_id == *id {
-            //         return Ordering::Less;
-            //     }
-            //     Ordering::Equal
-            // });
-            // let documentation = symbols
-            //     .first()
-            //     .map_or(None, |symbol| {
-            //         Some()
-            //     })
-            //     .map(MarkedString::from_markdown);
-            // return Ok(documentation.map_or(None, |doc| {
-            //     Some(Hover {
-            //         range: None,
-            //         contents: HoverContents::Scalar(doc),
-            //     })
-            // }));
-            return Ok(Some(Hover { range: None, contents: HoverContents::Scalar(MarkedString::from_markdown(String::from(word))) }));
+			// hovering over symbol?
+            let mut symbols = symbol_cache_fetch(word.to_string());
+            symbols.sort_by(|sym, _| {
+                if sym.file_id == *id {
+                    return Ordering::Less;
+                }
+                Ordering::Equal
+            });
+            let documentation = symbols
+                .first()
+                .map_or(None, |symbol| {
+                    Some(format!("```ca65\n{}\n```", symbol.comment.clone()))
+                })
+                .map(MarkedString::from_markdown);
+            return Ok(documentation.map_or(None, |doc| {
+                Some(Hover {
+                    range: None,
+                    contents: HoverContents::Scalar(doc),
+                })
+            }));
         }
 
         Ok(None)
