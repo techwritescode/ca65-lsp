@@ -291,7 +291,7 @@ impl LanguageServer for Asm {
                 get_word_at_position(&state.files, *id, position).expect("Word out of bounds");
 
 			// hovering over instruction?
-            if let Some(desc) = instructions::FULL_INSTRUCTION_MAP.get().unwrap().get(word) {
+            if let Some(desc) = instructions::INSTRUCTION_DESCRIPTION_MAP.get().unwrap().get(word) {
 				return Ok(Some(Hover {
 					range: None,
 					contents: HoverContents::Scalar(MarkedString::from_markdown(desc.clone())),
