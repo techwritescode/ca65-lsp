@@ -6,7 +6,7 @@ test1:
     lda $0
     ldx $09
 @test:
-    jsr test
+    jsr test1
 @loop:
     inc
     bit #imm, zp

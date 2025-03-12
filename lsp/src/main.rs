@@ -9,6 +9,10 @@ mod symbol_cache;
 use asm_server::Asm;
 use tower_lsp::{LspService, Server};
 
+use data::include_documentation;
+
+include_documentation!();
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let stdin = tokio::io::stdin();
@@ -16,6 +20,8 @@ async fn main() -> anyhow::Result<()> {
 
     symbol_cache::init_symbol_cache();
     instructions::init_instruction_map();
+
+    documentation_init();
 
     let (service, socket) = LspService::new(|client| {
         // let fmt_layer = tracing_subscriber::fmt::layer()
