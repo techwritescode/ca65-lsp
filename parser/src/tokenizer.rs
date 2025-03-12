@@ -20,7 +20,16 @@ pub enum TokenType {
     EOL,
     String(String),
     Macro(String),
-    Or,
+    BitwiseOr,
+    BitwiseAnd,
+    Not,
+    LessThan,
+    GreaterThan,
+    Caret,
+    And,
+    Multiply,
+    Divide,
+    ScopeSeparator,
 }
 
 #[derive(Debug, Clone)]
@@ -66,7 +75,11 @@ impl<'a> Tokenizer<'a> {
             Some('.') => {
                 self.input.advance();
                 let m = self.identifier();
-                self.make_token(TokenType::Macro(m))
+                match m.as_str() {
+                    ".bitor" => self.make_token(TokenType::BitwiseOr),
+                    ".bitand" => self.make_token(TokenType::BitwiseAnd),
+                    _ => self.make_token(TokenType::Macro(m))
+                }
             }
             Some('"') => {
                 let text = self.string();
@@ -74,7 +87,7 @@ impl<'a> Tokenizer<'a> {
             }
             Some('(') => self.make_token(TokenType::LeftParen),
             Some(')') => self.make_token(TokenType::RightParen),
-            Some('a'..='z' | 'A'..='Z') => {
+            Some('a'..='z' | 'A'..='Z' | '_') => {
                 let name = self.identifier();
                 if self.instructions.is_instruction(&name) {
                     self.make_token(TokenType::Instruction(name))
@@ -87,7 +100,14 @@ impl<'a> Tokenizer<'a> {
                 let ident = self.identifier();
                 self.make_token(TokenType::Identifier(ident))
             }
-            Some(':') => self.make_token(TokenType::Colon),
+            Some(':') => {
+                if self.input.peek() == Some(':') {
+                    self.input.advance();
+                    self.make_token(TokenType::ScopeSeparator)
+                } else {
+                    self.make_token(TokenType::Colon)
+                }
+            },
             Some('0'..='9') => {
                 let number = self.number();
                 self.make_token(TokenType::Number(number))
@@ -103,12 +123,27 @@ impl<'a> Tokenizer<'a> {
             Some('=') => self.make_token(TokenType::Equal),
             Some('#') => self.make_token(TokenType::Hash),
             Some(',') => self.make_token(TokenType::Comma),
-            Some('|') => self.make_token(TokenType::Or),
+            Some('|') => self.make_token(TokenType::BitwiseOr),
+            Some('&') => {
+                if self.input.peek() == Some('&') {
+                    self.make_token(TokenType::And)
+                } else {
+                    self.make_token(TokenType::BitwiseAnd)
+                }
+            },
+            Some('-') => self.make_token(TokenType::Minus),
+            Some('+') => self.make_token(TokenType::Plus),
+            Some('*') => self.make_token(TokenType::Multiply),
+            Some('/') => self.make_token(TokenType::Divide),
+            Some('~') => self.make_token(TokenType::Not),
+            Some('<') => self.make_token(TokenType::LessThan),
+            Some('>') => self.make_token(TokenType::GreaterThan),
+            Some('^') => self.make_token(TokenType::Caret),
             Some(' ' | '\t' | '\r') => None,
             Some('\n') => self.make_token(TokenType::EOL),
             None => self.make_token(TokenType::EOF),
             _ => {
-                unreachable!("Unexpected character {:?}", c)
+                unreachable!("Unexpected character {:?} at {}", c, self.input.pos())
             }
         }
     }
@@ -170,7 +205,9 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn comment(&mut self) {
-        while !self.input.at_end() && self.input.advance().unwrap() != '\n' {}
+        while !self.input.at_end() && self.input.peek().unwrap() != '\n' {
+            self.input.advance();
+        }
 
         // println!(
         //     "Comment: {}",

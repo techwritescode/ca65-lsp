@@ -1,4 +1,10 @@
-test123:
-    lda $08
-test1:
-    sta $08
+TEST=20 .bitor 10
+
+.scope functions
+.proc test
+
+.endproc
+.endscope
+
+ test2:
+    jmp #::functions::test
