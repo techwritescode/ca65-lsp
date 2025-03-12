@@ -6,7 +6,7 @@ use crate::configuration::{load_project_configuration, Configuration};
 use crate::symbol_cache::{
     symbol_cache_fetch, symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
 };
-use crate::{instructions, symbol_cache};
+use crate::{instructions, symbol_cache, OPCODE_DOCUMENTATION};
 use lazy_static::lazy_static;
 use parser::instructions::Instructions;
 use std::cmp::Ordering;
@@ -20,7 +20,7 @@ use tokio::time;
 use tower_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, Diagnostic,
     DiagnosticSeverity, DocumentSymbolParams, DocumentSymbolResponse, HoverContents,
-    InsertTextFormat, MessageType, OneOf, SymbolInformation,
+    InsertTextFormat, MarkupContent, MarkupKind, MessageType, OneOf, SymbolInformation,
 };
 use tower_lsp::{
     jsonrpc::Result,
@@ -35,14 +35,7 @@ use tower_lsp::{
 };
 
 static BLOCK_CONTROL_COMMANDS: &[&'static str] = &[
-	"scope",
-	"proc",
-	"macro",
-	"enum",
-	"union",
-	"if",
-	"repeat",
-	"struct",
+    "scope", "proc", "macro", "enum", "union", "if", "repeat", "struct",
 ];
 
 struct State {
@@ -290,6 +283,20 @@ impl LanguageServer for Asm {
             let word =
                 get_word_at_position(&state.files, *id, position).expect("Word out of bounds");
 
+            if let Some(documentation) = OPCODE_DOCUMENTATION
+                .get()
+                .unwrap()
+                .get(&word.to_string().to_lowercase())
+            {
+                return Ok(Some(Hover {
+                    range: None,
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: documentation.clone(),
+                    }),
+                }));
+            }
+
             let mut symbols = symbol_cache_fetch(word.to_string());
             symbols.sort_by(|sym, _| {
                 if sym.file_id == *id {
@@ -366,16 +373,13 @@ impl LanguageServer for Asm {
                 "".to_owned(),
             ));
         }
-		completion_items.extend(BLOCK_CONTROL_COMMANDS
-			.iter()
-			.map(|command| CompletionItem {
-				label: (*command).to_string(),
-				kind: Some(CompletionItemKind::FUNCTION),
-				insert_text: Some(format!(".{} $1\n\t$0\n.end{} ; End $1", *command, *command)),
-				insert_text_format: Some(InsertTextFormat::SNIPPET),
-				..Default::default()
-			})
-		);
+        completion_items.extend(BLOCK_CONTROL_COMMANDS.iter().map(|command| CompletionItem {
+            label: (*command).to_string(),
+            kind: Some(CompletionItemKind::FUNCTION),
+            insert_text: Some(format!(".{} $1\n\t$0\n.end{} ; End $1", *command, *command)),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            ..Default::default()
+        }));
         Ok(Some(CompletionResponse::Array(completion_items)))
     }
 }
