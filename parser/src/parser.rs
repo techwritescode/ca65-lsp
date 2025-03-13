@@ -1,3 +1,4 @@
+use std::process::Command;
 use crate::tokenizer::{Token, TokenType};
 
 macro_rules! match_token {
@@ -162,9 +163,9 @@ pub enum Operation {
 
 #[derive(Debug, Clone)]
 pub enum ControlCommandType {
-    Procedure(String),
+    Procedure(String, Vec<Operation>),
     Macro,
-    Scope,
+    Scope(String, Vec<Operation>),
     Enum,
     SetCPU(String),
     Segment(String),
@@ -259,16 +260,18 @@ impl<'a> Parser<'a> {
                 }
                 ".proc" => {
                     let ident = consume_token2!(self.tokens, TokenType::Identifier(s) => s, "Expected Identifier");
+                    self.consume_newline();
+                    let mut commands: Vec<Option<Operation>> = vec![];
                     while !self.tokens.at_end() {
-                        if let Some(m) = check_token2!(self.tokens, TokenType::Macro(i) => i) {
+                        if let Some(m) = check_token2!(self.tokens, TokenType::Macro(m) => m) {
                             if m == ".endproc" {
                                 self.tokens.advance();
                                 return Some(Operation::ControlCommand(ControlCommand {
-                                    control_type: ControlCommandType::Procedure(ident),
+                                    control_type: ControlCommandType::Procedure(ident, commands.iter().filter(|c| c.is_some()).cloned().map(|c| c.unwrap()).collect()),
                                 }));
                             }
                         }
-                        self.tokens.advance();
+                        commands.push(self.parse_command());
                     }
                     panic!(
                         "Syntax Error: Unexpected token {:#?}, expected .endproc",
@@ -370,26 +373,18 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_math_expression(&mut self) -> Expression {
-        let left = self.parse_unary();
+        let left = self.parse_factor();
 
-        if match_token!(self.tokens, TokenType::Multiply) {
-            let right = self.parse_math_expression();
-            return Expression::Math(TokenType::Multiply, Box::new(left), Box::new(right));
-        }
-        if match_token!(self.tokens, TokenType::Divide) {
-            let right = self.parse_math_expression();
-            return Expression::Math(TokenType::Divide, Box::new(left), Box::new(right));
-        }
         if match_token!(self.tokens, TokenType::BitwiseAnd) {
             let right = self.parse_math_expression();
             return Expression::Math(TokenType::BitwiseAnd, Box::new(left), Box::new(right));
         }
         if match_token!(self.tokens, TokenType::Minus) {
-            let right = self.parse_math_expression();
+            let right = self.parse_factor();
             return Expression::Math(TokenType::Minus, Box::new(left), Box::new(right));
         }
         if match_token!(self.tokens, TokenType::Plus) {
-            let right = self.parse_math_expression();
+            let right = self.parse_factor();
             return Expression::Math(TokenType::Plus, Box::new(left), Box::new(right));
         }
         if match_token!(self.tokens, TokenType::BitwiseOr) {
@@ -397,6 +392,21 @@ impl<'a> Parser<'a> {
             return Expression::Math(TokenType::BitwiseOr, Box::new(left), Box::new(right));
         }
 
+        left
+    }
+    
+    fn parse_factor(&mut self) -> Expression {
+        let left = self.parse_unary();
+
+        if match_token!(self.tokens, TokenType::Multiply) {
+            let right = self.parse_unary();
+            return Expression::Math(TokenType::Multiply, Box::new(left), Box::new(right));
+        }
+        if match_token!(self.tokens, TokenType::Divide) {
+            let right = self.parse_unary();
+            return Expression::Math(TokenType::Divide, Box::new(left), Box::new(right));
+        }
+        
         left
     }
 
