@@ -20,6 +20,7 @@ async fn main() -> anyhow::Result<()> {
 
     symbol_cache::init_symbol_cache();
     instructions::init_instruction_map();
+    instructions::init_instruction_description_map();
 
     documentation_init();
 

@@ -101,6 +101,7 @@ dependencies = [
  "data",
  "lazy_static",
  "parser",
+ "regex",
  "serde",
  "serde_json",
  "streaming-iterator",
