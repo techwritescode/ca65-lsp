@@ -13,6 +13,7 @@ TBD
 - [Zed](https://github.com/simonhochrein/ca65-zed)
 - Neovim
 ```lua
+-- init.lua
 require 'lspconfig.configs'.ca65 = {
 	default_config = {
 		cmd = { "/path/to/ca65-lsp" },
