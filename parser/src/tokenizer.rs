@@ -22,6 +22,7 @@ pub enum TokenType {
     Macro(String),
     BitwiseOr,
     BitwiseAnd,
+    BitwiseNot,
     Not,
     LessThan,
     GreaterThan,
@@ -30,6 +31,15 @@ pub enum TokenType {
     Multiply,
     Divide,
     ScopeSeparator,
+    Mod,
+    BitwiseXor,
+    ShiftLeft,
+    ShiftRight,
+    Or,
+    Xor,
+    NotEqual,
+    LessThanEq,
+    GreaterThanEq,
 }
 
 #[derive(Debug, Clone)]
@@ -75,10 +85,15 @@ impl<'a> Tokenizer<'a> {
             Some('.') => {
                 self.input.advance();
                 let m = self.identifier();
-                match m.as_str() {
+                match m.to_lowercase().as_str() {
                     ".bitor" => self.make_token(TokenType::BitwiseOr),
                     ".bitand" => self.make_token(TokenType::BitwiseAnd),
-                    _ => self.make_token(TokenType::Macro(m))
+                    ".bitxor" => self.make_token(TokenType::BitwiseXor),
+                    ".mod" => self.make_token(TokenType::Mod),
+                    ".shr" => self.make_token(TokenType::ShiftRight),
+                    ".shl" => self.make_token(TokenType::ShiftLeft),
+                    ".xor" => self.make_token(TokenType::Xor),
+                    _ => self.make_token(TokenType::Macro(m)),
                 }
             }
             Some('"') => {
@@ -107,7 +122,7 @@ impl<'a> Tokenizer<'a> {
                 } else {
                     self.make_token(TokenType::Colon)
                 }
-            },
+            }
             Some('0'..='9') => {
                 let number = self.number();
                 self.make_token(TokenType::Number(number))
@@ -116,6 +131,7 @@ impl<'a> Tokenizer<'a> {
                 let number = self.hex_number();
                 self.make_token(TokenType::Number(number))
             }
+            Some('!') => self.make_token(TokenType::Not),
             Some('%') => {
                 let number = self.bin_number();
                 self.make_token(TokenType::Number(number))
@@ -123,21 +139,52 @@ impl<'a> Tokenizer<'a> {
             Some('=') => self.make_token(TokenType::Equal),
             Some('#') => self.make_token(TokenType::Hash),
             Some(',') => self.make_token(TokenType::Comma),
-            Some('|') => self.make_token(TokenType::BitwiseOr),
+            Some('|') => {
+                if self.input.peek() == Some('|') {
+                    self.input.advance();
+                    self.make_token(TokenType::Or)
+                } else {
+                    self.make_token(TokenType::BitwiseOr)
+                }
+            }
             Some('&') => {
                 if self.input.peek() == Some('&') {
+                    self.input.advance();
                     self.make_token(TokenType::And)
                 } else {
                     self.make_token(TokenType::BitwiseAnd)
                 }
-            },
+            }
             Some('-') => self.make_token(TokenType::Minus),
             Some('+') => self.make_token(TokenType::Plus),
             Some('*') => self.make_token(TokenType::Multiply),
             Some('/') => self.make_token(TokenType::Divide),
-            Some('~') => self.make_token(TokenType::Not),
-            Some('<') => self.make_token(TokenType::LessThan),
-            Some('>') => self.make_token(TokenType::GreaterThan),
+            Some('~') => self.make_token(TokenType::BitwiseNot),
+            Some('<') => {
+                if self.input.peek() == Some('<') {
+                    self.input.advance();
+                    self.make_token(TokenType::ShiftLeft)
+                } else if self.input.peek() == Some('>') {
+                    self.input.advance();
+                    self.make_token(TokenType::NotEqual)
+                } else if self.input.peek() == Some('=') {
+                    self.input.advance();
+                    self.make_token(TokenType::LessThanEq)
+                } else {
+                    self.make_token(TokenType::LessThan)
+                }
+            }
+            Some('>') => {
+                if self.input.peek() == Some('>') {
+                    self.input.advance();
+                    self.make_token(TokenType::ShiftRight)
+                } else if self.input.peek() == Some('=') {
+                    self.input.advance();
+                    self.make_token(TokenType::GreaterThanEq)
+                } else {
+                    self.make_token(TokenType::GreaterThan)
+                }
+            }
             Some('^') => self.make_token(TokenType::Caret),
             Some(' ' | '\t' | '\r') => None,
             Some('\n') => self.make_token(TokenType::EOL),
