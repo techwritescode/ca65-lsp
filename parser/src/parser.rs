@@ -141,6 +141,13 @@ pub enum Expression {
     Group(Box<Expression>),
     UnaryPositive(Box<Expression>),
     Math(TokenType, Box<Expression>, Box<Expression>),
+    Not(Box<Expression>),
+    Or(Box<Expression>, Box<Expression>),
+    And(Box<Expression>, Box<Expression>),
+    Xor(Box<Expression>, Box<Expression>),
+    Comparison(TokenType, Box<Expression>, Box<Expression>),
+    SimpleExpression(TokenType, Box<Expression>, Box<Expression>),
+    Term(TokenType, Box<Expression>, Box<Expression>),
 }
 
 #[derive(Debug, Clone)]
@@ -227,7 +234,7 @@ impl<'a> Parser<'a> {
 
     fn parse_macro(&mut self) -> Option<Operation> {
         if let Some(ident) = match_token2!(self.tokens, TokenType::Macro(i) => i) {
-            match ident.as_str() {
+            match ident.to_lowercase().as_str() {
                 ".macpack" => {
                     let pack = consume_token2!(self.tokens, TokenType::Identifier(i) => i, "Expected Identifier");
                     self.consume_newline();
@@ -361,53 +368,85 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_macro_invocation(&mut self) -> Option<Operation> {
+        let name = self.tokens.previous().unwrap();
         let parameters = self.parse_parameters();
         Some(Operation::MacroInvocation(MacroInvocation {
-            name: self.tokens.previous().unwrap(),
+            name,
             parameters,
         }))
     }
 
     fn parse_expression(&mut self) -> Expression {
-        self.parse_math_expression()
+        self.parse_expr0()
     }
 
-    fn parse_math_expression(&mut self) -> Expression {
-        let left = self.parse_factor();
-
-        if match_token!(self.tokens, TokenType::BitwiseAnd) {
-            let right = self.parse_math_expression();
-            return Expression::Math(TokenType::BitwiseAnd, Box::new(left), Box::new(right));
+    fn parse_expr0(&mut self) -> Expression {
+        if match_token!(self.tokens, TokenType::Not) {
+            Expression::Not(Box::from(self.parse_expr0()))
+        } else {
+            self.parse_expr1()
         }
-        if match_token!(self.tokens, TokenType::Minus) {
-            let right = self.parse_factor();
-            return Expression::Math(TokenType::Minus, Box::new(left), Box::new(right));
-        }
-        if match_token!(self.tokens, TokenType::Plus) {
-            let right = self.parse_factor();
-            return Expression::Math(TokenType::Plus, Box::new(left), Box::new(right));
-        }
-        if match_token!(self.tokens, TokenType::BitwiseOr) {
-            let right = self.parse_math_expression();
-            return Expression::Math(TokenType::BitwiseOr, Box::new(left), Box::new(right));
-        }
-
-        left
     }
-    
+
+    fn parse_expr1(&mut self) -> Expression {
+        let mut root = self.parse_expr2();
+        while match_token!(self.tokens, TokenType::Or) {
+            root = Expression::Or(Box::from(root), Box::from(self.parse_expr2()));
+        }
+        root
+    }
+
+    fn parse_expr2(&mut self) -> Expression {
+        let mut root = self.parse_bool_expr();
+        while match_token!(self.tokens, TokenType::And|TokenType::Xor) {
+            match self.tokens.previous().unwrap().token_type {
+                TokenType::And => {
+                    root = Expression::And(Box::from(root), Box::from(self.parse_expr2()));
+                }
+                TokenType::Xor => {
+                    root = Expression::Xor(Box::from(root), Box::from(self.parse_expr2()));
+                }
+                _ => {
+                    unreachable!("NANI")
+                }
+            }
+        }
+
+        root
+    }
+
+    fn parse_bool_expr(&mut self) -> Expression {
+        let mut root = self.parse_simple_expression();
+
+        while match_token!(self.tokens, TokenType::Equal|TokenType::NotEqual|TokenType::LessThan|TokenType::GreaterThan|TokenType::LessThanEq|TokenType::GreaterThanEq) {
+            root = Expression::Comparison(self.tokens.previous().unwrap().token_type, Box::from(root), Box::from(self.parse_simple_expression()));
+        }
+
+        root
+    }
+
+    fn parse_simple_expression(&mut self) -> Expression {
+        let mut root = self.parse_term();
+
+        while match_token!(self.tokens, TokenType::Plus|TokenType::Minus|TokenType::BitwiseOr) {
+            root = Expression::SimpleExpression(self.tokens.previous().unwrap().token_type, Box::from(root), Box::from(self.parse_term()));
+        }
+
+        root
+    }
+
+    fn parse_term(&mut self) -> Expression {
+        let mut root = self.parse_factor();
+
+        while match_token!(self.tokens, TokenType::Multiply|TokenType::Divide|TokenType::Mod|TokenType::BitwiseAnd|TokenType::BitwiseXor|TokenType::ShiftLeft|TokenType::ShiftRight) {
+            root = Expression::Term(self.tokens.previous().unwrap().token_type, Box::from(root), Box::from(self.parse_factor()));
+        }
+
+        root
+    }
+
     fn parse_factor(&mut self) -> Expression {
-        let left = self.parse_unary();
-
-        if match_token!(self.tokens, TokenType::Multiply) {
-            let right = self.parse_unary();
-            return Expression::Math(TokenType::Multiply, Box::new(left), Box::new(right));
-        }
-        if match_token!(self.tokens, TokenType::Divide) {
-            let right = self.parse_unary();
-            return Expression::Math(TokenType::Divide, Box::new(left), Box::new(right));
-        }
-        
-        left
+        self.parse_unary()
     }
 
     fn parse_unary(&mut self) -> Expression {
@@ -420,8 +459,8 @@ impl<'a> Parser<'a> {
         if match_token!(self.tokens, TokenType::Minus) {
             return Expression::Unary(TokenType::Minus, Box::from(self.parse_unary()));
         }
-        if match_token!(self.tokens, TokenType::Not) {
-            return Expression::Unary(TokenType::Not, Box::from(self.parse_unary()));
+        if match_token!(self.tokens, TokenType::BitwiseNot) {
+            return Expression::Unary(TokenType::BitwiseNot, Box::from(self.parse_unary()));
         }
         if match_token!(self.tokens, TokenType::LessThan) {
             return Expression::Unary(TokenType::LessThan, Box::from(self.parse_unary()));
