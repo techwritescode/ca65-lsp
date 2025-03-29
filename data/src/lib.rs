@@ -6,7 +6,7 @@ pub fn include_documentation(_token_stream: proc_macro::TokenStream) -> proc_mac
     let source_str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/65816-opcodes.md"));
 
     let instr_re = regex::Regex::new(r#"\{([a-z]{3})}"#).unwrap();
-    let description_re = regex::Regex::new(r#"(?s)((\{[a-z]{3}}\n)+)\{:}(.*?)\{\.}"#).unwrap();
+    let description_re = regex::Regex::new(r#"(?s)((\{[a-z]{3}}\r?\n)+)\{:}(.*?)\{\.}"#).unwrap();
     let descriptions = description_re
         .captures_iter(source_str)
         .map(|c| {
