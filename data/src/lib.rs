@@ -24,26 +24,24 @@ pub fn include_documentation(_token_stream: proc_macro::TokenStream) -> proc_mac
             DocParserState::Opcodes => {
                 if line == "{:}" {
                     state = DocParserState::Description;
-                    curr_description.clear();
-                    continue;
-                }
-                if let Some(opcode) = line.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
+                } else if let Some(opcode) = line.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
                     curr_opcodes.push(opcode.to_string());
                 }
             },
             DocParserState::Description => {
                 if line == "{.}" {
-                    state = DocParserState::Opcodes;
-                    // would do a simple opcode_setup_str.extend(#curr_opcodes.map(...)) instead of a for loop, but Vec<String> doesn't implement the quote::ToTokens trait
+                    // opcode_setup_str.extend(#curr_opcodes.map(...)) isn't possible because Vec<String> (curr_opcodes) doesn't implement the quote::ToTokens trait
                     for opcode in curr_opcodes.drain(..) {
                         opcode_setup_str.extend(quote! {
                             instruction_map.insert(#opcode.to_owned(), #curr_description.to_owned());
                         })
                     }
-                    continue;
+                    curr_description.clear();
+                    state = DocParserState::Opcodes;
+                } else {
+                    curr_description.push_str(&line);
+                    curr_description.push('\n');
                 }
-                curr_description.push_str(&line);
-                curr_description.push('\n');
             }
         }
     }
