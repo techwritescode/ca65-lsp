@@ -7,7 +7,7 @@ mod logger;
 mod symbol_cache;
 
 use asm_server::Asm;
-use tower_lsp::{LspService, Server};
+use tower_lsp_server::{LspService, Server};
 
 use data::include_documentation;
 

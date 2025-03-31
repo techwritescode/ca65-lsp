@@ -1,4 +1,3 @@
-use std::process::Command;
 use crate::tokenizer::{Token, TokenType};
 
 macro_rules! match_token {
