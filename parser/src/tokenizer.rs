@@ -98,7 +98,7 @@ impl<'a> Tokenizer<'a> {
             }
             Some('"') => {
                 let text = self.string();
-                self.make_token(TokenType::String(text))
+                self.make_token(TokenType::String(text.as_str()[1..text.len()-1].to_string()))
             }
             Some('(') => self.make_token(TokenType::LeftParen),
             Some(')') => self.make_token(TokenType::RightParen),

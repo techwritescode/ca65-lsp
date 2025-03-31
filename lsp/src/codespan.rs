@@ -1,6 +1,6 @@
 use core::panic;
 
-use tower_lsp::lsp_types::{Position, Range, Url};
+use tower_lsp_server::lsp_types::{Position, Range, Uri};
 
 #[derive(Debug, PartialEq)]
 pub enum LocationError {
@@ -153,9 +153,9 @@ impl Files {
         Self { files: vec![] }
     }
 
-    pub fn add(&mut self, uri: Url, contents: String) -> FileId {
+    pub fn add(&mut self, uri: Uri, contents: String) -> FileId {
         let file_id = FileId::new(self.files.len());
-        self.files.push(File::new(uri, contents));
+        self.files.push(File::new(uri.as_str(), contents));
         file_id
     }
 

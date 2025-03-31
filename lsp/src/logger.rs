@@ -1,6 +1,6 @@
 use std::io;
 
-use tower_lsp::Client;
+use tower_lsp_server::Client;
 use tracing_subscriber::fmt::MakeWriter;
 
 pub struct LspLogger {
@@ -20,7 +20,7 @@ impl io::Write for LspLogger {
         tokio::spawn(async move {
             client
                 .log_message(
-                    tower_lsp::lsp_types::MessageType::LOG,
+                    tower_lsp_server::lsp_types::MessageType::LOG,
                     String::from_utf8(message).unwrap(),
                 )
                 .await;
