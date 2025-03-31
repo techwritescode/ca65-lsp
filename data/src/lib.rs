@@ -34,9 +34,12 @@ pub fn include_documentation(_token_stream: proc_macro::TokenStream) -> proc_mac
             DocParserState::Description => {
                 if line == "{.}" {
                     state = DocParserState::Opcodes;
-                    opcode_setup_str.extend(quote! {
-                        instruction_map.extend(#curr_opcodes.drain(..).map(|opcode| (opcode.to_owned(), #curr_description.to_owned())));
-                    });
+                    // would do a simple opcode_setup_str.extend(#curr_opcodes.map(...)) instead of a for loop, but Vec<String> doesn't implement the quote::ToTokens trait
+                    for opcode in curr_opcodes.drain(..) {
+                        opcode_setup_str.extend(quote! {
+                            instruction_map.insert(#opcode.to_owned(), #curr_description.to_owned());
+                        })
+                    }
                     continue;
                 }
                 curr_description.push_str(&line);
@@ -44,39 +47,7 @@ pub fn include_documentation(_token_stream: proc_macro::TokenStream) -> proc_mac
             }
         }
     }
-
-
-
-
-    //
-    //
-    // let source_str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/65816-opcodes.md"));
-    //
-    // let instr_re = regex::Regex::new(r#"\{([a-z]{3})}"#).unwrap();
-    // let description_re = regex::Regex::new(r#"(?s)((\{[a-z]{3}}\r?\n)+)\{:}(.*?)\{\.}"#).unwrap();
-    // let descriptions = description_re
-    //     .captures_iter(source_str)
-    //     .map(|c| {
-    //         let (_, [name, _, docs]) = c.extract();
-    //         (name, docs.trim())
-    //     });
-    //
-    // let mut opcode_setup_str: TokenStream = TokenStream::new();
-    //
-    // for (opcodes, description) in descriptions {
-    //     let opcodes = instr_re
-    //         .captures_iter(opcodes)
-    //         .map(|c| c.get(1).unwrap().as_str())
-    //         .collect::<Vec<_>>();
-    //     for opcode in opcodes {
-    //         opcode_setup_str.extend(
-    //             quote! {
-    //                 instruction_map.insert(#opcode.to_owned(), #description.to_owned());
-    //             }
-    //         );
-    //     }
-    // }
-
+    
     quote! {
         pub static OPCODE_DOCUMENTATION: std::sync::OnceLock<std::collections::HashMap<String, String>> = std::sync::OnceLock::new();
         fn documentation_init() { 
