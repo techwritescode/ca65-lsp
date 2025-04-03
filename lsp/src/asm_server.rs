@@ -34,6 +34,7 @@ use tower_lsp_server::{
     Client, LanguageServer,
 };
 use tower_lsp_server::lsp_types::request::ApplyWorkspaceEdit;
+use crate::ca65_doc::CA65_KEYWORDS_MAP;
 
 static BLOCK_CONTROL_COMMANDS: &[&'static str] = &[
     "scope", "proc", "macro", "enum", "union", "if", "repeat", "struct",
@@ -324,6 +325,26 @@ impl LanguageServer for Asm {
                     }),
                 }));
             }
+
+            if let Some(documentation) = CA65_KEYWORDS_MAP
+                .get()
+                .unwrap()
+                .get(&word.to_string().to_uppercase())
+            {
+                return Ok(Some(Hover {
+                    range: None,
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: documentation.clone(),
+                    }),
+                }));
+            }
+
+            // return Ok(Some(Hover {
+            //     range: None,
+            //     contents: HoverContents::Scalar(MarkedString::String(word.to_string()))
+            // }));
+
 
             let mut symbols = symbol_cache_fetch(word.to_string());
             symbols.sort_by(|sym, _| {
