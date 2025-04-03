@@ -102,6 +102,14 @@ impl Asm {
         server
     }
 
+    pub fn get_client(&self) -> &Client {
+        &self.client
+    }
+
+    pub fn get_configuration(&self) -> Arc<Configuration> {
+        self.configuration.clone()
+    }
+
     async fn index(&self, file_id: &FileId) {
         let state = self.state.lock().await;
         self.parse_labels(&state.files, *file_id).await;
@@ -507,9 +515,9 @@ impl Asm {
         let tokens = parser::tokenizer::Tokenizer::new(source, instructions)
             .parse()
             .expect("tokenization failed");
-        // self.client
-        //     .log_message(MessageType::LOG, format!("Tokens: {:#?}", tokens))
-        //     .await;
+        self.client
+            .log_message(MessageType::LOG, "doooooood")
+            .await;
         let ast = parser::parser::Parser::new(&tokens).parse();
         // self.client
         //     .log_message(MessageType::LOG, format!("Ast: {:#?}", ast))

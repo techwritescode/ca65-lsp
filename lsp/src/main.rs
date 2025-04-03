@@ -5,6 +5,7 @@ mod diagnostics;
 mod instructions;
 mod logger;
 mod symbol_cache;
+mod ca65_doc;
 
 use asm_server::Asm;
 use tower_lsp_server::{LspService, Server};
@@ -38,6 +39,7 @@ async fn main() -> anyhow::Result<()> {
 
         Asm::new(client)
     });
+    ca65_doc::parse_ca65_html(service.inner()).await;
     Server::new(stdin, stdout, socket)
         .serve(service)
         .await;
