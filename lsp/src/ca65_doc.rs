@@ -3,6 +3,7 @@ use std::io::{BufRead, BufReader};
 use std::sync::OnceLock;
 use tower_lsp_server::lsp_types::MessageType;
 use crate::asm_server::Asm;
+use parser::stream::Stream;
 
 pub static CA65_KEYWORDS_MAP: OnceLock<HashMap<String, String>> = OnceLock::new();
 
@@ -42,4 +43,17 @@ pub async fn parse_ca65_html(asm_server: &Asm) {
     // }
     //
     // asm_server.get_client().log_message(MessageType::INFO, s).await;
+}
+
+enum HtmlElement {
+    P,
+    A,
+    Code,
+    Blockquote,
+}
+
+struct HtmlParser {
+    input: Stream,
+    output: String,
+    element_stack: Vec<HtmlElement>,
 }
