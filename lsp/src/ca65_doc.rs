@@ -46,10 +46,12 @@ pub async fn parse_ca65_html(asm_server: &Asm) {
 }
 
 enum HtmlElement {
+    H2,
     P,
     A,
     Code,
     Blockquote,
+    Pre,
 }
 
 struct HtmlParser {
