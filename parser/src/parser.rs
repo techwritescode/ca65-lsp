@@ -83,6 +83,21 @@ macro_rules! check_token2 {
     };
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct Span {
+    pub start_offset: usize,
+    pub end_offset: usize,
+}
+
+impl Span {
+    fn new(start_offset: usize, end_offset: usize) -> Span {
+        Self {
+            start_offset,
+            end_offset,
+        }
+    }
+}
+
 pub struct TokenStream<'a> {
     tokens: &'a Vec<Token>,
     position: usize,
@@ -130,10 +145,11 @@ impl<'a> TokenStream<'a> {
 pub struct ConstantAssign {
     pub name: Token,
     pub value: Expression,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]
-pub enum Expression {
+pub enum ExpressionKind {
     Immediate(Box<Expression>),
     Unary(TokenType, Box<Expression>),
     Literal(String),
@@ -150,13 +166,19 @@ pub enum Expression {
 }
 
 #[derive(Debug, Clone)]
+pub struct Expression {
+    pub kind: ExpressionKind,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
 pub struct Instruction {
     pub mnemonic: String,
     pub parameters: Vec<Expression>,
 }
 
 #[derive(Debug, Clone)]
-pub enum Operation {
+pub enum OperationKind {
     ConstantAssign(ConstantAssign),
     Include(String),
     Label(Token),
@@ -165,6 +187,12 @@ pub enum Operation {
     MacroInvocation(MacroInvocation),
     MacroPack(String),
     Scope(String, Vec<Operation>),
+}
+
+#[derive(Debug, Clone)]
+pub struct Operation {
+    pub kind: OperationKind,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]
@@ -222,7 +250,7 @@ impl<'a> Parser<'a> {
                 TokenType::EOL => {
                     self.tokens.advance();
                     None
-                },
+                }
                 _ => None,
             };
 
@@ -233,36 +261,53 @@ impl<'a> Parser<'a> {
 
     fn parse_macro(&mut self) -> Option<Operation> {
         if let Some(ident) = match_token2!(self.tokens, TokenType::Macro(i) => i) {
+            let start = self.mark_start();
             match ident.to_lowercase().as_str() {
                 ".macpack" => {
                     let pack = consume_token2!(self.tokens, TokenType::Identifier(i) => i, "Expected Identifier");
+                    let end = self.mark_end();
                     self.consume_newline();
-                    return Some(Operation::MacroPack(pack));
+                    return Some(Operation {
+                        kind: OperationKind::MacroPack(pack),
+                        span: Span::new(start, end),
+                    });
                 }
                 ".include" => {
                     let path =
                         consume_token2!(self.tokens, TokenType::String(s) => s, "Expected String");
+                    let end = self.mark_end();
                     self.consume_newline();
                     // println!("Include {path}");
-                    return Some(Operation::Include(path));
+                    return Some(Operation {
+                        kind: OperationKind::Include(path),
+                        span: Span::new(start, end),
+                    });
                 }
                 ".setcpu" => {
                     let cpu =
                         consume_token2!(self.tokens, TokenType::String(s) => s, "Expected String");
-                    consume_token!(self.tokens, TokenType::EOL, "Expected EOL");
+                    let end = self.mark_end();
+                    self.consume_newline();
 
-                    return Some(Operation::ControlCommand(ControlCommand {
-                        control_type: ControlCommandType::SetCPU(cpu),
-                    }));
+                    return Some(Operation {
+                        kind: OperationKind::ControlCommand(ControlCommand {
+                            control_type: ControlCommandType::SetCPU(cpu),
+                        }),
+                        span: Span::new(start, end),
+                    });
                 }
                 ".segment" => {
                     let segment =
                         consume_token2!(self.tokens, TokenType::String(s) => s, "Expected String");
+                    let end = self.mark_end();
                     self.consume_newline();
 
-                    return Some(Operation::ControlCommand(ControlCommand {
-                        control_type: ControlCommandType::Segment(segment),
-                    }));
+                    return Some(Operation {
+                        kind: OperationKind::ControlCommand(ControlCommand {
+                            control_type: ControlCommandType::Segment(segment),
+                        }),
+                        span: Span::new(start, end),
+                    });
                 }
                 ".proc" => {
                     let ident = consume_token2!(self.tokens, TokenType::Identifier(s) => s, "Expected Identifier");
@@ -272,9 +317,21 @@ impl<'a> Parser<'a> {
                         if let Some(m) = check_token2!(self.tokens, TokenType::Macro(m) => m) {
                             if m == ".endproc" {
                                 self.tokens.advance();
-                                return Some(Operation::ControlCommand(ControlCommand {
-                                    control_type: ControlCommandType::Procedure(ident, commands.iter().filter(|c| c.is_some()).cloned().map(|c| c.unwrap()).collect()),
-                                }));
+                                let end = self.mark_end();
+                                return Some(Operation {
+                                    kind: OperationKind::ControlCommand(ControlCommand {
+                                        control_type: ControlCommandType::Procedure(
+                                            ident,
+                                            commands
+                                                .iter()
+                                                .filter(|c| c.is_some())
+                                                .cloned()
+                                                .map(|c| c.unwrap())
+                                                .collect(),
+                                        ),
+                                    }),
+                                    span: Span::new(start, end),
+                                });
                             }
                         }
                         commands.push(self.parse_command());
@@ -292,7 +349,19 @@ impl<'a> Parser<'a> {
                         if let Some(m) = check_token2!(self.tokens, TokenType::Macro(m) => m) {
                             if m == ".endscope" {
                                 self.tokens.advance();
-                                return Some(Operation::Scope(ident, commands.iter().filter(|c| c.is_some()).cloned().map(|c| c.unwrap()).collect()));
+                                let end = self.mark_end();
+                                return Some(Operation {
+                                    kind: OperationKind::Scope(
+                                        ident,
+                                        commands
+                                            .iter()
+                                            .filter(|c| c.is_some())
+                                            .cloned()
+                                            .map(|c| c.unwrap())
+                                            .collect(),
+                                    ),
+                                    span: Span::new(start, end),
+                                });
                             }
                         }
                         commands.push(self.parse_command());
@@ -304,18 +373,26 @@ impl<'a> Parser<'a> {
                 }
                 ".res" => {
                     let right = self.parse_expression();
+                    let end = self.mark_end();
                     self.consume_newline();
 
-                    return Some(Operation::ControlCommand(ControlCommand {
-                        control_type: ControlCommandType::Reserve(right),
-                    }));
+                    return Some(Operation {
+                        kind: OperationKind::ControlCommand(ControlCommand {
+                            control_type: ControlCommandType::Reserve(right),
+                        }),
+                        span: Span::new(start, end),
+                    });
                 }
                 ".zeropage" => {
+                    let end = self.mark_end();
                     self.consume_newline();
 
-                    return Some(Operation::ControlCommand(ControlCommand {
-                        control_type: ControlCommandType::Segment("zeropage".to_string()),
-                    }));
+                    return Some(Operation {
+                        kind: OperationKind::ControlCommand(ControlCommand {
+                            control_type: ControlCommandType::Segment("zeropage".to_string()),
+                        }),
+                        span: Span::new(start, end),
+                    });
                 }
                 _ => panic!("Unexpected Macro: {}", ident),
             }
@@ -327,17 +404,24 @@ impl<'a> Parser<'a> {
     fn parse_assignment(&mut self) -> Option<Operation> {
         if let Some(token) = self.tokens.peek() {
             if let TokenType::Identifier(_) = token.token_type.clone() {
+                let start = self.tokens.previous()?.index;
                 self.tokens.advance();
                 if check_token!(self.tokens, TokenType::Equal) {
                     consume_token!(self.tokens, TokenType::Equal, "Expected Equal");
-                    let operation = Operation::ConstantAssign(ConstantAssign {
+                    let value = self.parse_expression();
+                    let end = self.tokens.previous()?.index;
+                    let operation = OperationKind::ConstantAssign(ConstantAssign {
                         name: token,
-                        value: self.parse_expression(),
+                        value,
+                        span: Span::new(start, end),
                     });
 
                     self.consume_newline();
 
-                    return Some(operation);
+                    return Some(Operation {
+                        kind: operation,
+                        span: Span::new(start, end),
+                    });
                 }
                 if check_token!(self.tokens, TokenType::Colon) {
                     return Some(self.parse_label());
@@ -350,29 +434,41 @@ impl<'a> Parser<'a> {
 
     fn parse_instruction(&mut self) -> Option<Operation> {
         if let Some(mnemonic) = match_token2!(self.tokens, TokenType::Instruction(i) => i) {
+            let start = self.mark_start();
             let parameters = self.parse_parameters();
+            let end = self.mark_end();
 
-            return Some(Operation::Instruction(Instruction {
-                mnemonic,
-                parameters,
-            }));
+            return Some(Operation {
+                kind: OperationKind::Instruction(Instruction {
+                    mnemonic,
+                    parameters,
+                }),
+                span: Span::new(start, end),
+            });
         }
         panic!("Syntax Error: {:?}", self.tokens.peek());
     }
 
     fn parse_label(&mut self) -> Operation {
+        let start = self.mark_start();
         let name = self.tokens.previous().unwrap();
         consume_token!(self.tokens, TokenType::Colon, "Expected Colon");
-        Operation::Label(name)
+        let end = self.mark_end();
+        Operation {
+            kind: OperationKind::Label(name),
+            span: Span::new(start, end),
+        }
     }
 
     fn parse_macro_invocation(&mut self) -> Option<Operation> {
+        let start = self.mark_start();
         let name = self.tokens.previous().unwrap();
         let parameters = self.parse_parameters();
-        Some(Operation::MacroInvocation(MacroInvocation {
-            name,
-            parameters,
-        }))
+        let end = self.mark_end();
+        Some(Operation {
+            kind: OperationKind::MacroInvocation(MacroInvocation { name, parameters }),
+            span: Span::new(start, end),
+        })
     }
 
     fn parse_expression(&mut self) -> Expression {
@@ -380,8 +476,14 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expr0(&mut self) -> Expression {
+        let start = self.mark_start();
         if match_token!(self.tokens, TokenType::Not) {
-            Expression::Not(Box::from(self.parse_expr0()))
+            let expr = self.parse_expr0();
+            let end = self.mark_end();
+            Expression {
+                kind: ExpressionKind::Not(Box::from(expr)),
+                span: Span::new(start, end),
+            }
         } else {
             self.parse_expr1()
         }
@@ -390,20 +492,37 @@ impl<'a> Parser<'a> {
     fn parse_expr1(&mut self) -> Expression {
         let mut root = self.parse_expr2();
         while match_token!(self.tokens, TokenType::Or) {
-            root = Expression::Or(Box::from(root), Box::from(self.parse_expr2()));
+            let right = self.parse_expr2();
+            root = Expression {
+                kind: ExpressionKind::Or(Box::from(root.clone()), Box::from(right.clone())),
+                span: Span::new(root.span.start_offset, right.span.end_offset),
+            };
         }
         root
     }
 
     fn parse_expr2(&mut self) -> Expression {
         let mut root = self.parse_bool_expr();
-        while match_token!(self.tokens, TokenType::And|TokenType::Xor) {
+        while match_token!(self.tokens, TokenType::And | TokenType::Xor) {
+            let right = self.parse_expr2();
             match self.tokens.previous().unwrap().token_type {
                 TokenType::And => {
-                    root = Expression::And(Box::from(root), Box::from(self.parse_expr2()));
+                    root = Expression {
+                        kind: ExpressionKind::And(
+                            Box::from(root.clone()),
+                            Box::from(right.clone()),
+                        ),
+                        span: Span::new(root.span.start_offset, right.span.end_offset),
+                    };
                 }
                 TokenType::Xor => {
-                    root = Expression::Xor(Box::from(root), Box::from(self.parse_expr2()));
+                    root = Expression {
+                        kind: ExpressionKind::Xor(
+                            Box::from(root.clone()),
+                            Box::from(right.clone()),
+                        ),
+                        span: Span::new(root.span.start_offset, right.span.end_offset),
+                    };
                 }
                 _ => {
                     unreachable!("NANI")
@@ -417,8 +536,24 @@ impl<'a> Parser<'a> {
     fn parse_bool_expr(&mut self) -> Expression {
         let mut root = self.parse_simple_expression();
 
-        while match_token!(self.tokens, TokenType::Equal|TokenType::NotEqual|TokenType::LessThan|TokenType::GreaterThan|TokenType::LessThanEq|TokenType::GreaterThanEq) {
-            root = Expression::Comparison(self.tokens.previous().unwrap().token_type, Box::from(root), Box::from(self.parse_simple_expression()));
+        while match_token!(
+            self.tokens,
+            TokenType::Equal
+                | TokenType::NotEqual
+                | TokenType::LessThan
+                | TokenType::GreaterThan
+                | TokenType::LessThanEq
+                | TokenType::GreaterThanEq
+        ) {
+            let right = self.parse_simple_expression();
+            root = Expression {
+                kind: ExpressionKind::Comparison(
+                    self.tokens.previous().unwrap().token_type,
+                    Box::from(root.clone()),
+                    Box::from(right.clone()),
+                ),
+                span: Span::new(root.span.start_offset, right.span.end_offset),
+            };
         }
 
         root
@@ -427,8 +562,19 @@ impl<'a> Parser<'a> {
     fn parse_simple_expression(&mut self) -> Expression {
         let mut root = self.parse_term();
 
-        while match_token!(self.tokens, TokenType::Plus|TokenType::Minus|TokenType::BitwiseOr) {
-            root = Expression::SimpleExpression(self.tokens.previous().unwrap().token_type, Box::from(root), Box::from(self.parse_term()));
+        while match_token!(
+            self.tokens,
+            TokenType::Plus | TokenType::Minus | TokenType::BitwiseOr
+        ) {
+            let right = self.parse_term();
+            root = Expression {
+                kind: ExpressionKind::SimpleExpression(
+                    self.tokens.previous().unwrap().token_type,
+                    Box::from(root.clone()),
+                    Box::from(right.clone()),
+                ),
+                span: Span::new(root.span.start_offset, root.span.end_offset),
+            };
         }
 
         root
@@ -437,8 +583,26 @@ impl<'a> Parser<'a> {
     fn parse_term(&mut self) -> Expression {
         let mut root = self.parse_factor();
 
-        while match_token!(self.tokens, TokenType::Multiply|TokenType::Divide|TokenType::Mod|TokenType::BitwiseAnd|TokenType::BitwiseXor|TokenType::ShiftLeft|TokenType::ShiftRight) {
-            root = Expression::Term(self.tokens.previous().unwrap().token_type, Box::from(root), Box::from(self.parse_factor()));
+        while match_token!(
+            self.tokens,
+            TokenType::Multiply
+                | TokenType::Divide
+                | TokenType::Mod
+                | TokenType::BitwiseAnd
+                | TokenType::BitwiseXor
+                | TokenType::ShiftLeft
+                | TokenType::ShiftRight
+        ) {
+            let right = self.parse_factor();
+
+            root = Expression {
+                kind: ExpressionKind::Term(
+                    self.tokens.previous().unwrap().token_type,
+                    Box::from(root.clone()),
+                    Box::from(right.clone()),
+                ),
+                span: Span::new(root.span.start_offset, right.span.end_offset),
+            };
         }
 
         root
@@ -449,34 +613,80 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_unary(&mut self) -> Expression {
+        let start = self.mark_start();
         if match_token!(self.tokens, TokenType::Hash) {
-            return Expression::Immediate(Box::from(self.parse_unary()));
+            let right = self.parse_unary();
+            let end = self.mark_end();
+            return Expression {
+                kind: ExpressionKind::Immediate(Box::from(right)),
+                span: Span::new(start, end),
+            };
         }
         if match_token!(self.tokens, TokenType::Plus) {
-            return Expression::Unary(TokenType::Plus, Box::from(self.parse_unary()));
+            let right = self.parse_unary();
+            let end = self.mark_end();
+
+            return Expression {
+                kind: ExpressionKind::Unary(TokenType::Plus, Box::from(right)),
+                span: Span::new(start, end),
+            };
         }
         if match_token!(self.tokens, TokenType::Minus) {
-            return Expression::Unary(TokenType::Minus, Box::from(self.parse_unary()));
+            let right = self.parse_unary();
+            let end = self.mark_end();
+
+            return Expression {
+                kind: ExpressionKind::Unary(TokenType::Minus, Box::from(right)),
+                span: Span::new(start, end),
+            };
         }
         if match_token!(self.tokens, TokenType::BitwiseNot) {
-            return Expression::Unary(TokenType::BitwiseNot, Box::from(self.parse_unary()));
+            let right = self.parse_unary();
+            let end = self.mark_end();
+
+            return Expression {
+                kind: ExpressionKind::Unary(TokenType::BitwiseNot, Box::from(right)),
+                span: Span::new(start, end),
+            };
         }
         if match_token!(self.tokens, TokenType::LessThan) {
-            return Expression::Unary(TokenType::LessThan, Box::from(self.parse_unary()));
+            let right = self.parse_unary();
+            let end = self.mark_end();
+
+            return Expression {
+                kind: ExpressionKind::Unary(TokenType::LessThan, Box::from(right)),
+                span: Span::new(start, end),
+            };
         }
         if match_token!(self.tokens, TokenType::GreaterThan) {
-            return Expression::Unary(TokenType::GreaterThan, Box::from(self.parse_unary()));
+            let right = self.parse_unary();
+            let end = self.mark_end();
+
+            return Expression {
+                kind: ExpressionKind::Unary(TokenType::GreaterThan, Box::from(right)),
+                span: Span::new(start, end),
+            };
         }
         if match_token!(self.tokens, TokenType::Caret) {
-            return Expression::Unary(TokenType::Caret, Box::from(self.parse_unary()));
+            let right = self.parse_unary();
+            let end = self.mark_end();
+
+            return Expression {
+                kind: ExpressionKind::Unary(TokenType::Caret, Box::from(right)),
+                span: Span::new(start, end),
+            };
         }
         self.parse_primary()
     }
 
     fn parse_primary(&mut self) -> Expression {
-        if let Some(num) = check_token2!(self.tokens, TokenType::Number(i) => i) {
-            self.tokens.advance();
-            return Expression::Literal(num);
+        let start = self.mark_start();
+        if let Some(num) = match_token2!(self.tokens, TokenType::Number(i) => i) {
+            let end = self.mark_end();
+            return Expression {
+                kind: ExpressionKind::Literal(num),
+                span: Span::new(start, end),
+            };
         }
         if check_token!(self.tokens, TokenType::ScopeSeparator)
             || check_token!(self.tokens, TokenType::Identifier(_))
@@ -487,7 +697,11 @@ impl<'a> Parser<'a> {
             self.tokens.advance();
             let expr = self.parse_expression();
             consume_token!(self.tokens, TokenType::RightParen, "Expected )");
-            return Expression::Group(Box::from(expr));
+            let end = self.mark_end();
+            return Expression {
+                kind: ExpressionKind::Group(Box::from(expr)),
+                span: Span::new(start, end),
+            };
         }
         panic!("Syntax Error: {:?}", self.tokens.peek());
     }
@@ -519,14 +733,17 @@ impl<'a> Parser<'a> {
 
     fn parse_identifier(&mut self) -> Expression {
         let mut token_string = "".to_owned();
-        if check_token!(self.tokens, TokenType::ScopeSeparator) {
-            self.tokens.advance();
+        let mut start = 0;
+        if match_token!(self.tokens, TokenType::ScopeSeparator) {
+            start = self.mark_start();
             token_string = "::".to_string();
+        } else {
+            start = self.mark_start();
         }
 
-        let start =
+        let start_token =
             consume_token2!(self.tokens, TokenType::Identifier(i) => i, "Expected Identifier");
-        token_string.push_str(start.as_str());
+        token_string.push_str(start_token.as_str());
 
         while !self.tokens.at_end() && match_token!(self.tokens, TokenType::ScopeSeparator) {
             let start =
@@ -534,7 +751,22 @@ impl<'a> Parser<'a> {
             token_string.push_str("::");
             token_string.push_str(start.as_str());
         }
+        let end = self.mark_end();
 
-        Expression::Literal(token_string.to_string())
+        Expression {
+            kind: ExpressionKind::Literal(token_string.to_string()),
+            span: Span::new(start, end),
+        }
+    }
+
+    // Return current position
+    #[inline]
+    fn mark_start(&self) -> usize {
+        self.tokens.previous().unwrap().index
+    }
+
+    #[inline]
+    fn mark_end(&self) -> usize {
+        self.mark_start() + self.tokens.previous().unwrap().lexeme.len()
     }
 }

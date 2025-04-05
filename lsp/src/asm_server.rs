@@ -9,7 +9,7 @@ use crate::symbol_cache::{
 use crate::{instructions, symbol_cache, OPCODE_DOCUMENTATION};
 use lazy_static::lazy_static;
 use parser::instructions::Instructions;
-use parser::parser::Operation;
+use parser::parser::{Operation, OperationKind};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
@@ -21,7 +21,20 @@ use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use tokio::time;
-use tower_lsp_server::lsp_types::{AnnotatedTextEdit, ApplyWorkspaceEditParams, CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeActionProviderCapability, CodeActionResponse, Command, CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, CreateFile, CreateFileOptions, Diagnostic, DiagnosticSeverity, DidChangeConfigurationParams, DidChangeWorkspaceFoldersParams, DocumentChangeOperation, DocumentChanges, DocumentSymbolParams, DocumentSymbolResponse, ExecuteCommandParams, FileOperationRegistrationOptions, HoverContents, InitializedParams, InsertTextFormat, LSPAny, MarkupContent, MarkupKind, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier, ProgressToken, Range, ResourceOp, SymbolInformation, TextDocumentEdit, TextDocumentIdentifier, TextEdit, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities};
+use tower_lsp_server::lsp_types::request::ApplyWorkspaceEdit;
+use tower_lsp_server::lsp_types::{
+    AnnotatedTextEdit, ApplyWorkspaceEditParams, CodeAction, CodeActionKind, CodeActionOrCommand,
+    CodeActionParams, CodeActionProviderCapability, CodeActionResponse, Command, CompletionItem,
+    CompletionItemKind, CompletionParams, CompletionResponse, CreateFile, CreateFileOptions,
+    Diagnostic, DiagnosticSeverity, DidChangeConfigurationParams, DidChangeWorkspaceFoldersParams,
+    DocumentChangeOperation, DocumentChanges, DocumentSymbolParams, DocumentSymbolResponse,
+    ExecuteCommandParams, FileOperationRegistrationOptions, HoverContents, InitializedParams,
+    InsertTextFormat, LSPAny, MarkupContent, MarkupKind, MessageType, OneOf,
+    OptionalVersionedTextDocumentIdentifier, ProgressToken, Range, ResourceOp, SymbolInformation,
+    TextDocumentEdit, TextDocumentIdentifier, TextEdit, WorkspaceEdit,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    WorkspaceServerCapabilities,
+};
 use tower_lsp_server::{
     jsonrpc::Result,
     lsp_types::{
@@ -33,7 +46,6 @@ use tower_lsp_server::{
     },
     Client, LanguageServer,
 };
-use tower_lsp_server::lsp_types::request::ApplyWorkspaceEdit;
 
 static BLOCK_CONTROL_COMMANDS: &[&'static str] = &[
     "scope", "proc", "macro", "enum", "union", "if", "repeat", "struct",
@@ -187,7 +199,12 @@ async fn make_diagnostics_from_ca65_output(
 
 impl LanguageServer for Asm {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
-        self.client.log_message(MessageType::INFO, format!("{:#?}", params.workspace_folders)).await;
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!("{:#?}", params.workspace_folders),
+            )
+            .await;
         Ok(InitializeResult {
             server_info: None,
             capabilities: ServerCapabilities {
@@ -204,7 +221,7 @@ impl LanguageServer for Asm {
                         did_create: Some(FileOperationRegistrationOptions::default()),
                         ..Default::default()
                     }),
-                    workspace_folders: Some(WorkspaceFoldersServerCapabilities{
+                    workspace_folders: Some(WorkspaceFoldersServerCapabilities {
                         supported: Some(true),
                         change_notifications: Some(OneOf::Left(true)),
                     }),
@@ -218,9 +235,17 @@ impl LanguageServer for Asm {
         })
     }
 
-    async fn initialized(&self, params: InitializedParams) {
-        self.client.log_message(MessageType::LOG, format!("Test")).await;
-        _ = self.client.progress(ProgressToken::String("load".to_string()), "Loading").with_message("Indexing").with_percentage(50).begin().await;
+    async fn initialized(&self, _params: InitializedParams) {
+        self.client
+            .log_message(MessageType::LOG, format!("Test"))
+            .await;
+        _ = self
+            .client
+            .progress(ProgressToken::String("load".to_string()), "Loading")
+            .with_message("Indexing")
+            .with_percentage(50)
+            .begin()
+            .await;
     }
 
     async fn shutdown(&self) -> Result<()> {
@@ -279,7 +304,7 @@ impl LanguageServer for Asm {
                                 .unwrap();
                         Location::new(
                             source_file,
-                            tower_lsp_server::lsp_types::Range {
+                            Range {
                                 start: Position::new(definition.line as u32, 0),
                                 end: Position::new(definition.line as u32, word.len() as u32),
                             },
@@ -399,7 +424,7 @@ impl LanguageServer for Asm {
         Ok(Some(CompletionResponse::Array(completion_items)))
     }
 
-    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+    async fn code_action(&self, _params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
         // self.client
         //     .log_message(
         //         MessageType::INFO,
@@ -410,7 +435,7 @@ impl LanguageServer for Asm {
         //     "file:///home/simonhochrein/Documents/ca65-lsp/project.toml",
         // )
         //     .unwrap();
-        // 
+        //
         // Ok(Some(vec![CodeActionOrCommand::CodeAction(CodeAction {
         //     title: "Create workspace file".to_string(),
         //     edit: Some(WorkspaceEdit {
@@ -456,7 +481,9 @@ impl LanguageServer for Asm {
         Ok(None)
     }
     async fn did_change_workspace_folders(&self, params: DidChangeWorkspaceFoldersParams) {
-        self.client.log_message(MessageType::INFO, format!("Config: {:#?}", params)).await;
+        self.client
+            .log_message(MessageType::INFO, format!("Config: {:#?}", params))
+            .await;
     }
 }
 
@@ -521,8 +548,8 @@ impl Asm {
         let mut diagnostics = vec![];
 
         for node in ast.iter() {
-            match node {
-                Operation::Include(path) => {
+            match &node.kind {
+                OperationKind::Include(path) => {
                     self.client
                         .log_message(MessageType::INFO, format!("Includes: {:#?}", path))
                         .await;
@@ -536,9 +563,9 @@ impl Asm {
                         None,
                     ));
                 }
-                Operation::Label(name) => {
-                    let pos =
-                        byte_index_to_position(files, id, name.index).expect("Index out of bounds");
+                OperationKind::Label(name) => {
+                    let pos = byte_index_to_position(files, id, node.span.start_offset)
+                        .expect("Index out of bounds");
                     symbol_cache_insert(
                         id,
                         pos.line as usize,
@@ -547,8 +574,8 @@ impl Asm {
                         SymbolType::Label,
                     );
                 }
-                Operation::ConstantAssign(constant) => {
-                    let pos = byte_index_to_position(files, id, constant.name.index)
+                OperationKind::ConstantAssign(constant) => {
+                    let pos = byte_index_to_position(files, id, node.span.start_offset)
                         .expect("Index out of bounds");
                     symbol_cache_insert(
                         id,
