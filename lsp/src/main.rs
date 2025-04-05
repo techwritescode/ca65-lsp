@@ -1,3 +1,5 @@
+extern crate core;
+
 mod asm_server;
 mod codespan;
 mod configuration;
