@@ -1,3 +1,4 @@
+use core::panic::PanicInfo;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
 use std::sync::OnceLock;
@@ -55,11 +56,12 @@ impl Ca65HtmlParser {
                     if !self.curr_key.is_empty() {
                         if self.is_top_element("code") {
                             self.curr_description.push(c);
-                        } else if !self.element_stack.contains("h2".as_ref()) {
+                        } else if !self.is_in_element_stack("h2") {
                             if self.is_top_element("p")
                                 || self.is_top_element("a")
                                 || self.is_top_element("blockquote")
                                 || self.is_top_element("pre")
+                                || self.is_top_element("ul")
                             {
                                 self.curr_description.push(c);
                             }
@@ -73,59 +75,86 @@ impl Ca65HtmlParser {
                     self.input.advance().expect("Unable to advance the stream in parse_to_hashmap");
                 }
                 self.start = self.input.pos();
-                loop {
-                    let cc = self.input.peek().expect("Unable to peek next character of stream in parse_to_hashamp");
-                    if cc == ' ' || cc == '>' { break }
-                }
+                self.consume_until_before(&[' ', '>']);
                 let element_name = self.current_string().to_lowercase();
-                if is_closing_el {
+                if element_name == "jacksonnn" {
+                    self.curr_description.push_str("jacksonnnnn duuude");
+                }
+                if is_closing_el && element_name != "li" { // ca65.html doesn't always close it's <li>'s
                     if let Some(el) = self.element_stack.pop() {
-                        if el != element_name {
-                            // throw warning: closing tag does not match opening tag.
-                        }
-                        if !self.curr_key.is_empty() {
+                        if el == element_name && !self.curr_key.is_empty() {
                             if &el == "h2" {
-                                self.curr_description.push_str(" ayyy jimbo\n---\n");
-                            } else if &el == "code" && !self.element_stack.contains("blockquote".as_ref()) {
-                                self.curr_description.push('`');
+                                self.curr_description.push_str("\n---\n");
+                            // } else if &el == "code" && !self.is_in_element_stack("blockquote") {
+                            //     self.curr_description.push('`');
                             } else if &el == "blockquote" {
                                 self.curr_description.push_str("```\n");
-                            } else if &el == "a" && !self.element_stack.contains("h2".as_ref()) {
+                            } else if &el == "a" && !self.is_in_element_stack("h2") {
                                 self.curr_description.push_str(&format!("]({})", self.curr_href));
                             } else if &el == "p" {
                                 self.curr_description.push_str("\n\n");
+                            } else if &el == "ul" {
+                                self.curr_description.push('\n');
                             }
                         }
                     }
                 } else {
                     // make sure is not a self-closing html tag
                     if !Vec::<String>::from([
-                        "!doctype",
-                        "link",
-                        "rel",
-                        "br",
-                        "hr"
-                    ]).contains(&element_name) {
-                        self.element_stack.push(element_name.clone());
+                        "!doctype".to_string(),
+                        "meta".to_string(),
+                        "link".to_string(),
+                        "rel".to_string(),
+                        "br".to_string(),
+                        "hr".to_string(),
+                        "li".to_string(), // ca65.html doesn't always close it's <li>'s
+                    ]).contains(&element_name.to_lowercase()) {
+                        if element_name != "p" || self.input.peek_next().is_some_and(|cc| cc != '\n') {
+                            self.element_stack.push(element_name.to_lowercase().clone());
+                        }
                     }
                 }
                 if self.input.advance().is_some_and(|c_after_element_name| c_after_element_name == ' ') {
                     if element_name == "a" {
                         self.start = self.input.pos();
-                        while self.input.advance().is_some_and(|cc| cc != '"') {}
-                        if self.is_top_element("h2") {
-                            let cc = self.input.peek().expect("Unable to peek next character of stream looking for keyword");
-                            if cc == '.' && self.current_string() == "NAME=\"" {
+                        self.consume_until_after(&['"']);
+                        if self.element_stack.len() > 1 && self.element_stack[self.element_stack.len() - 2] == "h2" {
+                            if self.input.peek().is_some_and(|cc| cc == '.') && self.current_string() == "NAME=\"" {
                                 self.start = self.input.pos();
-                                while !self.input.match_char('"') {}
+                                self.consume_until_before(&['"']);
                                 self.curr_key = self.current_string().clone();
                             }
                         } else if !self.curr_key.is_empty()
-                            && !self.element_stack.contains("h2".as_ref())
+                            && !self.is_in_element_stack("h2")
                             && self.current_string() == "HREF=\""
                         {
-
+                            self.start = self.input.pos();
+                            self.consume_until_before(&['"']);
+                            self.curr_href = self.current_string().clone();
+                            if self.curr_href.starts_with('#') {
+                                self.curr_href.insert_str(0, "https://cc65.github.io/doc/ca65.html");
+                            } else if self.curr_href.starts_with("ca65.html") {
+                                self.curr_href.insert_str(0, "https://cc65.github.io/doc/");
+                            }
+                            self.curr_description.push('[');
                         }
+                    }
+                    self.consume_until_after(&['>']);
+                }
+                if element_name == "blockquote" {
+                    let _ben = 5;
+                }
+                if !is_closing_el && !self.curr_key.is_empty() {
+                    if element_name == "h2" {
+                        hm.insert(self.curr_key.clone(), self.curr_description.clone());
+                        self.curr_key = "".to_string();
+                        self.curr_description = "".to_string();
+                    } else if element_name == "blockquote" {
+                        self.curr_description.push_str("```ca65");
+                    // } else if element_name == "code" && !self.is_in_element_stack("blockquote") {
+                    //     self.curr_description.push('`');
+                    } else if element_name == "li" {
+                        self.curr_description.push_str("\n- ");
                     }
                 }
             }
@@ -134,9 +163,23 @@ impl Ca65HtmlParser {
     }
 
     fn is_top_element(&self, el: &str) -> bool {
-        self.element_stack.last() == Some(el.as_ref())
+        self.element_stack.last() == Some(&el.to_string())
+    }
+    fn is_in_element_stack(&self, el: &str) -> bool {
+        self.element_stack.iter().any(|stack_el| stack_el == el)
     }
     fn current_string(&self) -> String {
         String::from_utf8(self.input[self.start..self.input.pos()].to_vec()).expect("Failed to get string slice from stream")
     }
+    fn consume_until_before(&mut self, terminators: &[char]) {
+        loop {
+            let c = self.input.peek().expect("Unable to peek next character of stream in consume_until_before");
+            if terminators.to_vec().contains(&c) { break }
+            self.input.advance().expect("Unable to advance the stream in consume_until_before");
+        }
+    }
+    fn consume_until_after(&mut self, terminators: &[char]) {
+        while self.input.advance().is_some_and(|c| !terminators.to_vec().contains(&c)) {}
+    }
+
 }
