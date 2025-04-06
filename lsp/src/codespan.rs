@@ -1,5 +1,5 @@
 use core::panic;
-
+use std::fmt::{Display, Formatter};
 use tower_lsp_server::lsp_types::{Position, Range, Uri};
 
 #[derive(Debug, PartialEq)]
@@ -59,7 +59,7 @@ impl File {
             Ordering::Less => Ok(self.line_starts[line_index]),
             Ordering::Equal => Ok(self.source.len()),
             Ordering::Greater => {
-                tracing::error!("Line index out of bounds");
+                // tracing::error!("Line index out of bounds");
                 panic!("Line index out of bounds")
             }
         }
@@ -114,7 +114,7 @@ impl File {
         let end = span.end as usize;
 
         self.source.get(start..end).ok_or_else(|| {
-            tracing::error!("Failed to create source span");
+            // tracing::error!("Failed to create source span");
             panic!()
         })
     }
@@ -128,6 +128,12 @@ impl File {
 pub struct Span {
     start: usize,
     end: usize,
+}
+
+impl Display for Span {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Span({},{})", self.start, self.end)
+    }
 }
 
 impl Span {
@@ -172,7 +178,7 @@ impl Files {
     }
 
     pub fn update(&mut self, id: FileId, source: String) {
-        tracing::info!("{}", source);
+        // tracing::info!("{}", source);
         self.get_mut(id).update(source)
     }
 }
@@ -257,4 +263,10 @@ fn find_word_at_pos(line: &str, col: usize) -> (usize, usize) {
 
     let end = end.next();
     (start, end.map(|(i, _)| i).unwrap_or(col))
+}
+
+impl From<parser::Span> for Span {
+    fn from(span: parser::Span) -> Span {
+        Span::new(span.start_offset, span.end_offset)
+    }
 }
