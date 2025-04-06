@@ -1,2 +1,6 @@
-.include "test.s"
-add 1 * 2 * 3 * 4
+.include "test2.s"
+main:
+    jmp main
+
+test_1234:
+    jmp test_1234

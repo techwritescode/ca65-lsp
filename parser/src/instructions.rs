@@ -15,7 +15,7 @@ impl Instructions {
         Instructions { instructions }
     }
 
-    pub fn is_instruction(&self, mnemonic: &String) -> bool {
+    pub fn is_instruction(&self, mnemonic: String) -> bool {
         self.instructions.contains_key(mnemonic.to_lowercase().as_str())
     }
 }
