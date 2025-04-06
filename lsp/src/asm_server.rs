@@ -1,19 +1,13 @@
-use crate::codespan::{
-    byte_index_to_position, byte_span_to_range, get_line, get_word_at_position, range_to_byte_span,
-    FileId, Files,
-};
+use crate::codespan::{byte_index_to_position, byte_span_to_range, get_line, get_word_at_position, range_to_byte_span, FileId, Files};
 use crate::configuration::{load_project_configuration, Configuration};
 use crate::symbol_cache::{
     symbol_cache_fetch, symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
 };
-use crate::{instructions, symbol_cache, OPCODE_DOCUMENTATION};
+use crate::{instructions, OPCODE_DOCUMENTATION};
 use lazy_static::lazy_static;
 use parser::instructions::Instructions;
-use parser::parser::Operation;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::future::Future;
-use std::pin::Pin;
 use std::process::Output;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -21,7 +15,14 @@ use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use tokio::time;
-use tower_lsp_server::lsp_types::{AnnotatedTextEdit, ApplyWorkspaceEditParams, CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeActionProviderCapability, CodeActionResponse, Command, CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, CreateFile, CreateFileOptions, Diagnostic, DiagnosticSeverity, DidChangeConfigurationParams, DidChangeWorkspaceFoldersParams, DocumentChangeOperation, DocumentChanges, DocumentSymbolParams, DocumentSymbolResponse, ExecuteCommandParams, FileOperationRegistrationOptions, HoverContents, InitializedParams, InsertTextFormat, LSPAny, MarkupContent, MarkupKind, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier, ProgressToken, Range, ResourceOp, SymbolInformation, TextDocumentEdit, TextDocumentIdentifier, TextEdit, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities};
+use tower_lsp_server::lsp_types::{
+    CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionItem,
+    CompletionItemKind, CompletionParams, CompletionResponse,
+    Diagnostic, DiagnosticSeverity, DidChangeWorkspaceFoldersParams, DocumentSymbolParams, DocumentSymbolResponse, FileOperationRegistrationOptions, HoverContents, InitializedParams,
+    InsertTextFormat, MarkupContent, MarkupKind, MessageType, OneOf, ProgressToken, Range, SymbolInformation,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    WorkspaceServerCapabilities,
+};
 use tower_lsp_server::{
     jsonrpc::Result,
     lsp_types::{
@@ -33,7 +34,7 @@ use tower_lsp_server::{
     },
     Client, LanguageServer,
 };
-use tower_lsp_server::lsp_types::request::ApplyWorkspaceEdit;
+use parser::LineKind;
 
 static BLOCK_CONTROL_COMMANDS: &[&'static str] = &[
     "scope", "proc", "macro", "enum", "union", "if", "repeat", "struct",
@@ -160,7 +161,7 @@ async fn make_diagnostics_from_ca65_output(
         let message: Vec<&str> = line.splitn(4, ":").map(|part| part.trim()).collect();
 
         if message.len() < 4 {
-            tracing::error!("Failed to parse diagnostic {}", line);
+            // tracing::error!("Failed to parse diagnostic {}", line);
             continue;
         }
 
@@ -187,7 +188,12 @@ async fn make_diagnostics_from_ca65_output(
 
 impl LanguageServer for Asm {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
-        self.client.log_message(MessageType::INFO, format!("{:#?}", params.workspace_folders)).await;
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!("{:#?}", params.workspace_folders),
+            )
+            .await;
         Ok(InitializeResult {
             server_info: None,
             capabilities: ServerCapabilities {
@@ -204,7 +210,7 @@ impl LanguageServer for Asm {
                         did_create: Some(FileOperationRegistrationOptions::default()),
                         ..Default::default()
                     }),
-                    workspace_folders: Some(WorkspaceFoldersServerCapabilities{
+                    workspace_folders: Some(WorkspaceFoldersServerCapabilities {
                         supported: Some(true),
                         change_notifications: Some(OneOf::Left(true)),
                     }),
@@ -218,9 +224,17 @@ impl LanguageServer for Asm {
         })
     }
 
-    async fn initialized(&self, params: InitializedParams) {
-        self.client.log_message(MessageType::LOG, format!("Test")).await;
-        _ = self.client.progress(ProgressToken::String("load".to_string()), "Loading").with_message("Indexing").with_percentage(50).begin().await;
+    async fn initialized(&self, _params: InitializedParams) {
+        self.client
+            .log_message(MessageType::LOG, format!("Test"))
+            .await;
+        _ = self
+            .client
+            .progress(ProgressToken::String("load".to_string()), "Loading")
+            .with_message("Indexing")
+            .with_percentage(50)
+            .begin()
+            .await;
     }
 
     async fn shutdown(&self) -> Result<()> {
@@ -255,13 +269,13 @@ impl LanguageServer for Asm {
                 params.text_document_position_params.position,
             )
             .unwrap_or_else(|_| {
-                tracing::error!("Failed to get word");
+                // tracing::error!("Failed to get word");
                 panic!();
             });
 
             let mut definitions = symbol_cache_fetch(word.to_string());
 
-            tracing::error!("{} {:#?}", word, definitions);
+            // tracing::error!("{} {:#?}", word, definitions);
 
             definitions.sort_by(|sym, _| {
                 if sym.file_id == *id {
@@ -277,12 +291,10 @@ impl LanguageServer for Asm {
                         let source_file =
                             Uri::from_str(state.files.get(definition.file_id).name.as_str())
                                 .unwrap();
+                        let range = byte_span_to_range(&state.files, *id, definition.span).unwrap();
                         Location::new(
                             source_file,
-                            tower_lsp_server::lsp_types::Range {
-                                start: Position::new(definition.line as u32, 0),
-                                end: Position::new(definition.line as u32, word.len() as u32),
-                            },
+                            range
                         )
                     })
                     .collect(),
@@ -350,16 +362,15 @@ impl LanguageServer for Asm {
             let mut symbols = vec![];
             for symbol in symbol_cache_get().iter() {
                 if symbol.file_id == *id {
+                    let range = byte_span_to_range(&state.files, *id, symbol.span).unwrap();
+
                     symbols.push(SymbolInformation {
                         name: symbol.label.clone(),
                         container_name: None,
                         kind: tower_lsp_server::lsp_types::SymbolKind::FUNCTION,
                         location: Location::new(
                             params.text_document.uri.clone(),
-                            tower_lsp_server::lsp_types::Range {
-                                start: Position::new(symbol.line as u32, 0),
-                                end: Position::new(symbol.line as u32, symbol.label.len() as u32),
-                            },
+                            range
                         ),
                         tags: None,
                         deprecated: None,
@@ -386,7 +397,7 @@ impl LanguageServer for Asm {
         for symbol in symbol_cache_get().iter() {
             completion_items.push(CompletionItem::new_simple(
                 symbol.label.to_owned(),
-                "".to_owned(),
+                format!("{}:", symbol.label),
             ));
         }
         completion_items.extend(BLOCK_CONTROL_COMMANDS.iter().map(|command| CompletionItem {
@@ -399,7 +410,7 @@ impl LanguageServer for Asm {
         Ok(Some(CompletionResponse::Array(completion_items)))
     }
 
-    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+    async fn code_action(&self, _params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
         // self.client
         //     .log_message(
         //         MessageType::INFO,
@@ -410,7 +421,7 @@ impl LanguageServer for Asm {
         //     "file:///home/simonhochrein/Documents/ca65-lsp/project.toml",
         // )
         //     .unwrap();
-        // 
+        //
         // Ok(Some(vec![CodeActionOrCommand::CodeAction(CodeAction {
         //     title: "Create workspace file".to_string(),
         //     edit: Some(WorkspaceEdit {
@@ -456,7 +467,9 @@ impl LanguageServer for Asm {
         Ok(None)
     }
     async fn did_change_workspace_folders(&self, params: DidChangeWorkspaceFoldersParams) {
-        self.client.log_message(MessageType::INFO, format!("Config: {:#?}", params)).await;
+        self.client
+            .log_message(MessageType::INFO, format!("Config: {:#?}", params))
+            .await;
     }
 }
 
@@ -488,7 +501,7 @@ fn reload_source(
         state.files.update(*id, source);
         *id
     } else {
-        tracing::error!("attempted to reload source that does not exist");
+        // tracing::error!("attempted to reload source that does not exist");
         panic!();
     }
 }
@@ -514,6 +527,16 @@ impl Asm {
         // self.client
         //     .log_message(MessageType::LOG, format!("Ast: {:#?}", ast))
         //     .await;
+        
+        let symbols = analysis::ScopeAnalyzer::new(ast.clone()).parse();
+        
+        for (symbol, span) in symbols.iter() {
+            symbol_cache_insert(id, (*span).into(), symbol.clone(), format!("{}:", symbol.clone()), SymbolType::Label);
+        }
+
+        self.client
+            .log_message(MessageType::LOG, format!("Symbols: {:#?}", symbols))
+            .await;
 
         self.client
             .log_message(MessageType::ERROR, "Looking for labels".to_string())
@@ -521,13 +544,11 @@ impl Asm {
         let mut diagnostics = vec![];
 
         for node in ast.iter() {
-            match node {
-                Operation::Include(path) => {
-                    self.client
-                        .log_message(MessageType::INFO, format!("Includes: {:#?}", path))
-                        .await;
+            match &node.kind {
+                LineKind::Include(path) => {
+                    let range = byte_span_to_range(files, id, path.span.into());
                     diagnostics.push(Diagnostic::new(
-                        Range::new(Position::new(0, 0), Position::new(0, 1)),
+                        range.unwrap(),
                         Some(DiagnosticSeverity::WARNING),
                         None,
                         None,
@@ -536,28 +557,24 @@ impl Asm {
                         None,
                     ));
                 }
-                Operation::Label(name) => {
-                    let pos =
-                        byte_index_to_position(files, id, name.index).expect("Index out of bounds");
-                    symbol_cache_insert(
-                        id,
-                        pos.line as usize,
-                        name.lexeme.clone(),
-                        "".to_string(),
-                        SymbolType::Label,
-                    );
-                }
-                Operation::ConstantAssign(constant) => {
-                    let pos = byte_index_to_position(files, id, constant.name.index)
-                        .expect("Index out of bounds");
-                    symbol_cache_insert(
-                        id,
-                        pos.line as usize,
-                        constant.name.lexeme.clone(),
-                        "".to_string(),
-                        SymbolType::Label,
-                    );
-                }
+                // LineKind::Label(name) => {
+                //     symbol_cache_insert(
+                //         id,
+                //         node.span.into(),
+                //         name.lexeme.clone(),
+                //         "".to_string(),
+                //         SymbolType::Label,
+                //     );
+                // }
+                // LineKind::ConstantAssign(constant) => {
+                //     symbol_cache_insert(
+                //         id,
+                //         pos.line as usize,
+                //         constant.name.lexeme.clone(),
+                //         "".to_string(),
+                //         SymbolType::Label,
+                //     );
+                // }
                 _ => {}
             }
         }

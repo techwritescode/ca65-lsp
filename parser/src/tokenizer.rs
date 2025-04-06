@@ -1,12 +1,14 @@
 use crate::instructions::Instructions;
 use crate::stream::Stream;
+use crate::Span;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
+#[repr(u32)]
 pub enum TokenType {
-    Label(String),
-    Instruction(String),
-    Identifier(String),
-    Number(String),
+    Label,
+    Instruction,
+    Identifier,
+    Number,
     Hash,
     Plus,
     Minus,
@@ -18,8 +20,8 @@ pub enum TokenType {
     Equal,
     EOF,
     EOL,
-    String(String),
-    Macro(String),
+    String,
+    Macro,
     BitwiseOr,
     BitwiseAnd,
     BitwiseNot,
@@ -42,11 +44,22 @@ pub enum TokenType {
     GreaterThanEq,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
-    pub index: usize,
+    pub span: Span,
+}
+
+impl Token {
+    pub fn new(token_type: TokenType, lexeme: String, index: usize) -> Token {
+        let span = Span::new(index, index + lexeme.len());
+        Token {
+            token_type,
+            lexeme,
+            span,
+        }
+    }
 }
 
 pub struct Tokenizer<'a> {
@@ -84,8 +97,8 @@ impl<'a> Tokenizer<'a> {
             }
             Some('.') => {
                 self.input.advance();
-                let m = self.identifier();
-                match m.to_lowercase().as_str() {
+                self.identifier();
+                match self.get_lexeme().to_lowercase().as_str() {
                     ".bitor" => self.make_token(TokenType::BitwiseOr),
                     ".bitand" => self.make_token(TokenType::BitwiseAnd),
                     ".bitxor" => self.make_token(TokenType::BitwiseXor),
@@ -93,27 +106,27 @@ impl<'a> Tokenizer<'a> {
                     ".shr" => self.make_token(TokenType::ShiftRight),
                     ".shl" => self.make_token(TokenType::ShiftLeft),
                     ".xor" => self.make_token(TokenType::Xor),
-                    _ => self.make_token(TokenType::Macro(m)),
+                    _ => self.make_token(TokenType::Macro),
                 }
             }
             Some('"') => {
-                let text = self.string();
-                self.make_token(TokenType::String(text.as_str()[1..text.len()-1].to_string()))
+                self.string();
+                self.make_token(TokenType::String)
             }
             Some('(') => self.make_token(TokenType::LeftParen),
             Some(')') => self.make_token(TokenType::RightParen),
             Some('a'..='z' | 'A'..='Z' | '_') => {
-                let name = self.identifier();
-                if self.instructions.is_instruction(&name) {
-                    self.make_token(TokenType::Instruction(name))
+                self.identifier();
+                if self.instructions.is_instruction(self.get_lexeme()) {
+                    self.make_token(TokenType::Instruction)
                 } else {
-                    self.make_token(TokenType::Identifier(name))
+                    self.make_token(TokenType::Identifier)
                 }
             }
             Some('@') => {
                 self.input.advance();
-                let ident = self.identifier();
-                self.make_token(TokenType::Identifier(ident))
+                self.identifier();
+                self.make_token(TokenType::Identifier)
             }
             Some(':') => {
                 if self.input.peek() == Some(':') {
@@ -124,17 +137,17 @@ impl<'a> Tokenizer<'a> {
                 }
             }
             Some('0'..='9') => {
-                let number = self.number();
-                self.make_token(TokenType::Number(number))
+                self.number();
+                self.make_token(TokenType::Number)
             }
             Some('$') => {
-                let number = self.hex_number();
-                self.make_token(TokenType::Number(number))
+                self.hex_number();
+                self.make_token(TokenType::Number)
             }
             Some('!') => self.make_token(TokenType::Not),
             Some('%') => {
-                let number = self.bin_number();
-                self.make_token(TokenType::Number(number))
+                self.bin_number();
+                self.make_token(TokenType::Number)
             }
             Some('=') => self.make_token(TokenType::Equal),
             Some('#') => self.make_token(TokenType::Hash),
@@ -195,7 +208,7 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    fn identifier(&mut self) -> String {
+    fn identifier(&mut self) {
         while self
             .input
             .peek()
@@ -203,63 +216,35 @@ impl<'a> Tokenizer<'a> {
         {
             self.input.advance();
         }
-
-        let text = String::from_utf8(self.input[self.start..self.input.pos()].to_vec())
-            .expect("Failed to read string");
-
-        text
     }
 
-    fn number(&mut self) -> String {
+    fn number(&mut self) {
         while self.input.peek().is_some_and(|c| c.is_numeric()) {
             self.input.advance();
         }
-
-        let text = String::from_utf8(self.input[self.start..self.input.pos()].to_vec())
-            .expect("Failed to read string");
-
-        text
     }
 
-    fn hex_number(&mut self) -> String {
+    fn hex_number(&mut self) {
         while !self.input.at_end()
-            && self.input.peek().is_some_and(|c| match c {
-                '0'..='9' | 'A'..='F' => true,
-                _ => false,
-            })
+            && self
+                .input
+                .peek()
+                .is_some_and(|c| matches!(c, '0'..='9' | 'A'..='F'))
         {
             self.input.advance();
         }
-
-        let text = String::from_utf8(self.input[self.start..self.input.pos()].to_vec())
-            .expect("Failed to read string");
-        text
     }
 
-    fn bin_number(&mut self) -> String {
-        while !self.input.at_end()
-            && self.input.peek().is_some_and(|c| match c {
-                '0' | '1' => true,
-                _ => false,
-            })
-        {
+    fn bin_number(&mut self) {
+        while !self.input.at_end() && self.input.peek().is_some_and(|c| matches!(c, '0' | '1')) {
             self.input.advance();
         }
-
-        let text = String::from_utf8(self.input[self.start..self.input.pos()].to_vec())
-            .expect("Failed to read string");
-        text
     }
 
     fn comment(&mut self) {
         while !self.input.at_end() && self.input.peek().unwrap() != '\n' {
             self.input.advance();
         }
-
-        // println!(
-        //     "Comment: {}",
-        //     String::from_utf8(self.input[self.start..self.input.pos()].to_vec()).unwrap()
-        // );
     }
 
     fn string(&mut self) -> String {
@@ -272,10 +257,17 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn make_token(&self, token_type: TokenType) -> Option<Token> {
+        let lexeme = self.get_lexeme();
+        let span = Span::new(self.start, self.start + lexeme.len());
         Some(Token {
             token_type,
-            lexeme: String::from_utf8(self.input[self.start..self.input.pos()].to_vec()).unwrap(),
-            index: self.start,
+            lexeme,
+            span,
         })
+    }
+
+    #[inline]
+    fn get_lexeme(&self) -> String {
+        String::from_utf8(self.input[self.start..self.input.pos()].to_vec()).unwrap()
     }
 }

@@ -16,4 +16,5 @@ tempfile = "3.14.0"
 streaming-iterator = "0.1.9"
 parser = { path = "../parser" }
 data = { path = "../data" }
+analysis = { path = "../analysis" }
 lazy_static = "1.5.0"
