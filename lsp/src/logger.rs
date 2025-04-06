@@ -37,12 +37,6 @@ pub struct LogWriter {
     client: Client,
 }
 
-impl LogWriter {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
-}
-
 impl<'a> MakeWriter<'a> for LogWriter {
     type Writer = LspLogger;
     fn make_writer(&'a self) -> Self::Writer {
