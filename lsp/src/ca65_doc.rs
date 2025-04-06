@@ -1,8 +1,8 @@
-use core::panic::PanicInfo;
-use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Read};
-use std::sync::OnceLock;
-use tower_lsp_server::lsp_types::MessageType;
+use std::{
+    collections::HashMap,
+    io::Read,
+    sync::OnceLock
+};
 use crate::asm_server::Asm;
 use parser::stream::Stream;
 
@@ -53,18 +53,40 @@ impl Ca65HtmlParser {
                 if c != '<' {
                     if !self.curr_key.is_empty() {
                         if self.is_top_element("code") {
-                            self.curr_description.push(c);
+                            if c != '\n' {
+                                self.curr_description.push(c);
+                            }
                         } else if !self.is_in_element_stack("h2") {
                             if self.is_top_element("p")
                                 || self.is_top_element("a")
-                                || self.is_top_element("blockquote")
-                                || self.is_top_element("pre")
                                 || self.is_top_element("ul")
                             {
-                                if c == '&' {
+                                if c == '&' { // every instance of & in ca65.html is an html escape
                                     self.add_html_escape_to_description();
                                 } else {
                                     self.curr_description.push(c);
+                                }
+                            } else if self.is_top_element("pre") {
+                                // ca65.html uses 8-space tabs for its code blocks
+                                //  we only have small popup windows, so let's just bring the whole block closer to the left
+                                if c == '\n' {
+                                    self.curr_description.push('\n');
+                                    const NUM_BEGINNING_TAB_SPACES: u8 = 2;
+                                    for i in 0..8u8 {
+                                        if self.input.match_char(' ') {
+                                            if i < NUM_BEGINNING_TAB_SPACES {
+                                                self.curr_description.push(' ');
+                                            }
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                } else {
+                                    if c == '&' { // every instance of & in ca65.html is an html escape
+                                        self.add_html_escape_to_description();
+                                    } else {
+                                        self.curr_description.push(c);
+                                    }
                                 }
                             }
                         }
@@ -79,9 +101,6 @@ impl Ca65HtmlParser {
                 self.start = self.input.pos();
                 self.consume_until_before(&[' ', '>']);
                 let element_name = self.current_string().to_lowercase();
-                if element_name == "jacksonnn" {
-                    self.curr_description.push_str("jacksonnnnn duuude");
-                }
                 if is_closing_el && element_name != "li" { // ca65.html doesn't always close it's <li>'s
                     if let Some(el) = self.element_stack.pop() {
                         if el == element_name && !self.curr_key.is_empty() {
@@ -140,9 +159,6 @@ impl Ca65HtmlParser {
                     }
                     self.consume_until_after(&['>']);
                 }
-                if element_name == "blockquote" {
-                    let _ben = 5;
-                }
                 if !is_closing_el && !self.curr_key.is_empty() {
                     match element_name.as_str() {
                         "h2" => {
@@ -155,6 +171,7 @@ impl Ca65HtmlParser {
                         //     self.curr_description.push('`');
                         // }
                         "li" => self.curr_description.push_str("\n- "),
+                        "dd" => self.curr_description.push_str("\n\n"),
                         _ => (),
                     }
                 }
