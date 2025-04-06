@@ -40,7 +40,6 @@ impl Ca65HtmlParser {
         Self {
             input,
             start: 0,
-            output: String::from(""),
             element_stack: Vec::new(),
             curr_key: String::from(""),
             curr_description: String::from(""),
@@ -62,7 +61,11 @@ impl Ca65HtmlParser {
                                 || self.is_top_element("pre")
                                 || self.is_top_element("ul")
                             {
-                                self.curr_description.push(c);
+                                if c == '&' {
+                                    self.add_html_escape_to_description();
+                                } else {
+                                    self.curr_description.push(c);
+                                }
                             }
                         }
                     }
@@ -160,6 +163,18 @@ impl Ca65HtmlParser {
         hm
     }
 
+    fn add_html_escape_to_description(&mut self) {
+        self.input.match_char('&');
+        self.start = self.input.pos();
+        self.consume_until_before(&[';']);
+        match self.current_string().as_str() {
+            "gt" => self.curr_description.push('>'),
+            "lt" => self.curr_description.push('<'),
+            "nbsp" => self.curr_description.push(' '),
+            _ => (),
+        }
+        self.input.match_char(';');
+    }
     fn is_top_element(&self, el: &str) -> bool {
         self.element_stack.last() == Some(&el.to_string())
     }
@@ -179,5 +194,4 @@ impl Ca65HtmlParser {
     fn consume_until_after(&mut self, terminators: &[char]) {
         while self.input.advance().is_some_and(|c| !terminators.to_vec().contains(&c)) {}
     }
-
 }
