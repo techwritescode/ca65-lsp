@@ -29,7 +29,6 @@ pub async fn parse_ca65_html(asm_server: &Asm) {
 struct Ca65HtmlParser {
     input: Stream,
     start: usize,
-    output: String,
     element_stack: Vec<String>,
     curr_key: String,
     curr_description: String,
@@ -83,18 +82,15 @@ impl Ca65HtmlParser {
                 if is_closing_el && element_name != "li" { // ca65.html doesn't always close it's <li>'s
                     if let Some(el) = self.element_stack.pop() {
                         if el == element_name && !self.curr_key.is_empty() {
-                            if &el == "h2" {
-                                self.curr_description.push_str("\n---\n");
-                            // } else if &el == "code" && !self.is_in_element_stack("blockquote") {
-                            //     self.curr_description.push('`');
-                            } else if &el == "blockquote" {
-                                self.curr_description.push_str("```\n");
-                            } else if &el == "a" && !self.is_in_element_stack("h2") {
-                                self.curr_description.push_str(&format!("]({})", self.curr_href));
-                            } else if &el == "p" {
-                                self.curr_description.push_str("\n\n");
-                            } else if &el == "ul" {
-                                self.curr_description.push('\n');
+                            match el.as_str() {
+                                "h2" => self.curr_description.push_str("\n---\n"),
+                                "blockquote" => self.curr_description.push_str("```\n"),
+                                "a" => if !self.is_in_element_stack("h2") {
+                                    self.curr_description.push_str(&format!("]({})", self.curr_href));
+                                },
+                                "p" => self.curr_description.push_str("\n\n"),
+                                "ul" => self.curr_description.push('\n'),
+                                _ => (),
                             }
                         }
                     }
@@ -145,16 +141,18 @@ impl Ca65HtmlParser {
                     let _ben = 5;
                 }
                 if !is_closing_el && !self.curr_key.is_empty() {
-                    if element_name == "h2" {
-                        hm.insert(self.curr_key.clone(), self.curr_description.clone());
-                        self.curr_key = "".to_string();
-                        self.curr_description = "".to_string();
-                    } else if element_name == "blockquote" {
-                        self.curr_description.push_str("```ca65");
-                    // } else if element_name == "code" && !self.is_in_element_stack("blockquote") {
-                    //     self.curr_description.push('`');
-                    } else if element_name == "li" {
-                        self.curr_description.push_str("\n- ");
+                    match element_name.as_str() {
+                        "h2" => {
+                            hm.insert(self.curr_key.clone(), self.curr_description.clone());
+                            self.curr_key = "".to_string();
+                            self.curr_description = "".to_string();
+                        },
+                        "blockquote" => self.curr_description.push_str("```ca65"),
+                        // "code" => if !self.is_in_element_stack("blockquote") {
+                        //     self.curr_description.push('`');
+                        // }
+                        "li" => self.curr_description.push_str("\n- "),
+                        _ => (),
                     }
                 }
             }
