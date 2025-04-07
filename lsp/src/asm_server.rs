@@ -1,4 +1,4 @@
-use crate::codespan::{byte_index_to_position, byte_span_to_range, get_line, get_word_at_position, range_to_byte_span, FileId, Files};
+use crate::codespan::{FileId, Files};
 use crate::configuration::{load_project_configuration, Configuration};
 use crate::symbol_cache::{
     symbol_cache_fetch, symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
@@ -6,6 +6,7 @@ use crate::symbol_cache::{
 use crate::{instructions, OPCODE_DOCUMENTATION};
 use lazy_static::lazy_static;
 use parser::instructions::Instructions;
+use parser::LineKind;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::process::Output;
@@ -17,9 +18,10 @@ use tokio::sync::Mutex;
 use tokio::time;
 use tower_lsp_server::lsp_types::{
     CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionItem,
-    CompletionItemKind, CompletionParams, CompletionResponse,
-    Diagnostic, DiagnosticSeverity, DidChangeWorkspaceFoldersParams, DocumentSymbolParams, DocumentSymbolResponse, FileOperationRegistrationOptions, HoverContents, InitializedParams,
-    InsertTextFormat, MarkupContent, MarkupKind, MessageType, OneOf, ProgressToken, Range, SymbolInformation,
+    CompletionItemKind, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
+    DidChangeWorkspaceFoldersParams, DocumentSymbolParams, DocumentSymbolResponse,
+    FileOperationRegistrationOptions, HoverContents, InitializedParams, InsertTextFormat,
+    MarkupContent, MarkupKind, MessageType, OneOf, ProgressToken, Range, SymbolInformation,
     WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities,
 };
@@ -34,7 +36,6 @@ use tower_lsp_server::{
     },
     Client, LanguageServer,
 };
-use parser::LineKind;
 
 static BLOCK_CONTROL_COMMANDS: &[&'static str] = &[
     "scope", "proc", "macro", "enum", "union", "if", "repeat", "struct",
@@ -165,15 +166,17 @@ async fn make_diagnostics_from_ca65_output(
             continue;
         }
 
-        let line_span =
-            get_line(&files, file_id, message[1].parse::<usize>().unwrap() - 1).unwrap();
-        let range = byte_span_to_range(&files, file_id, line_span).unwrap();
+        let line_span = files
+            .get(file_id)
+            .get_line(message[1].parse::<usize>().unwrap() - 1)
+            .unwrap();
+        let range = files.get(file_id).byte_span_to_range(line_span).unwrap();
         let severity = match message[2] {
             "Error" => Some(DiagnosticSeverity::ERROR),
             _ => None,
         };
         diagnostics.push(Diagnostic::new(
-            range,
+            range.into(),
             severity,
             None,
             None,
@@ -263,15 +266,14 @@ impl LanguageServer for Asm {
             .sources
             .get(&params.text_document_position_params.text_document.uri)
         {
-            let word = get_word_at_position(
-                &state.files,
-                *id,
-                params.text_document_position_params.position,
-            )
-            .unwrap_or_else(|_| {
-                // tracing::error!("Failed to get word");
-                panic!();
-            });
+            let word = state
+                .files
+                .get(*id)
+                .get_word_at_position(params.text_document_position_params.position.into())
+                .unwrap_or_else(|_| {
+                    // tracing::error!("Failed to get word");
+                    panic!();
+                });
 
             let mut definitions = symbol_cache_fetch(word.to_string());
 
@@ -291,11 +293,8 @@ impl LanguageServer for Asm {
                         let source_file =
                             Uri::from_str(state.files.get(definition.file_id).name.as_str())
                                 .unwrap();
-                        let range = byte_span_to_range(&state.files, *id, definition.span).unwrap();
-                        Location::new(
-                            source_file,
-                            range
-                        )
+                        let range = state.files.get(*id).byte_span_to_range(definition.span).unwrap();
+                        Location::new(source_file, range.into())
                     })
                     .collect(),
             )));
@@ -311,9 +310,9 @@ impl LanguageServer for Asm {
             .sources
             .get(&params.text_document_position_params.text_document.uri)
         {
-            let position = params.text_document_position_params.position;
+            let position = params.text_document_position_params.position.into();
             let word =
-                get_word_at_position(&state.files, *id, position).expect("Word out of bounds");
+                state.files.get(*id).get_word_at_position(position).expect("Word out of bounds");
 
             if let Some(documentation) = OPCODE_DOCUMENTATION
                 .get()
@@ -362,16 +361,13 @@ impl LanguageServer for Asm {
             let mut symbols = vec![];
             for symbol in symbol_cache_get().iter() {
                 if symbol.file_id == *id {
-                    let range = byte_span_to_range(&state.files, *id, symbol.span).unwrap();
+                    let range = state.files.get(*id).byte_span_to_range(symbol.span).unwrap().into();
 
                     symbols.push(SymbolInformation {
                         name: symbol.label.clone(),
                         container_name: None,
                         kind: tower_lsp_server::lsp_types::SymbolKind::FUNCTION,
-                        location: Location::new(
-                            params.text_document.uri.clone(),
-                            range
-                        ),
+                        location: Location::new(params.text_document.uri.clone(), range),
                         tags: None,
                         deprecated: None,
                     });
@@ -494,7 +490,7 @@ fn reload_source(
             if let (None, None) = (change.range, change.range_length) {
                 source = change.text;
             } else if let Some(range) = change.range {
-                let span = range_to_byte_span(&state.files, *id, &range).unwrap_or_default();
+                let span = state.files.get(*id).range_to_byte_span(&range.into()).unwrap_or_default();
                 source.replace_range(span, &change.text);
             }
         }
@@ -517,7 +513,7 @@ impl Asm {
         let source = files.get(id).source.clone();
         let instructions = &INSTRUCTIONS;
 
-        let tokens = parser::tokenizer::Tokenizer::new(source, instructions)
+        let tokens = parser::tokenizer::Tokenizer::new(&source, instructions)
             .parse()
             .expect("tokenization failed");
         // self.client
@@ -527,11 +523,17 @@ impl Asm {
         // self.client
         //     .log_message(MessageType::LOG, format!("Ast: {:#?}", ast))
         //     .await;
-        
+
         let symbols = analysis::ScopeAnalyzer::new(ast.clone()).parse();
-        
+
         for (symbol, span) in symbols.iter() {
-            symbol_cache_insert(id, (*span).into(), symbol.clone(), format!("{}:", symbol.clone()), SymbolType::Label);
+            symbol_cache_insert(
+                id,
+                *span,
+                symbol.clone(),
+                format!("{}:", symbol.clone()),
+                SymbolType::Label,
+            );
         }
 
         self.client
@@ -546,9 +548,9 @@ impl Asm {
         for node in ast.iter() {
             match &node.kind {
                 LineKind::Include(path) => {
-                    let range = byte_span_to_range(files, id, path.span.into());
+                    let range = files.get(id).byte_span_to_range(path.span);
                     diagnostics.push(Diagnostic::new(
-                        range.unwrap(),
+                        range.unwrap().into(),
                         Some(DiagnosticSeverity::WARNING),
                         None,
                         None,

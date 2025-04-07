@@ -1,4 +1,6 @@
 use crate::tokenizer::{Token, TokenType};
+use std::fmt::{Display, Formatter};
+use codespan::Span;
 
 macro_rules! match_token {
     ($stream:expr, $token:pat) => {
@@ -40,20 +42,17 @@ macro_rules! check_token {
     };
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Span {
-    pub start_offset: usize,
-    pub end_offset: usize,
-}
+#[derive(Debug, Copy, Clone)]
+pub struct ParseError {}
 
-impl Span {
-    pub fn new(start_offset: usize, end_offset: usize) -> Span {
-        Self {
-            start_offset,
-            end_offset,
-        }
+impl Display for ParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ParseError")
+        // todo!()
     }
 }
+
+type Result<T> = std::result::Result<T, ParseError>;
 
 pub struct TokenStream<'a> {
     tokens: &'a Vec<Token>,
@@ -72,9 +71,11 @@ impl<'a> TokenStream<'a> {
         if !self.at_end() {
             self.position += 1;
         }
-        let token = self.previous();
-        // println!("Advancing {:#?}", token);
-        token
+        if let Ok(token) = self.previous() {
+            Some(token)
+        } else {
+            None
+        }
     }
 
     pub fn peek(&self) -> Option<Token> {
@@ -85,11 +86,11 @@ impl<'a> TokenStream<'a> {
         None
     }
 
-    pub fn previous(&self) -> Option<Token> {
+    pub fn previous(&self) -> Result<Token> {
         if self.position > 0 {
-            Some(self.tokens[self.position - 1].clone())
+            Ok(self.tokens[self.position - 1].clone())
         } else {
-            None
+            Err(ParseError {})
         }
     }
 
@@ -186,29 +187,35 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) -> Vec<Line> {
-        let mut operations = vec![];
+        let mut lines = vec![];
 
         while !self.tokens.at_end() {
-            if let Some(operation) = self.parse_command() {
-                // println!("{:#?}", operation);
-                operations.push(operation);
+            match self.parse_line() {
+                Ok(operation) => {
+                    if let Some(operation) = operation {
+                        lines.push(operation);
+                    }
+                }
+                Err(err) => {
+                    println!("Parse Error: {}", err)
+                }
             }
         }
 
-        operations
+        lines
     }
 
-    fn parse_command(&mut self) -> Option<Line> {
+    fn parse_line(&mut self) -> Result<Option<Line>> {
         if let Some(token) = self.tokens.peek() {
             let operation = match token.token_type {
                 TokenType::Macro => self.parse_macro(),
-                TokenType::Identifier => self.parse_assignment(),
-                TokenType::Instruction => self.parse_instruction(),
+                TokenType::Identifier => Ok(Some(self.parse_assignment()?)),
+                TokenType::Instruction => Ok(Some(self.parse_instruction()?)),
                 TokenType::EOL => {
                     self.tokens.advance();
-                    None
+                    Ok(None)
                 }
-                _ => panic!("Syntax error: Unexpected token {:?}", token.token_type),
+                _ => Err(ParseError {}),
             };
 
             return operation;
@@ -216,7 +223,7 @@ impl<'a> Parser<'a> {
         panic!("Syntax Error: Unexpected token {:#?}", self.tokens.peek());
     }
 
-    fn parse_macro(&mut self) -> Option<Line> {
+    fn parse_macro(&mut self) -> Result<Option<Line>> {
         if match_token!(self.tokens, TokenType::Macro) {
             let mac = self.tokens.previous().unwrap();
             let start = self.mark_start();
@@ -227,20 +234,20 @@ impl<'a> Parser<'a> {
                     let pack = self.last().lexeme;
                     let end = self.mark_end();
                     self.consume_newline();
-                    return Some(Line {
+                    return Ok(Some(Line {
                         kind: LineKind::MacroPack(pack),
                         span: Span::new(start, end),
-                    });
+                    }));
                 }
                 ".include" => {
                     consume_token!(self.tokens, TokenType::String, "Expected String");
                     let path = self.last();
                     let end = self.mark_end();
                     self.consume_newline();
-                    return Some(Line {
+                    return Ok(Some(Line {
                         kind: LineKind::Include(path),
                         span: Span::new(start, end),
-                    });
+                    }));
                 }
                 ".setcpu" => {
                     consume_token!(self.tokens, TokenType::String, "Expected String");
@@ -248,12 +255,12 @@ impl<'a> Parser<'a> {
                     let end = self.mark_end();
                     self.consume_newline();
 
-                    return Some(Line {
+                    return Ok(Some(Line {
                         kind: LineKind::ControlCommand(ControlCommand {
                             control_type: ControlCommandType::SetCPU(cpu),
                         }),
                         span: Span::new(start, end),
-                    });
+                    }));
                 }
                 ".segment" => {
                     consume_token!(self.tokens, TokenType::String, "Expected String");
@@ -261,41 +268,38 @@ impl<'a> Parser<'a> {
                     let end = self.mark_end();
                     self.consume_newline();
 
-                    return Some(Line {
+                    return Ok(Some(Line {
                         kind: LineKind::ControlCommand(ControlCommand {
                             control_type: ControlCommandType::Segment(segment),
                         }),
                         span: Span::new(start, end),
-                    });
+                    }));
                 }
                 ".proc" => {
                     consume_token!(self.tokens, TokenType::Identifier, "Expected Identifier");
                     let ident = self.last().lexeme;
                     self.consume_newline();
-                    let mut commands: Vec<Option<Line>> = vec![];
+                    let mut commands: Vec<Line> = vec![];
                     while !self.tokens.at_end() {
                         if check_token!(self.tokens, TokenType::Macro) {
-                            let m = self.peek().unwrap().lexeme;
+                            let m = self.peek()?.lexeme;
                             if m == ".endproc" {
                                 self.tokens.advance();
                                 let end = self.mark_end();
-                                return Some(Line {
+                                return Ok(Some(Line {
                                     kind: LineKind::ControlCommand(ControlCommand {
                                         control_type: ControlCommandType::Procedure(
                                             ident,
-                                            commands
-                                                .iter()
-                                                .filter(|c| c.is_some())
-                                                .cloned()
-                                                .map(|c| c.unwrap())
-                                                .collect(),
+                                            commands,
                                         ),
                                     }),
                                     span: Span::new(start, end),
-                                });
+                                }));
                             }
                         }
-                        commands.push(self.parse_command());
+                        if let Some(line) = self.parse_line()? {
+                            commands.push(line);
+                        }
                     }
                     panic!(
                         "Syntax Error: Unexpected token {:#?}, expected .endproc",
@@ -313,7 +317,7 @@ impl<'a> Parser<'a> {
                             if m == ".endscope" {
                                 self.tokens.advance();
                                 let end = self.mark_end();
-                                return Some(Line {
+                                return Ok(Some(Line {
                                     kind: LineKind::Scope(
                                         ident,
                                         commands
@@ -324,10 +328,10 @@ impl<'a> Parser<'a> {
                                             .collect(),
                                     ),
                                     span: Span::new(start, end),
-                                });
+                                }));
                             }
                         }
-                        commands.push(self.parse_command());
+                        commands.push(self.parse_line()?);
                     }
                     panic!(
                         "Syntax Error: Unexpected token {:#?}, expected .endproc",
@@ -339,38 +343,38 @@ impl<'a> Parser<'a> {
                     let end = self.mark_end();
                     self.consume_newline();
 
-                    return Some(Line {
+                    return Ok(Some(Line {
                         kind: LineKind::ControlCommand(ControlCommand {
                             control_type: ControlCommandType::Reserve(right),
                         }),
                         span: Span::new(start, end),
-                    });
+                    }));
                 }
                 ".zeropage" => {
                     let end = self.mark_end();
                     self.consume_newline();
 
-                    return Some(Line {
+                    return Ok(Some(Line {
                         kind: LineKind::ControlCommand(ControlCommand {
                             control_type: ControlCommandType::Segment("zeropage".to_string()),
                         }),
                         span: Span::new(start, end),
-                    });
+                    }));
                 }
                 _ => panic!("Unexpected Macro: {}", ident),
             }
         }
 
-        self.parse_assignment()
+        Ok(Some(self.parse_assignment()?))
     }
 
-    fn parse_assignment(&mut self) -> Option<Line> {
+    fn parse_assignment(&mut self) -> Result<Line> {
         if let Some(token) = self.tokens.peek() {
             if match_token!(self.tokens, TokenType::Identifier) {
-                let start = self.last().span.start_offset;
+                let start = self.last().span.start;
                 if match_token!(self.tokens, TokenType::Equal) {
                     let value = self.parse_expression();
-                    let end = self.tokens.previous()?.span.end_offset;
+                    let end = self.tokens.previous()?.span.end;
                     let operation = LineKind::ConstantAssign(ConstantAssign {
                         name: token,
                         value,
@@ -379,13 +383,13 @@ impl<'a> Parser<'a> {
 
                     self.consume_newline();
 
-                    return Some(Line {
+                    return Ok(Line {
                         kind: operation,
                         span: Span::new(start, end),
                     });
                 }
                 if check_token!(self.tokens, TokenType::Colon) {
-                    return Some(self.parse_label());
+                    return Ok(self.parse_label());
                 }
                 return self.parse_macro_invocation();
             }
@@ -393,14 +397,16 @@ impl<'a> Parser<'a> {
         self.parse_instruction()
     }
 
-    fn parse_instruction(&mut self) -> Option<Line> {
+    fn parse_instruction(&mut self) -> Result<Line> {
         if match_token!(self.tokens, TokenType::Instruction) {
             let mnemonic = self.last().lexeme;
             let start = self.mark_start();
             let parameters = self.parse_parameters();
             let end = self.mark_end();
 
-            return Some(Line {
+            self.consume_newline();
+
+            return Ok(Line {
                 kind: LineKind::Instruction(Instruction {
                     mnemonic,
                     parameters,
@@ -408,7 +414,7 @@ impl<'a> Parser<'a> {
                 span: Span::new(start, end),
             });
         }
-        panic!("Syntax Error: {:?}", self.tokens.peek());
+        Err(ParseError {})
     }
 
     fn parse_label(&mut self) -> Line {
@@ -423,12 +429,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_macro_invocation(&mut self) -> Option<Line> {
+    fn parse_macro_invocation(&mut self) -> Result<Line> {
         let start = self.mark_start();
-        let name = self.tokens.previous().unwrap();
+        let name = self.tokens.previous()?;
         let parameters = self.parse_parameters();
         let end = self.mark_end();
-        Some(Line {
+        Ok(Line {
             kind: LineKind::MacroInvocation(MacroInvocation { name, parameters }),
             span: Span::new(start, end),
         })
@@ -458,7 +464,7 @@ impl<'a> Parser<'a> {
             let right = self.parse_expr2();
             root = Expression {
                 kind: ExpressionKind::Or(Box::from(root.clone()), Box::from(right.clone())),
-                span: Span::new(root.span.start_offset, right.span.end_offset),
+                span: Span::new(root.span.start, right.span.end),
             };
         }
         root
@@ -475,7 +481,7 @@ impl<'a> Parser<'a> {
                             Box::from(root.clone()),
                             Box::from(right.clone()),
                         ),
-                        span: Span::new(root.span.start_offset, right.span.end_offset),
+                        span: Span::new(root.span.start, right.span.end),
                     };
                 }
                 TokenType::Xor => {
@@ -484,7 +490,7 @@ impl<'a> Parser<'a> {
                             Box::from(root.clone()),
                             Box::from(right.clone()),
                         ),
-                        span: Span::new(root.span.start_offset, right.span.end_offset),
+                        span: Span::new(root.span.start, right.span.end),
                     };
                 }
                 _ => {
@@ -515,7 +521,7 @@ impl<'a> Parser<'a> {
                     Box::from(root.clone()),
                     Box::from(right.clone()),
                 ),
-                span: Span::new(root.span.start_offset, right.span.end_offset),
+                span: Span::new(root.span.start, right.span.end),
             };
         }
 
@@ -538,7 +544,7 @@ impl<'a> Parser<'a> {
                     Box::from(root.clone()),
                     Box::from(right.clone()),
                 ),
-                span: Span::new(root.span.start_offset, end),
+                span: Span::new(root.span.start, end),
             };
         }
 
@@ -566,7 +572,7 @@ impl<'a> Parser<'a> {
                     Box::from(root.clone()),
                     Box::from(right.clone()),
                 ),
-                span: Span::new(root.span.start_offset, right.span.end_offset),
+                span: Span::new(root.span.start, right.span.end),
             };
         }
 
@@ -730,7 +736,7 @@ impl<'a> Parser<'a> {
     // Return current position
     #[inline]
     fn mark_start(&self) -> usize {
-        self.tokens.previous().unwrap().span.start_offset
+        self.tokens.previous().unwrap().span.start
     }
 
     #[inline]
@@ -744,7 +750,11 @@ impl<'a> Parser<'a> {
     }
 
     #[inline]
-    fn peek(&self) -> Option<Token> {
-        self.tokens.peek()
+    fn peek(&self) -> Result<Token> {
+        if let Some(token) = self.tokens.peek() {
+            Ok(token)
+        } else {
+            Err(ParseError {})
+        }
     }
 }

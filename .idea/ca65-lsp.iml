@@ -6,6 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/parser/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/data/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/analysis/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/codespan/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
