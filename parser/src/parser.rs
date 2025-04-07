@@ -1,6 +1,6 @@
 use crate::tokenizer::{Token, TokenType};
-use std::fmt::{Display, Formatter};
 use codespan::Span;
+use std::fmt::{Display, Formatter};
 
 macro_rules! match_token {
     ($stream:expr, $token:pat) => {
@@ -12,19 +12,6 @@ macro_rules! match_token {
             true
         } else {
             false
-        }
-    };
-}
-
-macro_rules! consume_token {
-    ($stream:expr, $token:pat, $error:literal) => {
-        if let Some(Token {
-            token_type: $token, ..
-        }) = $stream.peek()
-        {
-            $stream.advance();
-        } else {
-            panic!("Syntax Error: {} {:#?}", $error, $stream.peek());
         }
     };
 }
@@ -42,8 +29,15 @@ macro_rules! check_token {
     };
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct ParseError {}
+#[derive(Debug, Clone)]
+pub enum ParseError {
+    UnexpectedToken(Token),
+    Expected {
+        expected: TokenType,
+        received: Token,
+    },
+    EOF,
+}
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -90,7 +84,7 @@ impl<'a> TokenStream<'a> {
         if self.position > 0 {
             Ok(self.tokens[self.position - 1].clone())
         } else {
-            Err(ParseError {})
+            Err(ParseError::EOF)
         }
     }
 
@@ -141,10 +135,17 @@ pub enum LineKind {
     Include(Token),
     Label(Token),
     Instruction(Instruction),
-    ControlCommand(ControlCommand),
+    Procedure(Token, Vec<Line>),
+    Macro,
+    Enum,
+    SetCPU(String),
+    Segment(String),
+    Reserve(Expression),
+
     MacroInvocation(MacroInvocation),
     MacroPack(String),
     Scope(String, Vec<Line>),
+    IncludeBinary(Token),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -154,15 +155,7 @@ pub struct Line {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ControlCommandType {
-    Procedure(String, Vec<Line>),
-    Macro,
-    Scope(String, Vec<Line>),
-    Enum,
-    SetCPU(String),
-    Segment(String),
-    Reserve(Expression),
-}
+pub enum ControlCommandType {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ControlCommand {
@@ -186,23 +179,16 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Vec<Line> {
+    pub fn parse(&mut self) -> Result<Vec<Line>> {
         let mut lines = vec![];
 
         while !self.tokens.at_end() {
-            match self.parse_line() {
-                Ok(operation) => {
-                    if let Some(operation) = operation {
-                        lines.push(operation);
-                    }
-                }
-                Err(err) => {
-                    println!("Parse Error: {}", err)
-                }
+            if let Some(operation) = self.parse_line()? {
+                lines.push(operation);
             }
         }
 
-        lines
+        Ok(lines)
     }
 
     fn parse_line(&mut self) -> Result<Option<Line>> {
@@ -215,7 +201,7 @@ impl<'a> Parser<'a> {
                     self.tokens.advance();
                     Ok(None)
                 }
-                _ => Err(ParseError {}),
+                _ => Err(ParseError::UnexpectedToken(token)),
             };
 
             return operation;
@@ -225,60 +211,73 @@ impl<'a> Parser<'a> {
 
     fn parse_macro(&mut self) -> Result<Option<Line>> {
         if match_token!(self.tokens, TokenType::Macro) {
-            let mac = self.tokens.previous().unwrap();
+            let mac = self.tokens.previous()?;
             let start = self.mark_start();
-            let ident = mac.lexeme;
-            match ident.to_lowercase().as_str() {
+            let ident = &mac.lexeme;
+            return match ident.to_lowercase().as_str() {
                 ".macpack" => {
-                    consume_token!(self.tokens, TokenType::Identifier, "Expected Identifier");
+                    self.consume_token(TokenType::Identifier)?;
                     let pack = self.last().lexeme;
                     let end = self.mark_end();
-                    self.consume_newline();
-                    return Ok(Some(Line {
+                    self.consume_newline()?;
+                    Ok(Some(Line {
                         kind: LineKind::MacroPack(pack),
                         span: Span::new(start, end),
-                    }));
+                    }))
                 }
                 ".include" => {
-                    consume_token!(self.tokens, TokenType::String, "Expected String");
+                    self.consume_token(TokenType::String)?;
                     let path = self.last();
                     let end = self.mark_end();
-                    self.consume_newline();
-                    return Ok(Some(Line {
+                    self.consume_newline()?;
+                    Ok(Some(Line {
                         kind: LineKind::Include(path),
                         span: Span::new(start, end),
-                    }));
+                    }))
+                }
+                ".incbin" => {
+                    self.consume_token(TokenType::String)?;
+                    let path = self.last();
+                    let end = self.mark_end();
+                    self.consume_newline()?;
+                    Ok(Some(Line {
+                        kind: LineKind::IncludeBinary(path),
+                        span: Span::new(start, end),
+                    }))
                 }
                 ".setcpu" => {
-                    consume_token!(self.tokens, TokenType::String, "Expected String");
+                    self.consume_token(TokenType::String)?;
                     let cpu = self.last().lexeme;
                     let end = self.mark_end();
-                    self.consume_newline();
+                    self.consume_newline()?;
 
-                    return Ok(Some(Line {
-                        kind: LineKind::ControlCommand(ControlCommand {
-                            control_type: ControlCommandType::SetCPU(cpu),
-                        }),
+                    Ok(Some(Line {
+                        kind: LineKind::SetCPU(cpu),
                         span: Span::new(start, end),
-                    }));
+                    }))
                 }
                 ".segment" => {
-                    consume_token!(self.tokens, TokenType::String, "Expected String");
+                    if match_token!(self.tokens, TokenType::String) {
+                        // string
+                    } else if match_token!(self.tokens, TokenType::Identifier) {
+                        // identifier
+                    } else {
+                        return Err(ParseError::UnexpectedToken(self.peek()?));
+                    }
+                    // self.consume_token(TokenType::String)?;
                     let segment = self.last().lexeme;
                     let end = self.mark_end();
-                    self.consume_newline();
+                    self.consume_newline()?;
 
-                    return Ok(Some(Line {
-                        kind: LineKind::ControlCommand(ControlCommand {
-                            control_type: ControlCommandType::Segment(segment),
-                        }),
+                    Ok(Some(Line {
+                        kind: LineKind::Segment(segment),
                         span: Span::new(start, end),
-                    }));
+                    }))
                 }
                 ".proc" => {
-                    consume_token!(self.tokens, TokenType::Identifier, "Expected Identifier");
-                    let ident = self.last().lexeme;
-                    self.consume_newline();
+                    self.consume_token(TokenType::Identifier)?;
+                    let ident = self.last();
+                    self.consume_newline()?;
                     let mut commands: Vec<Line> = vec![];
                     while !self.tokens.at_end() {
                         if check_token!(self.tokens, TokenType::Macro) {
@@ -287,12 +286,7 @@ impl<'a> Parser<'a> {
                                 self.tokens.advance();
                                 let end = self.mark_end();
                                 return Ok(Some(Line {
-                                    kind: LineKind::ControlCommand(ControlCommand {
-                                        control_type: ControlCommandType::Procedure(
-                                            ident,
-                                            commands,
-                                        ),
-                                    }),
+                                    kind: LineKind::Procedure(ident, commands),
                                     span: Span::new(start, end),
                                 }));
                             }
@@ -301,15 +295,15 @@ impl<'a> Parser<'a> {
                             commands.push(line);
                         }
                     }
-                    panic!(
-                        "Syntax Error: Unexpected token {:#?}, expected .endproc",
-                        self.tokens.peek()
-                    );
+                    Err(ParseError::Expected {
+                        received: self.peek()?,
+                        expected: TokenType::Macro,
+                    })
                 }
                 ".scope" => {
-                    consume_token!(self.tokens, TokenType::Identifier, "Expected Identifier");
+                    self.consume_token(TokenType::Identifier)?;
                     let ident = self.last().lexeme;
-                    self.consume_newline();
+                    self.consume_newline()?;
                     let mut commands: Vec<Option<Line>> = vec![];
                     while !self.tokens.at_end() {
                         if check_token!(self.tokens, TokenType::Macro) {
@@ -333,36 +327,32 @@ impl<'a> Parser<'a> {
                         }
                         commands.push(self.parse_line()?);
                     }
-                    panic!(
-                        "Syntax Error: Unexpected token {:#?}, expected .endproc",
-                        self.tokens.peek()
-                    );
+                    Err(ParseError::Expected {
+                        received: self.peek()?,
+                        expected: TokenType::Macro,
+                    })
                 }
                 ".res" => {
-                    let right = self.parse_expression();
+                    let right = self.parse_expression()?;
                     let end = self.mark_end();
-                    self.consume_newline();
+                    self.consume_newline()?;
 
-                    return Ok(Some(Line {
-                        kind: LineKind::ControlCommand(ControlCommand {
-                            control_type: ControlCommandType::Reserve(right),
-                        }),
+                    Ok(Some(Line {
+                        kind: LineKind::Reserve(right),
                         span: Span::new(start, end),
-                    }));
+                    }))
                 }
                 ".zeropage" => {
                     let end = self.mark_end();
-                    self.consume_newline();
+                    self.consume_newline()?;
 
-                    return Ok(Some(Line {
-                        kind: LineKind::ControlCommand(ControlCommand {
-                            control_type: ControlCommandType::Segment("zeropage".to_string()),
-                        }),
+                    Ok(Some(Line {
+                        kind: LineKind::Segment("zeropage".to_string()),
                         span: Span::new(start, end),
-                    }));
+                    }))
                 }
-                _ => panic!("Unexpected Macro: {}", ident),
-            }
+                _ => Err(ParseError::UnexpectedToken(mac)),
+            };
         }
 
         Ok(Some(self.parse_assignment()?))
@@ -373,7 +363,7 @@ impl<'a> Parser<'a> {
             if match_token!(self.tokens, TokenType::Identifier) {
                 let start = self.last().span.start;
                 if match_token!(self.tokens, TokenType::Equal) {
-                    let value = self.parse_expression();
+                    let value = self.parse_expression()?;
                     let end = self.tokens.previous()?.span.end;
                     let operation = LineKind::ConstantAssign(ConstantAssign {
                         name: token,
@@ -381,7 +371,7 @@ impl<'a> Parser<'a> {
                         span: Span::new(start, end),
                     });
 
-                    self.consume_newline();
+                    self.consume_newline()?;
 
                     return Ok(Line {
                         kind: operation,
@@ -389,7 +379,7 @@ impl<'a> Parser<'a> {
                     });
                 }
                 if check_token!(self.tokens, TokenType::Colon) {
-                    return Ok(self.parse_label());
+                    return self.parse_label();
                 }
                 return self.parse_macro_invocation();
             }
@@ -401,10 +391,10 @@ impl<'a> Parser<'a> {
         if match_token!(self.tokens, TokenType::Instruction) {
             let mnemonic = self.last().lexeme;
             let start = self.mark_start();
-            let parameters = self.parse_parameters();
+            let parameters = self.parse_parameters()?;
             let end = self.mark_end();
 
-            self.consume_newline();
+            self.consume_newline()?;
 
             return Ok(Line {
                 kind: LineKind::Instruction(Instruction {
@@ -414,25 +404,28 @@ impl<'a> Parser<'a> {
                 span: Span::new(start, end),
             });
         }
-        Err(ParseError {})
+        Err(ParseError::Expected {
+            expected: TokenType::Instruction,
+            received: self.peek()?,
+        })
     }
 
-    fn parse_label(&mut self) -> Line {
+    fn parse_label(&mut self) -> Result<Line> {
         let start = self.mark_start();
-        let name = self.tokens.previous().unwrap();
-        consume_token!(self.tokens, TokenType::Colon, "Expected Colon");
+        let name = self.tokens.previous()?;
+        self.consume_token(TokenType::Colon)?;
 
         let end = self.mark_end();
-        Line {
+        Ok(Line {
             kind: LineKind::Label(name),
             span: Span::new(start, end),
-        }
+        })
     }
 
     fn parse_macro_invocation(&mut self) -> Result<Line> {
         let start = self.mark_start();
         let name = self.tokens.previous()?;
-        let parameters = self.parse_parameters();
+        let parameters = self.parse_parameters()?;
         let end = self.mark_end();
         Ok(Line {
             kind: LineKind::MacroInvocation(MacroInvocation { name, parameters }),
@@ -440,41 +433,41 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_expression(&mut self) -> Expression {
+    fn parse_expression(&mut self) -> Result<Expression> {
         self.parse_expr0()
     }
 
-    fn parse_expr0(&mut self) -> Expression {
+    fn parse_expr0(&mut self) -> Result<Expression> {
         if match_token!(self.tokens, TokenType::Not) {
             let start = self.mark_start();
-            let expr = self.parse_expr0();
+            let expr = self.parse_expr0()?;
             let end = self.mark_end();
-            Expression {
+            Ok(Expression {
                 kind: ExpressionKind::Not(Box::from(expr)),
                 span: Span::new(start, end),
-            }
+            })
         } else {
             self.parse_expr1()
         }
     }
 
-    fn parse_expr1(&mut self) -> Expression {
-        let mut root = self.parse_expr2();
+    fn parse_expr1(&mut self) -> Result<Expression> {
+        let mut root = self.parse_expr2()?;
         while match_token!(self.tokens, TokenType::Or) {
-            let right = self.parse_expr2();
+            let right = self.parse_expr2()?;
             root = Expression {
                 kind: ExpressionKind::Or(Box::from(root.clone()), Box::from(right.clone())),
                 span: Span::new(root.span.start, right.span.end),
             };
         }
-        root
+        Ok(root)
     }
 
-    fn parse_expr2(&mut self) -> Expression {
-        let mut root = self.parse_bool_expr();
+    fn parse_expr2(&mut self) -> Result<Expression> {
+        let mut root = self.parse_bool_expr()?;
         while match_token!(self.tokens, TokenType::And | TokenType::Xor) {
-            let right = self.parse_expr2();
-            match self.tokens.previous().unwrap().token_type {
+            let right = self.parse_expr2()?;
+            match self.tokens.previous()?.token_type {
                 TokenType::And => {
                     root = Expression {
                         kind: ExpressionKind::And(
@@ -499,11 +492,11 @@ impl<'a> Parser<'a> {
             }
         }
 
-        root
+        Ok(root)
     }
 
-    fn parse_bool_expr(&mut self) -> Expression {
-        let mut root = self.parse_simple_expression();
+    fn parse_bool_expr(&mut self) -> Result<Expression> {
+        let mut root = self.parse_simple_expression()?;
 
         while match_token!(
             self.tokens,
@@ -514,7 +507,7 @@ impl<'a> Parser<'a> {
                 | TokenType::LessThanEq
                 | TokenType::GreaterThanEq
         ) {
-            let right = self.parse_simple_expression();
+            let right = self.parse_simple_expression()?;
             root = Expression {
                 kind: ExpressionKind::Comparison(
                     self.tokens.previous().unwrap().token_type,
@@ -525,18 +518,18 @@ impl<'a> Parser<'a> {
             };
         }
 
-        root
+        Ok(root)
     }
 
-    fn parse_simple_expression(&mut self) -> Expression {
-        let mut root = self.parse_term();
+    fn parse_simple_expression(&mut self) -> Result<Expression> {
+        let mut root = self.parse_term()?;
 
         while match_token!(
             self.tokens,
             TokenType::Plus | TokenType::Minus | TokenType::BitwiseOr
         ) {
             let operand = self.last();
-            let right = self.parse_term();
+            let right = self.parse_term()?;
             let end = self.mark_end();
             root = Expression {
                 kind: ExpressionKind::SimpleExpression(
@@ -548,11 +541,11 @@ impl<'a> Parser<'a> {
             };
         }
 
-        root
+        Ok(root)
     }
 
-    fn parse_term(&mut self) -> Expression {
-        let mut root = self.parse_factor();
+    fn parse_term(&mut self) -> Result<Expression> {
+        let mut root = self.parse_factor()?;
 
         while match_token!(
             self.tokens,
@@ -564,7 +557,7 @@ impl<'a> Parser<'a> {
                 | TokenType::ShiftLeft
                 | TokenType::ShiftRight
         ) {
-            let right = self.parse_factor();
+            let right = self.parse_factor()?;
 
             root = Expression {
                 kind: ExpressionKind::Term(
@@ -576,89 +569,89 @@ impl<'a> Parser<'a> {
             };
         }
 
-        root
+        Ok(root)
     }
 
-    fn parse_factor(&mut self) -> Expression {
+    fn parse_factor(&mut self) -> Result<Expression> {
         self.parse_unary()
     }
 
-    fn parse_unary(&mut self) -> Expression {
+    fn parse_unary(&mut self) -> Result<Expression> {
         let start = self.mark_start();
         if match_token!(self.tokens, TokenType::Hash) {
-            let right = self.parse_unary();
+            let right = self.parse_unary()?;
             let end = self.mark_end();
-            return Expression {
+            return Ok(Expression {
                 kind: ExpressionKind::Immediate(Box::from(right)),
                 span: Span::new(start, end),
-            };
+            });
         }
         if match_token!(self.tokens, TokenType::Plus) {
-            let right = self.parse_unary();
+            let right = self.parse_unary()?;
             let end = self.mark_end();
 
-            return Expression {
+            return Ok(Expression {
                 kind: ExpressionKind::Unary(TokenType::Plus, Box::from(right)),
                 span: Span::new(start, end),
-            };
+            });
         }
         if match_token!(self.tokens, TokenType::Minus) {
-            let right = self.parse_unary();
+            let right = self.parse_unary()?;
             let end = self.mark_end();
 
-            return Expression {
+            return Ok(Expression {
                 kind: ExpressionKind::Unary(TokenType::Minus, Box::from(right)),
                 span: Span::new(start, end),
-            };
+            });
         }
         if match_token!(self.tokens, TokenType::BitwiseNot) {
-            let right = self.parse_unary();
+            let right = self.parse_unary()?;
             let end = self.mark_end();
 
-            return Expression {
+            return Ok(Expression {
                 kind: ExpressionKind::Unary(TokenType::BitwiseNot, Box::from(right)),
                 span: Span::new(start, end),
-            };
+            });
         }
         if match_token!(self.tokens, TokenType::LessThan) {
-            let right = self.parse_unary();
+            let right = self.parse_unary()?;
             let end = self.mark_end();
 
-            return Expression {
+            return Ok(Expression {
                 kind: ExpressionKind::Unary(TokenType::LessThan, Box::from(right)),
                 span: Span::new(start, end),
-            };
+            });
         }
         if match_token!(self.tokens, TokenType::GreaterThan) {
-            let right = self.parse_unary();
+            let right = self.parse_unary()?;
             let end = self.mark_end();
 
-            return Expression {
+            return Ok(Expression {
                 kind: ExpressionKind::Unary(TokenType::GreaterThan, Box::from(right)),
                 span: Span::new(start, end),
-            };
+            });
         }
         if match_token!(self.tokens, TokenType::Caret) {
-            let right = self.parse_unary();
+            let right = self.parse_unary()?;
             let end = self.mark_end();
 
-            return Expression {
+            return Ok(Expression {
                 kind: ExpressionKind::Unary(TokenType::Caret, Box::from(right)),
                 span: Span::new(start, end),
-            };
+            });
         }
         self.parse_primary()
     }
 
-    fn parse_primary(&mut self) -> Expression {
+    fn parse_primary(&mut self) -> Result<Expression> {
         if match_token!(self.tokens, TokenType::Number) {
             let num = self.last().lexeme;
             let start = self.mark_start();
             let end = self.mark_end();
-            return Expression {
+            return Ok(Expression {
                 kind: ExpressionKind::Literal(num),
                 span: Span::new(start, end),
-            };
+            });
         }
         if check_token!(self.tokens, TokenType::ScopeSeparator)
             || check_token!(self.tokens, TokenType::Identifier)
@@ -667,43 +660,45 @@ impl<'a> Parser<'a> {
         }
         if match_token!(self.tokens, TokenType::LeftParen) {
             let start = self.mark_start();
-            let expr = self.parse_expression();
-            consume_token!(self.tokens, TokenType::RightParen, "Expected )");
+            let expr = self.parse_expression()?;
+            self.consume_token(TokenType::RightParen)?;
             let end = self.mark_end();
-            return Expression {
+            return Ok(Expression {
                 kind: ExpressionKind::Group(Box::from(expr)),
                 span: Span::new(start, end),
-            };
+            });
         }
-        panic!("Syntax Error: {:?}", self.tokens.peek());
+        Err(ParseError::UnexpectedToken(self.peek()?))
     }
 
-    fn parse_parameters(&mut self) -> Vec<Expression> {
+    fn parse_parameters(&mut self) -> Result<Vec<Expression>> {
         let mut parameters = vec![];
         if !check_token!(self.tokens, TokenType::EOL) {
-            parameters.push(self.parse_expression());
+            parameters.push(self.parse_expression()?);
             while !self.tokens.at_end() && !check_token!(self.tokens, TokenType::EOL) {
-                consume_token!(self.tokens, TokenType::Comma, "Expected Comma");
-                parameters.push(self.parse_expression());
+                self.consume_token(TokenType::Comma)?;
+                parameters.push(self.parse_expression()?);
             }
         }
-        parameters
+        Ok(parameters)
     }
 
-    fn consume_newline(&mut self) {
+    fn consume_newline(&mut self) -> Result<()> {
         if check_token!(self.tokens, TokenType::EOL) {
             self.tokens.advance();
+            Ok(())
         } else if self.tokens.at_end() {
             // Do nothing
+            Ok(())
         } else {
-            panic!(
-                "Syntax Error: Expected newline, got {:#?}",
-                self.tokens.peek()
-            );
+            Err(ParseError::Expected {
+                expected: TokenType::EOL,
+                received: self.peek()?,
+            })
         }
     }
 
-    fn parse_identifier(&mut self) -> Expression {
+    fn parse_identifier(&mut self) -> Result<Expression> {
         let mut token_string = "".to_owned();
         let mut start = 0;
         if match_token!(self.tokens, TokenType::ScopeSeparator) {
@@ -711,7 +706,7 @@ impl<'a> Parser<'a> {
             token_string = "::".to_string();
         }
 
-        consume_token!(self.tokens, TokenType::Identifier, "Expected Identifier");
+        self.consume_token(TokenType::Identifier)?;
         let start_token = self.last().lexeme;
         // TODO: redo matching beginning of identifier
         if start == 0 {
@@ -720,17 +715,17 @@ impl<'a> Parser<'a> {
         token_string.push_str(start_token.as_str());
 
         while !self.tokens.at_end() && match_token!(self.tokens, TokenType::ScopeSeparator) {
-            consume_token!(self.tokens, TokenType::Identifier, "Expected Identifier");
+            self.consume_token(TokenType::Identifier)?;
             let start = self.last().lexeme;
             token_string.push_str("::");
             token_string.push_str(start.as_str());
         }
         let end = self.mark_end();
 
-        Expression {
+        Ok(Expression {
             kind: ExpressionKind::Literal(token_string.to_string()),
             span: Span::new(start, end),
-        }
+        })
     }
 
     // Return current position
@@ -754,7 +749,19 @@ impl<'a> Parser<'a> {
         if let Some(token) = self.tokens.peek() {
             Ok(token)
         } else {
-            Err(ParseError {})
+            Err(ParseError::EOF)
+        }
+    }
+
+    fn consume_token(&mut self, type_: TokenType) -> Result<()> {
+        if self.peek()?.token_type == type_ {
+            self.tokens.advance();
+            Ok(())
+        } else {
+            Err(ParseError::Expected {
+                expected: type_,
+                received: self.peek()?,
+            })
         }
     }
 }
