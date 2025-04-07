@@ -2,8 +2,8 @@ use std::{
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex, OnceLock},
 };
-
-use crate::codespan::{FileId, Span};
+use codespan::Span;
+use crate::codespan::{FileId};
 
 #[derive(Clone, Copy, Debug)]
 pub enum SymbolType {

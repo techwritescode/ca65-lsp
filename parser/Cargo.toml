@@ -7,3 +7,4 @@ edition = "2021"
 name = "parser"
 
 [dependencies]
+codespan = { path = "../codespan" }
