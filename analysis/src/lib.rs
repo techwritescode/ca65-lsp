@@ -1,6 +1,7 @@
 mod arena;
 
-use parser::{Line, LineKind, Parser, Span};
+use codespan::Span;
+use parser::{Line, LineKind, };
 use std::collections::HashMap;
 
 pub struct ScopeAnalyzer {
@@ -32,16 +33,17 @@ impl ScopeAnalyzer {
 
 #[cfg(test)]
 mod tests {
+    use codespan::Span;
     use parser::Instructions;
     use parser::{
-        Expression, ExpressionKind, Instruction, Line, LineKind, Parser, Span, Token, TokenType,
+        Expression, ExpressionKind, Instruction, Line, LineKind, Parser, Token, TokenType,
         Tokenizer,
     };
 
     #[test]
     fn it_works() {
         let instructions = Instructions::load();
-        let tokens = Tokenizer::new("adc a + b".to_string(), &instructions)
+        let tokens = Tokenizer::new(&"adc a + b".to_string(), &instructions)
             .parse()
             .unwrap();
 

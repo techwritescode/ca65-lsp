@@ -1,5 +1,5 @@
+use parser::{Instructions, Tokenizer, TokenizerError};
 use std::fs::File;
-use parser::{Instructions, Tokenizer};
 use std::io::Read;
 
 fn main() {
@@ -15,11 +15,34 @@ fn main() {
     let mut buf = String::new();
     file.read_to_string(&mut buf).expect("Failed to read file");
 
-    let mut tokenizer = Tokenizer::new(buf, &instructions);
-    let tokens = tokenizer.parse().expect("Failed to parse tokens");
-    println!("{:#?}", tokens);
+    let mut tokenizer = Tokenizer::new(&buf, &instructions);
+    match tokenizer.parse() {
+        Ok(tokens) => {
+            let mut parser = parser::Parser::new(&tokens);
+            let ast = parser.parse();
+            println!("{:#?}", ast);
+        }
+        Err(e) => {
+            print_error(&buf, e);
+        }
+    }
+}
 
-    let mut parser = parser::Parser::new(&tokens);
-    let ast = parser.parse();
-    println!("{:#?}", ast);
+fn print_error(file: &String, error: TokenizerError) {
+    let file = codespan::File::new("test file", file.to_string());
+    let pos = file.byte_index_to_position(error.offset).unwrap();
+    let line = file.get_line(pos.line).unwrap();
+    let line_str = file.get_line_source(line).unwrap();
+
+    let line_number_str = pos.line.to_string();
+
+    println!("{} at {}:{}", error.kind, pos.line+1, pos.character+1);
+    println!();
+    print!("{line_number_str}| {line_str}");
+
+    let marker = std::iter::repeat_n(' ', line_number_str.len() + 2)
+        .chain(std::iter::repeat_n('~', pos.character))
+        .collect::<String>();
+    print!("{marker}^");
+    println!();
 }

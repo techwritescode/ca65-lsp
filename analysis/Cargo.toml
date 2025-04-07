@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 indexmap = "2.9.0"
 parser = { path = "../parser" }
+codespan = { path = "../codespan" }
