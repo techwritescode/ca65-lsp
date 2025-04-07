@@ -1,6 +1,6 @@
-; .include "test2.s"
+.proc test
+
+.endproc
+
 main:
     jmp main
-
-test??
-
