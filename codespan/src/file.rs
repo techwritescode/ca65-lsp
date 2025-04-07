@@ -86,7 +86,7 @@ impl File {
                     .source
                     .get(line_start_index..byte_index)
                     .ok_or_else(|| {
-                        let given = byte_index as usize;
+                        let given = byte_index;
                         if given >= self.source_span().end() {
                             let span = self.source_span();
                             FileError::OutOfBounds { given, span }
@@ -121,12 +121,8 @@ impl File {
         Ok(line_span.start() + byte_offset)
     }
 
-    pub fn range_to_byte_span(
-        &self,
-        range: &Range,
-    ) -> Result<std::ops::Range<usize>> {
-        Ok(self.position_to_byte_index(range.start)?
-            ..self.position_to_byte_index(range.end)?)
+    pub fn range_to_byte_span(&self, range: &Range) -> Result<std::ops::Range<usize>> {
+        Ok(self.position_to_byte_index(range.start)?..self.position_to_byte_index(range.end)?)
     }
 
     pub fn byte_index_to_position(&self, byte_index: usize) -> Result<Position> {
@@ -172,12 +168,13 @@ pub fn find_word_at_pos(line: &str, col: usize) -> (usize, usize) {
         .map(|(i, _)| i + 1)
         .unwrap_or(0);
 
-    let mut end = line_
+    let end = line_
         .chars()
         .enumerate()
         .skip(col)
-        .filter(|&(_, c)| !is_ident_char(c));
+        .find(|&(_, c)| !is_ident_char(c))
+        .map(|(i, _)| i)
+        .unwrap_or(col);
 
-    let end = end.next();
-    (start, end.map(|(i, _)| i).unwrap_or(col))
+    (start, end)
 }
