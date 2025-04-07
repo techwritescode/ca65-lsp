@@ -23,6 +23,7 @@ async fn main() -> anyhow::Result<()> {
 
     symbol_cache::init_symbol_cache();
     instructions::init_instruction_map();
+    ca65_doc::parse_json_to_hashmap();
 
     documentation_init();
 
@@ -41,7 +42,6 @@ async fn main() -> anyhow::Result<()> {
 
         Asm::new(client)
     });
-    ca65_doc::parse_ca65_html(service.inner()).await;
     Server::new(stdin, stdout, socket)
         .serve(service)
         .await;
