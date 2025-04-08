@@ -146,6 +146,9 @@ pub enum LineKind {
     MacroPack(String),
     Scope(String, Vec<Line>),
     IncludeBinary(Token),
+    MacroDefinition(Token, Vec<Token>, Vec<Line>),
+    Data(Vec<Expression>),
+    Org(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -153,6 +156,8 @@ pub struct Line {
     pub kind: LineKind,
     pub span: Span,
 }
+
+pub type Ast = Vec<Line>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ControlCommandType {}
@@ -179,7 +184,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Result<Vec<Line>> {
+    pub fn parse(&mut self) -> Result<Ast> {
         let mut lines = vec![];
 
         while !self.tokens.at_end() {
@@ -256,6 +261,16 @@ impl<'a> Parser<'a> {
                         span: Span::new(start, end),
                     }))
                 }
+                ".org" => {
+                    let address = self.consume_token(TokenType::Number)?;
+                    let end = self.mark_end();
+                    self.consume_newline()?;
+                    
+                    Ok(Some(Line{
+                        kind: LineKind::Org(address.lexeme.clone()),
+                        span: Span::new(start, end),
+                    }))
+                }
                 ".segment" => {
                     if match_token!(self.tokens, TokenType::String) {
                         // string
@@ -274,6 +289,7 @@ impl<'a> Parser<'a> {
                         span: Span::new(start, end),
                     }))
                 }
+                ".macro" => Ok(Some(self.parse_macro_def()?)),
                 ".proc" => {
                     self.consume_token(TokenType::Identifier)?;
                     let ident = self.last();
@@ -351,11 +367,65 @@ impl<'a> Parser<'a> {
                         span: Span::new(start, end),
                     }))
                 }
+                ".db"|".dw"|".byte"|".word" => {
+                    let parameters = self.parse_parameters()?;
+                    let end = self.mark_end();
+                    self.consume_newline()?;
+
+                    // TODO: Add kind
+                    Ok(Some(Line {
+                        kind: LineKind::Data(parameters),
+                        span: Span::new(start, end),
+                    }))
+                }
+                // Ignored for now
+                ".index" | ".mem" => {
+                    self.parse_parameters()?;
+                    Ok(None)
+                }, 
                 _ => Err(ParseError::UnexpectedToken(mac)),
             };
         }
 
         Ok(Some(self.parse_assignment()?))
+    }
+
+    fn parse_macro_def(&mut self) -> Result<Line> {
+        let start = self.mark_start();
+        self.consume_token(TokenType::Identifier)?;
+        let ident = self.last();
+        let mut parameters = vec![];
+
+        if !check_token!(self.tokens, TokenType::EOL|TokenType::EOF) {
+            parameters.push(self.consume_token(TokenType::Identifier)?);
+            while !self.tokens.at_end() && match_token!(self.tokens, TokenType::Comma) {
+                parameters.push(self.consume_token(TokenType::Identifier)?);
+            }
+        }
+        self.consume_newline()?;
+
+        let mut commands: Vec<Line> = vec![];
+        while !self.tokens.at_end() {
+            if check_token!(self.tokens, TokenType::Macro) {
+                let m = self.peek()?.lexeme;
+                if m == ".endmacro" {
+                    self.tokens.advance();
+                    let end = self.mark_end();
+                    return Ok(Line {
+                        kind: LineKind::MacroDefinition(ident, parameters, commands),
+                        span: Span::new(start, end),
+                    });
+                }
+            }
+            if let Some(line) = self.parse_line()? {
+                commands.push(line);
+            }
+        }
+
+        Err(ParseError::Expected {
+            received: self.peek()?,
+            expected: TokenType::Macro,
+        })
     }
 
     fn parse_assignment(&mut self) -> Result<Line> {
@@ -753,10 +823,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn consume_token(&mut self, type_: TokenType) -> Result<()> {
+    fn consume_token(&mut self, type_: TokenType) -> Result<Token> {
         if self.peek()?.token_type == type_ {
-            self.tokens.advance();
-            Ok(())
+            Ok(self.tokens.advance().unwrap())
         } else {
             Err(ParseError::Expected {
                 expected: type_,

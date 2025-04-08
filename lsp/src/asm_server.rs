@@ -1,22 +1,20 @@
-use crate::codespan::{FileId, Files};
+use crate::codespan::{FileId, Files, IndexError};
 use crate::configuration::{load_project_configuration, Configuration};
 use crate::symbol_cache::{
     symbol_cache_fetch, symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
 };
 use crate::{instructions, OPCODE_DOCUMENTATION};
+use analysis::ScopeKind;
 use crate::ca65_doc::CA65_DOC;
 use lazy_static::lazy_static;
 use parser::instructions::Instructions;
 use parser::ParseError;
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::process::Output;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
-use tokio::time;
 use tower_lsp_server::lsp_types::{
     CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionItem,
     CompletionItemKind, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
@@ -31,9 +29,8 @@ use tower_lsp_server::{
     lsp_types::{
         DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
         GotoDefinitionResponse, Hover, HoverParams, InitializeParams, InitializeResult, Location,
-        MarkedString, ServerCapabilities, TextDocumentContentChangeEvent,
-        TextDocumentItem, TextDocumentSyncCapability, TextDocumentSyncKind, Uri,
-        VersionedTextDocumentIdentifier,
+        MarkedString, ServerCapabilities, TextDocumentContentChangeEvent, TextDocumentItem,
+        TextDocumentSyncCapability, TextDocumentSyncKind, Uri, VersionedTextDocumentIdentifier,
     },
     Client, LanguageServer,
 };
@@ -52,102 +49,62 @@ struct State {
 pub struct Asm {
     client: Client,
     state: Arc<Mutex<State>>,
-    queue: Sender<FileId>,
+    // queue: Sender<FileId>,
     configuration: Arc<Configuration>,
 }
 
 impl Asm {
     pub fn new(client: Client) -> Self {
-        let mut channel = tokio::sync::mpsc::channel(1);
+        // let mut channel = tokio::sync::mpsc::channel(1);
         let configuration = load_project_configuration();
-        let server = Asm {
+        Asm {
             client,
             state: Arc::new(Mutex::new(State {
                 sources: HashMap::new(),
                 files: Files::new(),
             })),
-            queue: channel.0,
+            // queue: channel.0,
             configuration: Arc::new(configuration),
-        };
-        let server2 = server.clone();
-        tokio::spawn(async move {
-            let duration = Duration::from_millis(800);
+        }
+        // let server2 = server.clone();
+        // tokio::spawn(async move {
+        //     let duration = Duration::from_millis(800);
+        //
+        //     let mut files_to_update: HashSet<FileId> = HashSet::new();
+        //     let mut timed_out = false;
+        //     loop {
+        //         match time::timeout(duration, channel.1.recv()).await {
+        //             Ok(Some(file_id)) => {
+        //                 files_to_update.insert(file_id);
+        //             }
+        //             Ok(None) => {
+        //                 unreachable!("shouldn't happen");
+        //             }
+        //             Err(_) => {
+        //                 timed_out = true;
+        //             }
+        //         }
+        //
+        //         if timed_out {
+        //             timed_out = false;
+        //             if files_to_update.is_empty() {
+        //                 continue;
+        //             }
+        //
+        //             for file_id in files_to_update.iter() {
+        //                 server2.index(file_id).await;
+        //             }
+        //             files_to_update.clear();
+        //         }
+        //     }
+        // });
 
-            let mut files_to_update: HashSet<FileId> = HashSet::new();
-            let mut timed_out = false;
-            loop {
-                match time::timeout(duration, channel.1.recv()).await {
-                    Ok(Some(file_id)) => {
-                        files_to_update.insert(file_id);
-                    }
-                    Ok(None) => {
-                        unreachable!("shouldn't happen");
-                    }
-                    Err(_) => {
-                        timed_out = true;
-                    }
-                }
-
-                if timed_out {
-                    timed_out = false;
-                    if files_to_update.is_empty() {
-                        continue;
-                    }
-
-                    for file_id in files_to_update.iter() {
-                        server2.index(file_id).await;
-                    }
-                    files_to_update.clear();
-                }
-            }
-        });
-
-        server
+        // server
     }
 
     async fn index(&self, file_id: &FileId) {
-        let state = self.state.lock().await;
-        self.parse_labels(&state.files, *file_id).await;
-        // let orig_source = state.files.get(*file_id).name.trim_start_matches("file://");
-        // let orig_source = Path::new(orig_source).parent();
-        // let mut source = NamedTempFile::new().unwrap();
-        // source
-        //     .write_all(state.files.source(*file_id).as_bytes())
-        //     .unwrap();
-        // let source_path = source.path();
-        // let temp_path = NamedTempFile::new().unwrap();
-        //
-        // if let Some(compiler) = self.configuration.get_ca65_path() {
-        //     let output = tokio::process::Command::new(compiler.to_str().unwrap())
-        //         .args(vec![
-        //             source_path.to_str().unwrap(),
-        //             "-o",
-        //             temp_path.path().to_str().unwrap(),
-        //             "-I",
-        //             orig_source
-        //                 .unwrap_or(Path::new(
-        //                     &std::env::current_dir().expect("Failed to get current dir"),
-        //                 ))
-        //                 .to_str()
-        //                 .unwrap(),
-        //         ])
-        //         .output()
-        //         .await
-        //         .unwrap();
-        //     let mut errors = vec![];
-        //     if !output.status.success() {
-        //         errors.extend(
-        //             make_diagnostics_from_ca65_output(&state.files, *file_id, &output).await,
-        //         );
-        //     }
-        //     self.client
-        //         .publish_diagnostics(
-        //             Url::parse(state.files.get(*file_id).name.as_str()).unwrap(),
-        //             errors,
-        //             None,
-        //         )
-        //         .await;
-        // }
+        let mut state = self.state.lock().await;
+        self.parse_labels(&mut state.files, *file_id).await;
     }
 }
 
@@ -248,13 +205,17 @@ impl LanguageServer for Asm {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let mut state = self.state.lock().await;
         let id = get_or_insert_source(&mut state, &params.text_document);
-        _ = self.queue.send(id).await;
+        drop(state);
+        // _ = self.queue.send(id).await;
+        self.index(&id).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let mut state = self.state.lock().await;
         let id = reload_source(&mut state, &params.text_document, params.content_changes);
-        _ = self.queue.send(id).await;
+        drop(state);
+        // _ = self.queue.send(id).await;
+        self.index(&id).await;
     }
 
     async fn goto_definition(
@@ -402,32 +363,66 @@ impl LanguageServer for Asm {
         Ok(None)
     }
 
-    async fn completion(&self, _params: CompletionParams) -> Result<Option<CompletionResponse>> {
-        let mut completion_items: Vec<CompletionItem> = vec![];
-        for (opcode, description) in instructions::INSTRUCTION_MAP
-            .get()
-            .expect("Instructions not loaded")
-            .iter()
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        let state = self.state.lock().await;
+
+        if let Some(id) = state
+            .sources
+            .get(&params.text_document_position.text_document.uri)
         {
-            completion_items.push(CompletionItem::new_simple(
-                opcode.to_lowercase().to_owned(),
-                description.to_owned(),
-            ));
+            let tokens = state
+                .files
+                .line_tokens(*id, params.text_document_position.position.into());
+            let offset = state
+                .files
+                .get(*id)
+                .position_to_byte_index(params.text_document_position.position.into())
+                .unwrap();
+            let show_instructions = tokens.is_empty() || tokens[0].span.end >= offset; // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
+
+            let mut completion_items: Vec<CompletionItem> = vec![];
+            if show_instructions {
+                for (opcode, description) in instructions::INSTRUCTION_MAP
+                    .get()
+                    .expect("Instructions not loaded")
+                    .iter()
+                {
+                    completion_items.push(CompletionItem::new_simple(
+                        opcode.to_lowercase().to_owned(),
+                        description.to_owned(),
+                    ));
+                }
+            }
+            for symbol in symbol_cache_get().iter() {
+                if show_instructions && matches!(symbol.sym_type, SymbolType::Label) {
+                    continue;
+                }
+                if !show_instructions && matches!(symbol.sym_type, SymbolType::Macro) {
+                    continue;
+                }
+                completion_items.push(CompletionItem::new_simple(
+                    symbol.label.to_owned(),
+                    symbol.comment.to_owned(),
+                ));
+            }
+            if show_instructions {
+                completion_items.extend(BLOCK_CONTROL_COMMANDS.iter().map(|command| {
+                    CompletionItem {
+                        label: (*command).to_string(),
+                        kind: Some(CompletionItemKind::FUNCTION),
+                        insert_text: Some(format!(
+                            ".{} $1\n\t$0\n.end{} ; End $1",
+                            *command, *command
+                        )),
+                        insert_text_format: Some(InsertTextFormat::SNIPPET),
+                        ..Default::default()
+                    }
+                }));
+            }
+            Ok(Some(CompletionResponse::Array(completion_items)))
+        } else {
+            Ok(None)
         }
-        for symbol in symbol_cache_get().iter() {
-            completion_items.push(CompletionItem::new_simple(
-                symbol.label.to_owned(),
-                format!("{}:", symbol.label),
-            ));
-        }
-        completion_items.extend(BLOCK_CONTROL_COMMANDS.iter().map(|command| CompletionItem {
-            label: (*command).to_string(),
-            kind: Some(CompletionItemKind::FUNCTION),
-            insert_text: Some(format!(".{} $1\n\t$0\n.end{} ; End $1", *command, *command)),
-            insert_text_format: Some(InsertTextFormat::SNIPPET),
-            ..Default::default()
-        }));
-        Ok(Some(CompletionResponse::Array(completion_items)))
     }
 
     async fn code_action(&self, _params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
@@ -530,78 +525,70 @@ fn reload_source(
     }
 }
 
-lazy_static! {
-    static ref INSTRUCTIONS: Instructions = Instructions::load();
-}
-
 impl Asm {
-    async fn parse_labels(&self, files: &Files, id: FileId) {
+    async fn parse_labels(&self, files: &mut Files, id: FileId) {
         symbol_cache_reset(id);
-
-        let source = files.get(id).source.clone();
-        let instructions = &INSTRUCTIONS;
         let mut diagnostics = vec![];
 
-        let tokens = parser::tokenizer::Tokenizer::new(&source, instructions).parse();
-        match tokens {
-            Ok(tokens) => {
-                let ast = parser::Parser::new(&tokens).parse();
+        match files.index(id) {
+            Ok(()) => {
+                let symbols = analysis::ScopeAnalyzer::new(files.ast(id).clone()).parse();
 
-                match ast {
-                    Ok(ast) => {
-                        let symbols = analysis::ScopeAnalyzer::new(ast.clone()).parse();
-
-                        for (symbol, span) in symbols.iter() {
-                            symbol_cache_insert(
-                                id,
-                                *span,
-                                symbol.clone(),
-                                format!("{}:", symbol.clone()),
-                                SymbolType::Label,
-                            );
-                        }
-                    }
-                    Err(error) => match error {
-                        ParseError::UnexpectedToken(token) => {
-                            diagnostics.push(Diagnostic::new_simple(
-                                files.get(id).byte_span_to_range(token.span).unwrap().into(),
-                                format!("Unexpected Token {:?}", token.token_type),
-                            ));
-                        }
-                        ParseError::Expected { expected, received } => {
-                            diagnostics.push(Diagnostic::new_simple(
-                                files
-                                    .get(id)
-                                    .byte_span_to_range(received.span)
-                                    .unwrap()
-                                    .into(),
-                                format!(
-                                    "Expected {:?} but received {:?}",
-                                    expected, received.token_type
-                                ),
-                            ));
-                        }
-                        ParseError::EOF => {
-                            let pos = files
-                                .get(id)
-                                .byte_index_to_position(files.get(id).source.len() - 1)
-                                .unwrap();
-                            diagnostics.push(Diagnostic::new_simple(
-                                Range::new(pos.into(), pos.into()),
-                                "Unexpected EOF".to_string(),
-                            ));
-                        }
-                    },
+                for (symbol, scope) in symbols.iter() {
+                    symbol_cache_insert(
+                        id,
+                        scope.span,
+                        symbol.clone(),
+                        scope.description.clone(),
+                        match &scope.kind {
+                            ScopeKind::Macro => SymbolType::Macro,
+                            _ => SymbolType::Label,
+                        },
+                    );
                 }
             }
-            Err(error) => {
-                let pos = files.get(id).byte_index_to_position(error.offset).unwrap();
-                diagnostics.push(Diagnostic::new_simple(
-                    Range::new(pos.into(), pos.into()),
-                    "Unexpected character".to_string(),
-                ));
-            }
+            Err(err) => match err {
+                IndexError::TokenizerError(err) => {
+                    let pos = files.get(id).byte_index_to_position(err.offset).unwrap();
+                    diagnostics.push(Diagnostic::new_simple(
+                        Range::new(pos.into(), pos.into()),
+                        "Unexpected character".to_string(),
+                    ));
+                }
+                IndexError::ParseError(err) => match err {
+                    ParseError::UnexpectedToken(token) => {
+                        diagnostics.push(Diagnostic::new_simple(
+                            files.get(id).byte_span_to_range(token.span).unwrap().into(),
+                            format!("Unexpected Token {:?}", token.token_type),
+                        ));
+                    }
+                    ParseError::Expected { expected, received } => {
+                        diagnostics.push(Diagnostic::new_simple(
+                            files
+                                .get(id)
+                                .byte_span_to_range(received.span)
+                                .unwrap()
+                                .into(),
+                            format!(
+                                "Expected {:?} but received {:?}",
+                                expected, received.token_type
+                            ),
+                        ));
+                    }
+                    ParseError::EOF => {
+                        let pos = files
+                            .get(id)
+                            .byte_index_to_position(files.get(id).source.len() - 1)
+                            .unwrap();
+                        diagnostics.push(Diagnostic::new_simple(
+                            Range::new(pos.into(), pos.into()),
+                            "Unexpected EOF".to_string(),
+                        ));
+                    }
+                },
+            },
         }
+
         self.client
             .publish_diagnostics(
                 Uri::from_str(files.get(id).name.as_str()).unwrap(),

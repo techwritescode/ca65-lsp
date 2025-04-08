@@ -250,7 +250,7 @@ impl<'a> Tokenizer<'a> {
             && self
                 .input
                 .peek()
-                .is_some_and(|c| matches!(c, '0'..='9' | 'A'..='F'))
+                .is_some_and(|c| c.is_ascii_hexdigit())
         {
             self.input.advance();
         }
