@@ -27,7 +27,7 @@ impl Configuration {
 
     pub fn get_ca65_path(&self) -> Option<PathBuf> {
         if let Some(toolchain_path) = self.toolchain.cc65.clone() {
-            let compiler = Path::new(toolchain_path.as_str()).join("bin/ca65");
+            let compiler = Path::new(toolchain_path.as_str()).join("ca65");
             return Some(compiler);
         }
 

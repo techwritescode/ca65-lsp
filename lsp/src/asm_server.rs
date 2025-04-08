@@ -536,6 +536,9 @@ impl Asm {
         let tokens = parser::tokenizer::Tokenizer::new(source, instructions)
             .parse()
             .expect("tokenization failed");
+        // self.client
+        //     .log_message(MessageType::LOG, format!("Tokens: {:#?}", tokens))
+        //     .await;
         let ast = parser::parser::Parser::new(&tokens).parse();
         // self.client
         //     .log_message(MessageType::LOG, format!("Ast: {:#?}", ast))
