@@ -387,10 +387,12 @@ impl LanguageServer for Asm {
                     .expect("Instructions not loaded")
                     .iter()
                 {
-                    completion_items.push(CompletionItem::new_simple(
-                        opcode.to_lowercase().to_owned(),
-                        description.to_owned(),
-                    ));
+                    completion_items.push(CompletionItem {
+                        label: opcode.to_lowercase().to_owned(),
+                        detail: Some(description.to_owned()),
+                        kind: Some(CompletionItemKind::KEYWORD),
+                        ..Default::default()
+                    });
                 }
             }
             for symbol in symbol_cache_get().iter() {
@@ -400,10 +402,16 @@ impl LanguageServer for Asm {
                 if !show_instructions && matches!(symbol.sym_type, SymbolType::Macro) {
                     continue;
                 }
-                completion_items.push(CompletionItem::new_simple(
-                    symbol.label.to_owned(),
-                    symbol.comment.to_owned(),
-                ));
+                completion_items.push(CompletionItem {
+                    label: symbol.label.to_owned(),
+                    detail: Some(symbol.comment.to_owned()),
+                    kind: Some(match symbol.sym_type {
+                        SymbolType::Label => CompletionItemKind::FUNCTION,
+                        SymbolType::Constant => CompletionItemKind::CONSTANT,
+                        SymbolType::Macro => CompletionItemKind::SNIPPET
+                    }),
+                    ..Default::default()
+                });
             }
             if show_instructions {
                 completion_items.extend(BLOCK_CONTROL_COMMANDS.iter().map(|command| {
@@ -542,7 +550,9 @@ impl Asm {
                         scope.description.clone(),
                         match &scope.kind {
                             ScopeKind::Macro => SymbolType::Macro,
-                            _ => SymbolType::Label,
+                            ScopeKind::Label => SymbolType::Label,
+                            ScopeKind::Constant => SymbolType::Constant,
+                            ScopeKind::Parameter => SymbolType::Constant,
                         },
                     );
                 }

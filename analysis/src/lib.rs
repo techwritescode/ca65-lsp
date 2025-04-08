@@ -50,7 +50,7 @@ impl ScopeAnalyzer {
                         title: assign.name.lexeme.clone(),
                         description: assign.name.lexeme.clone(), // TODO: Add expression flattening/preview? Might need method on ast nodes to print formatted output
                         span: assign.name.span,
-                        kind: ScopeKind::Label,
+                        kind: ScopeKind::Constant,
                     },
                 )]
             }
