@@ -103,14 +103,6 @@ impl Asm {
         server
     }
 
-    pub fn get_client(&self) -> &Client {
-        &self.client
-    }
-
-    pub fn get_configuration(&self) -> Arc<Configuration> {
-        self.configuration.clone()
-    }
-
     async fn index(&self, file_id: &FileId) {
         let state = self.state.lock().await;
         self.parse_labels(&state.files, *file_id).await;
@@ -339,12 +331,6 @@ impl LanguageServer for Asm {
                     }),
                 }));
             }
-
-            // return Ok(Some(Hover {
-            //     range: None,
-            //     contents: HoverContents::Scalar(MarkedString::String(word.to_string()))
-            // }));
-
 
             let mut symbols = symbol_cache_fetch(word.to_string());
             symbols.sort_by(|sym, _| {
