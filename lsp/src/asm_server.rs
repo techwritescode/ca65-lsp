@@ -4,6 +4,7 @@ use crate::symbol_cache::{
     symbol_cache_fetch, symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
 };
 use crate::{instructions, OPCODE_DOCUMENTATION};
+use crate::ca65_doc::CA65_DOC;
 use lazy_static::lazy_static;
 use parser::instructions::Instructions;
 use parser::ParseError;
@@ -331,6 +332,20 @@ impl LanguageServer for Asm {
                     contents: HoverContents::Markup(MarkupContent {
                         kind: MarkupKind::Markdown,
                         value: documentation.clone(),
+                    }),
+                }));
+            }
+
+            if let Some(documentation) = CA65_DOC
+                .get()
+                .unwrap()
+                .get_doc_for_word(&word.to_uppercase())
+            {
+                return Ok(Some(Hover {
+                    range: None,
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: documentation,
                     }),
                 }));
             }

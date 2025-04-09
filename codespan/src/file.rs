@@ -157,7 +157,7 @@ impl File {
 
 pub fn find_word_at_pos(line: &str, col: usize) -> (usize, usize) {
     let line_ = format!("{} ", line);
-    let is_ident_char = |c: char| c.is_alphanumeric() || c == '_' || c == '@';
+    let is_ident_char = |c: char| c.is_alphanumeric() || c == '_' || c == '@' || c == '.';
 
     let start = line_
         .chars()
