@@ -9,7 +9,6 @@ mod ca65_doc;
 
 use asm_server::Asm;
 use tower_lsp_server::{LspService, Server};
-
 use data::include_documentation;
 
 include_documentation!();

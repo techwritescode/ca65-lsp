@@ -26,7 +26,7 @@ pub static CA65_DOC: OnceLock<Ca65Doc> = OnceLock::new();
 
 pub fn parse_json_to_hashmap() {
     if let Ok(doc) = serde_json::from_str::<Ca65Doc>(include_str!("../../data/ca65-keyword-doc.json")) {
-        if !CA65_DOC.set(doc).is_err() {
+        if CA65_DOC.set(doc).is_err() {
             eprintln!("CA65_KEYWORDS_MAP not able to be initialized");
         }
     }
