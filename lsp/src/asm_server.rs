@@ -34,7 +34,7 @@ use tower_lsp_server::{
     Client, LanguageServer,
 };
 use tower_lsp_server::lsp_types::request::ApplyWorkspaceEdit;
-use crate::ca65_doc::CA65_KEYWORDS_MAP;
+use crate::ca65_doc::CA65_DOC;
 
 static BLOCK_CONTROL_COMMANDS: &[&'static str] = &[
     "scope", "proc", "macro", "enum", "union", "if", "repeat", "struct",
@@ -318,16 +318,16 @@ impl LanguageServer for Asm {
                 }));
             }
 
-            if let Some(documentation) = CA65_KEYWORDS_MAP
+            if let Some(documentation) = CA65_DOC
                 .get()
                 .unwrap()
-                .get(&word.to_string().to_uppercase())
+                .get_doc_for_word(word)
             {
                 return Ok(Some(Hover {
                     range: None,
                     contents: HoverContents::Markup(MarkupContent {
                         kind: MarkupKind::Markdown,
-                        value: documentation.clone(),
+                        value: documentation,
                     }),
                 }));
             }
