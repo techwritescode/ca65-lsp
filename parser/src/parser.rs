@@ -1,4 +1,6 @@
 use crate::tokenizer::{Token, TokenType};
+use codespan::Span;
+use std::fmt::{Display, Formatter};
 
 macro_rules! match_token {
     ($stream:expr, $token:pat) => {
@@ -10,49 +12,6 @@ macro_rules! match_token {
             true
         } else {
             false
-        }
-    };
-}
-
-macro_rules! match_token2 {
-    ($stream:expr, $token:pat => $out:ident) => {
-        if let Some(tok) = $stream.peek() {
-            match tok.token_type {
-                $token => {
-                    $stream.advance();
-                    Some($out)
-                }
-                _ => None,
-            }
-        } else {
-            None
-        }
-    };
-}
-
-macro_rules! consume_token {
-    ($stream:expr, $token:pat, $error:literal) => {
-        if let Some(Token {
-            token_type: $token, ..
-        }) = $stream.peek()
-        {
-            $stream.advance();
-        } else {
-            panic!("Syntax Error: {} {:#?}", $error, $stream.peek());
-        }
-    };
-}
-
-macro_rules! consume_token2 {
-    ($stream:expr, $token:pat => $out:ident, $error:literal) => {
-        if let Some(Token {
-            token_type: $token, ..
-        }) = $stream.peek()
-        {
-            $stream.advance();
-            $out
-        } else {
-            panic!("Syntax Error: {} {:#?}", $error, $stream.peek());
         }
     };
 }
@@ -70,18 +29,24 @@ macro_rules! check_token {
     };
 }
 
-macro_rules! check_token2 {
-    ($stream:expr, $token:pat => $out:ident) => {
-        if let Some(tok) = $stream.peek() {
-            match tok.token_type {
-                $token => Some($out),
-                _ => None,
-            }
-        } else {
-            None
-        }
-    };
+#[derive(Debug, Clone)]
+pub enum ParseError {
+    UnexpectedToken(Token),
+    Expected {
+        expected: TokenType,
+        received: Token,
+    },
+    EOF,
 }
+
+impl Display for ParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ParseError")
+        // todo!()
+    }
+}
+
+type Result<T> = std::result::Result<T, ParseError>;
 
 pub struct TokenStream<'a> {
     tokens: &'a Vec<Token>,
@@ -100,9 +65,11 @@ impl<'a> TokenStream<'a> {
         if !self.at_end() {
             self.position += 1;
         }
-        let token = self.previous();
-        // println!("Advancing {:#?}", token);
-        token
+        if let Ok(token) = self.previous() {
+            Some(token)
+        } else {
+            None
+        }
     }
 
     pub fn peek(&self) -> Option<Token> {
@@ -113,11 +80,11 @@ impl<'a> TokenStream<'a> {
         None
     }
 
-    pub fn previous(&self) -> Option<Token> {
+    pub fn previous(&self) -> Result<Token> {
         if self.position > 0 {
-            Some(self.tokens[self.position - 1].clone())
+            Ok(self.tokens[self.position - 1].clone())
         } else {
-            None
+            Err(ParseError::EOF)
         }
     }
 
@@ -126,14 +93,15 @@ impl<'a> TokenStream<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ConstantAssign {
     pub name: Token,
     pub value: Expression,
+    pub span: Span,
 }
 
-#[derive(Debug, Clone)]
-pub enum Expression {
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExpressionKind {
     Immediate(Box<Expression>),
     Unary(TokenType, Box<Expression>),
     Literal(String),
@@ -145,45 +113,56 @@ pub enum Expression {
     And(Box<Expression>, Box<Expression>),
     Xor(Box<Expression>, Box<Expression>),
     Comparison(TokenType, Box<Expression>, Box<Expression>),
-    SimpleExpression(TokenType, Box<Expression>, Box<Expression>),
+    SimpleExpression(Token, Box<Expression>, Box<Expression>),
     Term(TokenType, Box<Expression>, Box<Expression>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct Expression {
+    pub kind: ExpressionKind,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Instruction {
     pub mnemonic: String,
     pub parameters: Vec<Expression>,
 }
 
-#[derive(Debug, Clone)]
-pub enum Operation {
+#[derive(Debug, Clone, PartialEq)]
+pub enum LineKind {
     ConstantAssign(ConstantAssign),
-    Include(String),
+    Include(Token),
     Label(Token),
     Instruction(Instruction),
-    ControlCommand(ControlCommand),
-    MacroInvocation(MacroInvocation),
-    MacroPack(String),
-    Scope(String, Vec<Operation>),
-}
-
-#[derive(Debug, Clone)]
-pub enum ControlCommandType {
-    Procedure(String, Vec<Operation>),
+    Procedure(Token, Vec<Line>),
     Macro,
-    Scope(String, Vec<Operation>),
     Enum,
     SetCPU(String),
     Segment(String),
     Reserve(Expression),
+
+    MacroInvocation(MacroInvocation),
+    MacroPack(String),
+    Scope(String, Vec<Line>),
+    IncludeBinary(Token),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct Line {
+    pub kind: LineKind,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ControlCommandType {}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct ControlCommand {
     pub control_type: ControlCommandType,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MacroInvocation {
     pub name: Token,
     pub parameters: Vec<Expression>,
@@ -200,30 +179,29 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Vec<Operation> {
-        let mut operations = vec![];
+    pub fn parse(&mut self) -> Result<Vec<Line>> {
+        let mut lines = vec![];
 
         while !self.tokens.at_end() {
-            if let Some(operation) = self.parse_command() {
-                // println!("{:#?}", operation);
-                operations.push(operation);
+            if let Some(operation) = self.parse_line()? {
+                lines.push(operation);
             }
         }
 
-        operations
+        Ok(lines)
     }
 
-    fn parse_command(&mut self) -> Option<Operation> {
+    fn parse_line(&mut self) -> Result<Option<Line>> {
         if let Some(token) = self.tokens.peek() {
             let operation = match token.token_type {
-                TokenType::Instruction(_) => self.parse_instruction(),
-                TokenType::Macro(_) => self.parse_macro(),
-                TokenType::Identifier(_) => self.parse_assignment(),
+                TokenType::Macro => self.parse_macro(),
+                TokenType::Identifier => Ok(Some(self.parse_assignment()?)),
+                TokenType::Instruction => Ok(Some(self.parse_instruction()?)),
                 TokenType::EOL => {
                     self.tokens.advance();
-                    None
-                },
-                _ => None,
+                    Ok(None)
+                }
+                _ => Err(ParseError::UnexpectedToken(token)),
             };
 
             return operation;
@@ -231,116 +209,177 @@ impl<'a> Parser<'a> {
         panic!("Syntax Error: Unexpected token {:#?}", self.tokens.peek());
     }
 
-    fn parse_macro(&mut self) -> Option<Operation> {
-        if let Some(ident) = match_token2!(self.tokens, TokenType::Macro(i) => i) {
-            match ident.to_lowercase().as_str() {
+    fn parse_macro(&mut self) -> Result<Option<Line>> {
+        if match_token!(self.tokens, TokenType::Macro) {
+            let mac = self.tokens.previous()?;
+            let start = self.mark_start();
+            let ident = &mac.lexeme;
+            return match ident.to_lowercase().as_str() {
                 ".macpack" => {
-                    let pack = consume_token2!(self.tokens, TokenType::Identifier(i) => i, "Expected Identifier");
-                    self.consume_newline();
-                    return Some(Operation::MacroPack(pack));
+                    self.consume_token(TokenType::Identifier)?;
+                    let pack = self.last().lexeme;
+                    let end = self.mark_end();
+                    self.consume_newline()?;
+                    Ok(Some(Line {
+                        kind: LineKind::MacroPack(pack),
+                        span: Span::new(start, end),
+                    }))
                 }
                 ".include" => {
-                    let path =
-                        consume_token2!(self.tokens, TokenType::String(s) => s, "Expected String");
-                    self.consume_newline();
-                    // println!("Include {path}");
-                    return Some(Operation::Include(path));
+                    self.consume_token(TokenType::String)?;
+                    let path = self.last();
+                    let end = self.mark_end();
+                    self.consume_newline()?;
+                    Ok(Some(Line {
+                        kind: LineKind::Include(path),
+                        span: Span::new(start, end),
+                    }))
+                }
+                ".incbin" => {
+                    self.consume_token(TokenType::String)?;
+                    let path = self.last();
+                    let end = self.mark_end();
+                    self.consume_newline()?;
+                    Ok(Some(Line {
+                        kind: LineKind::IncludeBinary(path),
+                        span: Span::new(start, end),
+                    }))
                 }
                 ".setcpu" => {
-                    let cpu =
-                        consume_token2!(self.tokens, TokenType::String(s) => s, "Expected String");
-                    consume_token!(self.tokens, TokenType::EOL, "Expected EOL");
+                    self.consume_token(TokenType::String)?;
+                    let cpu = self.last().lexeme;
+                    let end = self.mark_end();
+                    self.consume_newline()?;
 
-                    return Some(Operation::ControlCommand(ControlCommand {
-                        control_type: ControlCommandType::SetCPU(cpu),
-                    }));
+                    Ok(Some(Line {
+                        kind: LineKind::SetCPU(cpu),
+                        span: Span::new(start, end),
+                    }))
                 }
                 ".segment" => {
-                    let segment =
-                        consume_token2!(self.tokens, TokenType::String(s) => s, "Expected String");
-                    self.consume_newline();
+                    if match_token!(self.tokens, TokenType::String) {
+                        // string
+                    } else if match_token!(self.tokens, TokenType::Identifier) {
+                        // identifier
+                    } else {
+                        return Err(ParseError::UnexpectedToken(self.peek()?));
+                    }
+                    // self.consume_token(TokenType::String)?;
+                    let segment = self.last().lexeme;
+                    let end = self.mark_end();
+                    self.consume_newline()?;
 
-                    return Some(Operation::ControlCommand(ControlCommand {
-                        control_type: ControlCommandType::Segment(segment),
-                    }));
+                    Ok(Some(Line {
+                        kind: LineKind::Segment(segment),
+                        span: Span::new(start, end),
+                    }))
                 }
                 ".proc" => {
-                    let ident = consume_token2!(self.tokens, TokenType::Identifier(s) => s, "Expected Identifier");
-                    self.consume_newline();
-                    let mut commands: Vec<Option<Operation>> = vec![];
+                    self.consume_token(TokenType::Identifier)?;
+                    let ident = self.last();
+                    self.consume_newline()?;
+                    let mut commands: Vec<Line> = vec![];
                     while !self.tokens.at_end() {
-                        if let Some(m) = check_token2!(self.tokens, TokenType::Macro(m) => m) {
+                        if check_token!(self.tokens, TokenType::Macro) {
+                            let m = self.peek()?.lexeme;
                             if m == ".endproc" {
                                 self.tokens.advance();
-                                return Some(Operation::ControlCommand(ControlCommand {
-                                    control_type: ControlCommandType::Procedure(ident, commands.iter().filter(|c| c.is_some()).cloned().map(|c| c.unwrap()).collect()),
+                                let end = self.mark_end();
+                                return Ok(Some(Line {
+                                    kind: LineKind::Procedure(ident, commands),
+                                    span: Span::new(start, end),
                                 }));
                             }
                         }
-                        commands.push(self.parse_command());
+                        if let Some(line) = self.parse_line()? {
+                            commands.push(line);
+                        }
                     }
-                    panic!(
-                        "Syntax Error: Unexpected token {:#?}, expected .endproc",
-                        self.tokens.peek()
-                    );
+                    Err(ParseError::Expected {
+                        received: self.peek()?,
+                        expected: TokenType::Macro,
+                    })
                 }
                 ".scope" => {
-                    let ident = consume_token2!(self.tokens, TokenType::Identifier(s) => s, "Expected Identifier");
-                    self.consume_newline();
-                    let mut commands: Vec<Option<Operation>> = vec![];
+                    self.consume_token(TokenType::Identifier)?;
+                    let ident = self.last().lexeme;
+                    self.consume_newline()?;
+                    let mut commands: Vec<Option<Line>> = vec![];
                     while !self.tokens.at_end() {
-                        if let Some(m) = check_token2!(self.tokens, TokenType::Macro(m) => m) {
+                        if check_token!(self.tokens, TokenType::Macro) {
+                            let m = self.peek()?.lexeme;
                             if m == ".endscope" {
                                 self.tokens.advance();
-                                return Some(Operation::Scope(ident, commands.iter().filter(|c| c.is_some()).cloned().map(|c| c.unwrap()).collect()));
+                                let end = self.mark_end();
+                                return Ok(Some(Line {
+                                    kind: LineKind::Scope(
+                                        ident,
+                                        commands
+                                            .iter()
+                                            .filter(|c| c.is_some())
+                                            .cloned()
+                                            .map(|c| c.unwrap())
+                                            .collect(),
+                                    ),
+                                    span: Span::new(start, end),
+                                }));
                             }
                         }
-                        commands.push(self.parse_command());
+                        commands.push(self.parse_line()?);
                     }
-                    panic!(
-                        "Syntax Error: Unexpected token {:#?}, expected .endproc",
-                        self.tokens.peek()
-                    );
+                    Err(ParseError::Expected {
+                        received: self.peek()?,
+                        expected: TokenType::Macro,
+                    })
                 }
                 ".res" => {
-                    let right = self.parse_expression();
-                    self.consume_newline();
+                    let right = self.parse_expression()?;
+                    let end = self.mark_end();
+                    self.consume_newline()?;
 
-                    return Some(Operation::ControlCommand(ControlCommand {
-                        control_type: ControlCommandType::Reserve(right),
-                    }));
+                    Ok(Some(Line {
+                        kind: LineKind::Reserve(right),
+                        span: Span::new(start, end),
+                    }))
                 }
                 ".zeropage" => {
-                    self.consume_newline();
+                    let end = self.mark_end();
+                    self.consume_newline()?;
 
-                    return Some(Operation::ControlCommand(ControlCommand {
-                        control_type: ControlCommandType::Segment("zeropage".to_string()),
-                    }));
+                    Ok(Some(Line {
+                        kind: LineKind::Segment("zeropage".to_string()),
+                        span: Span::new(start, end),
+                    }))
                 }
-                _ => panic!("Unexpected Macro: {}", ident),
-            }
+                _ => Err(ParseError::UnexpectedToken(mac)),
+            };
         }
 
-        self.parse_assignment()
+        Ok(Some(self.parse_assignment()?))
     }
 
-    fn parse_assignment(&mut self) -> Option<Operation> {
+    fn parse_assignment(&mut self) -> Result<Line> {
         if let Some(token) = self.tokens.peek() {
-            if let TokenType::Identifier(_) = token.token_type.clone() {
-                self.tokens.advance();
-                if check_token!(self.tokens, TokenType::Equal) {
-                    consume_token!(self.tokens, TokenType::Equal, "Expected Equal");
-                    let operation = Operation::ConstantAssign(ConstantAssign {
+            if match_token!(self.tokens, TokenType::Identifier) {
+                let start = self.last().span.start;
+                if match_token!(self.tokens, TokenType::Equal) {
+                    let value = self.parse_expression()?;
+                    let end = self.tokens.previous()?.span.end;
+                    let operation = LineKind::ConstantAssign(ConstantAssign {
                         name: token,
-                        value: self.parse_expression(),
+                        value,
+                        span: Span::new(start, end),
                     });
 
-                    self.consume_newline();
+                    self.consume_newline()?;
 
-                    return Some(operation);
+                    return Ok(Line {
+                        kind: operation,
+                        span: Span::new(start, end),
+                    });
                 }
                 if check_token!(self.tokens, TokenType::Colon) {
-                    return Some(self.parse_label());
+                    return self.parse_label();
                 }
                 return self.parse_macro_invocation();
             }
@@ -348,62 +387,104 @@ impl<'a> Parser<'a> {
         self.parse_instruction()
     }
 
-    fn parse_instruction(&mut self) -> Option<Operation> {
-        if let Some(mnemonic) = match_token2!(self.tokens, TokenType::Instruction(i) => i) {
-            let parameters = self.parse_parameters();
+    fn parse_instruction(&mut self) -> Result<Line> {
+        if match_token!(self.tokens, TokenType::Instruction) {
+            let mnemonic = self.last().lexeme;
+            let start = self.mark_start();
+            let parameters = self.parse_parameters()?;
+            let end = self.mark_end();
 
-            return Some(Operation::Instruction(Instruction {
-                mnemonic,
-                parameters,
-            }));
+            self.consume_newline()?;
+
+            return Ok(Line {
+                kind: LineKind::Instruction(Instruction {
+                    mnemonic,
+                    parameters,
+                }),
+                span: Span::new(start, end),
+            });
         }
-        panic!("Syntax Error: {:?}", self.tokens.peek());
+        Err(ParseError::Expected {
+            expected: TokenType::Instruction,
+            received: self.peek()?,
+        })
     }
 
-    fn parse_label(&mut self) -> Operation {
-        let name = self.tokens.previous().unwrap();
-        consume_token!(self.tokens, TokenType::Colon, "Expected Colon");
-        Operation::Label(name)
+    fn parse_label(&mut self) -> Result<Line> {
+        let start = self.mark_start();
+        let name = self.tokens.previous()?;
+        self.consume_token(TokenType::Colon)?;
+
+        let end = self.mark_end();
+        Ok(Line {
+            kind: LineKind::Label(name),
+            span: Span::new(start, end),
+        })
     }
 
-    fn parse_macro_invocation(&mut self) -> Option<Operation> {
-        let name = self.tokens.previous().unwrap();
-        let parameters = self.parse_parameters();
-        Some(Operation::MacroInvocation(MacroInvocation {
-            name,
-            parameters,
-        }))
+    fn parse_macro_invocation(&mut self) -> Result<Line> {
+        let start = self.mark_start();
+        let name = self.tokens.previous()?;
+        let parameters = self.parse_parameters()?;
+        let end = self.mark_end();
+        Ok(Line {
+            kind: LineKind::MacroInvocation(MacroInvocation { name, parameters }),
+            span: Span::new(start, end),
+        })
     }
 
-    fn parse_expression(&mut self) -> Expression {
+    fn parse_expression(&mut self) -> Result<Expression> {
         self.parse_expr0()
     }
 
-    fn parse_expr0(&mut self) -> Expression {
+    fn parse_expr0(&mut self) -> Result<Expression> {
         if match_token!(self.tokens, TokenType::Not) {
-            Expression::Not(Box::from(self.parse_expr0()))
+            let start = self.mark_start();
+            let expr = self.parse_expr0()?;
+            let end = self.mark_end();
+            Ok(Expression {
+                kind: ExpressionKind::Not(Box::from(expr)),
+                span: Span::new(start, end),
+            })
         } else {
             self.parse_expr1()
         }
     }
 
-    fn parse_expr1(&mut self) -> Expression {
-        let mut root = self.parse_expr2();
+    fn parse_expr1(&mut self) -> Result<Expression> {
+        let mut root = self.parse_expr2()?;
         while match_token!(self.tokens, TokenType::Or) {
-            root = Expression::Or(Box::from(root), Box::from(self.parse_expr2()));
+            let right = self.parse_expr2()?;
+            root = Expression {
+                kind: ExpressionKind::Or(Box::from(root.clone()), Box::from(right.clone())),
+                span: Span::new(root.span.start, right.span.end),
+            };
         }
-        root
+        Ok(root)
     }
 
-    fn parse_expr2(&mut self) -> Expression {
-        let mut root = self.parse_bool_expr();
-        while match_token!(self.tokens, TokenType::And|TokenType::Xor) {
-            match self.tokens.previous().unwrap().token_type {
+    fn parse_expr2(&mut self) -> Result<Expression> {
+        let mut root = self.parse_bool_expr()?;
+        while match_token!(self.tokens, TokenType::And | TokenType::Xor) {
+            let right = self.parse_expr2()?;
+            match self.tokens.previous()?.token_type {
                 TokenType::And => {
-                    root = Expression::And(Box::from(root), Box::from(self.parse_expr2()));
+                    root = Expression {
+                        kind: ExpressionKind::And(
+                            Box::from(root.clone()),
+                            Box::from(right.clone()),
+                        ),
+                        span: Span::new(root.span.start, right.span.end),
+                    };
                 }
                 TokenType::Xor => {
-                    root = Expression::Xor(Box::from(root), Box::from(self.parse_expr2()));
+                    root = Expression {
+                        kind: ExpressionKind::Xor(
+                            Box::from(root.clone()),
+                            Box::from(right.clone()),
+                        ),
+                        span: Span::new(root.span.start, right.span.end),
+                    };
                 }
                 _ => {
                     unreachable!("NANI")
@@ -411,130 +492,276 @@ impl<'a> Parser<'a> {
             }
         }
 
-        root
+        Ok(root)
     }
 
-    fn parse_bool_expr(&mut self) -> Expression {
-        let mut root = self.parse_simple_expression();
+    fn parse_bool_expr(&mut self) -> Result<Expression> {
+        let mut root = self.parse_simple_expression()?;
 
-        while match_token!(self.tokens, TokenType::Equal|TokenType::NotEqual|TokenType::LessThan|TokenType::GreaterThan|TokenType::LessThanEq|TokenType::GreaterThanEq) {
-            root = Expression::Comparison(self.tokens.previous().unwrap().token_type, Box::from(root), Box::from(self.parse_simple_expression()));
+        while match_token!(
+            self.tokens,
+            TokenType::Equal
+                | TokenType::NotEqual
+                | TokenType::LessThan
+                | TokenType::GreaterThan
+                | TokenType::LessThanEq
+                | TokenType::GreaterThanEq
+        ) {
+            let right = self.parse_simple_expression()?;
+            root = Expression {
+                kind: ExpressionKind::Comparison(
+                    self.tokens.previous().unwrap().token_type,
+                    Box::from(root.clone()),
+                    Box::from(right.clone()),
+                ),
+                span: Span::new(root.span.start, right.span.end),
+            };
         }
 
-        root
+        Ok(root)
     }
 
-    fn parse_simple_expression(&mut self) -> Expression {
-        let mut root = self.parse_term();
+    fn parse_simple_expression(&mut self) -> Result<Expression> {
+        let mut root = self.parse_term()?;
 
-        while match_token!(self.tokens, TokenType::Plus|TokenType::Minus|TokenType::BitwiseOr) {
-            root = Expression::SimpleExpression(self.tokens.previous().unwrap().token_type, Box::from(root), Box::from(self.parse_term()));
+        while match_token!(
+            self.tokens,
+            TokenType::Plus | TokenType::Minus | TokenType::BitwiseOr
+        ) {
+            let operand = self.last();
+            let right = self.parse_term()?;
+            let end = self.mark_end();
+            root = Expression {
+                kind: ExpressionKind::SimpleExpression(
+                    operand,
+                    Box::from(root.clone()),
+                    Box::from(right.clone()),
+                ),
+                span: Span::new(root.span.start, end),
+            };
         }
 
-        root
+        Ok(root)
     }
 
-    fn parse_term(&mut self) -> Expression {
-        let mut root = self.parse_factor();
+    fn parse_term(&mut self) -> Result<Expression> {
+        let mut root = self.parse_factor()?;
 
-        while match_token!(self.tokens, TokenType::Multiply|TokenType::Divide|TokenType::Mod|TokenType::BitwiseAnd|TokenType::BitwiseXor|TokenType::ShiftLeft|TokenType::ShiftRight) {
-            root = Expression::Term(self.tokens.previous().unwrap().token_type, Box::from(root), Box::from(self.parse_factor()));
+        while match_token!(
+            self.tokens,
+            TokenType::Multiply
+                | TokenType::Divide
+                | TokenType::Mod
+                | TokenType::BitwiseAnd
+                | TokenType::BitwiseXor
+                | TokenType::ShiftLeft
+                | TokenType::ShiftRight
+        ) {
+            let right = self.parse_factor()?;
+
+            root = Expression {
+                kind: ExpressionKind::Term(
+                    self.tokens.previous().unwrap().token_type,
+                    Box::from(root.clone()),
+                    Box::from(right.clone()),
+                ),
+                span: Span::new(root.span.start, right.span.end),
+            };
         }
 
-        root
+        Ok(root)
     }
 
-    fn parse_factor(&mut self) -> Expression {
+    fn parse_factor(&mut self) -> Result<Expression> {
         self.parse_unary()
     }
 
-    fn parse_unary(&mut self) -> Expression {
+    fn parse_unary(&mut self) -> Result<Expression> {
+        let start = self.mark_start();
         if match_token!(self.tokens, TokenType::Hash) {
-            return Expression::Immediate(Box::from(self.parse_unary()));
+            let right = self.parse_unary()?;
+            let end = self.mark_end();
+            return Ok(Expression {
+                kind: ExpressionKind::Immediate(Box::from(right)),
+                span: Span::new(start, end),
+            });
         }
         if match_token!(self.tokens, TokenType::Plus) {
-            return Expression::Unary(TokenType::Plus, Box::from(self.parse_unary()));
+            let right = self.parse_unary()?;
+            let end = self.mark_end();
+
+            return Ok(Expression {
+                kind: ExpressionKind::Unary(TokenType::Plus, Box::from(right)),
+                span: Span::new(start, end),
+            });
         }
         if match_token!(self.tokens, TokenType::Minus) {
-            return Expression::Unary(TokenType::Minus, Box::from(self.parse_unary()));
+            let right = self.parse_unary()?;
+            let end = self.mark_end();
+
+            return Ok(Expression {
+                kind: ExpressionKind::Unary(TokenType::Minus, Box::from(right)),
+                span: Span::new(start, end),
+            });
         }
         if match_token!(self.tokens, TokenType::BitwiseNot) {
-            return Expression::Unary(TokenType::BitwiseNot, Box::from(self.parse_unary()));
+            let right = self.parse_unary()?;
+            let end = self.mark_end();
+
+            return Ok(Expression {
+                kind: ExpressionKind::Unary(TokenType::BitwiseNot, Box::from(right)),
+                span: Span::new(start, end),
+            });
         }
         if match_token!(self.tokens, TokenType::LessThan) {
-            return Expression::Unary(TokenType::LessThan, Box::from(self.parse_unary()));
+            let right = self.parse_unary()?;
+            let end = self.mark_end();
+
+            return Ok(Expression {
+                kind: ExpressionKind::Unary(TokenType::LessThan, Box::from(right)),
+                span: Span::new(start, end),
+            });
         }
         if match_token!(self.tokens, TokenType::GreaterThan) {
-            return Expression::Unary(TokenType::GreaterThan, Box::from(self.parse_unary()));
+            let right = self.parse_unary()?;
+            let end = self.mark_end();
+
+            return Ok(Expression {
+                kind: ExpressionKind::Unary(TokenType::GreaterThan, Box::from(right)),
+                span: Span::new(start, end),
+            });
         }
         if match_token!(self.tokens, TokenType::Caret) {
-            return Expression::Unary(TokenType::Caret, Box::from(self.parse_unary()));
+            let right = self.parse_unary()?;
+            let end = self.mark_end();
+
+            return Ok(Expression {
+                kind: ExpressionKind::Unary(TokenType::Caret, Box::from(right)),
+                span: Span::new(start, end),
+            });
         }
         self.parse_primary()
     }
 
-    fn parse_primary(&mut self) -> Expression {
-        if let Some(num) = check_token2!(self.tokens, TokenType::Number(i) => i) {
-            self.tokens.advance();
-            return Expression::Literal(num);
+    fn parse_primary(&mut self) -> Result<Expression> {
+        if match_token!(self.tokens, TokenType::Number) {
+            let num = self.last().lexeme;
+            let start = self.mark_start();
+            let end = self.mark_end();
+            return Ok(Expression {
+                kind: ExpressionKind::Literal(num),
+                span: Span::new(start, end),
+            });
         }
         if check_token!(self.tokens, TokenType::ScopeSeparator)
-            || check_token!(self.tokens, TokenType::Identifier(_))
+            || check_token!(self.tokens, TokenType::Identifier)
         {
             return self.parse_identifier();
         }
-        if check_token!(self.tokens, TokenType::LeftParen) {
-            self.tokens.advance();
-            let expr = self.parse_expression();
-            consume_token!(self.tokens, TokenType::RightParen, "Expected )");
-            return Expression::Group(Box::from(expr));
+        if match_token!(self.tokens, TokenType::LeftParen) {
+            let start = self.mark_start();
+            let expr = self.parse_expression()?;
+            self.consume_token(TokenType::RightParen)?;
+            let end = self.mark_end();
+            return Ok(Expression {
+                kind: ExpressionKind::Group(Box::from(expr)),
+                span: Span::new(start, end),
+            });
         }
-        panic!("Syntax Error: {:?}", self.tokens.peek());
+        Err(ParseError::UnexpectedToken(self.peek()?))
     }
 
-    fn parse_parameters(&mut self) -> Vec<Expression> {
+    fn parse_parameters(&mut self) -> Result<Vec<Expression>> {
         let mut parameters = vec![];
         if !check_token!(self.tokens, TokenType::EOL) {
-            parameters.push(self.parse_expression());
+            parameters.push(self.parse_expression()?);
             while !self.tokens.at_end() && !check_token!(self.tokens, TokenType::EOL) {
-                consume_token!(self.tokens, TokenType::Comma, "Expected Comma");
-                parameters.push(self.parse_expression());
+                self.consume_token(TokenType::Comma)?;
+                parameters.push(self.parse_expression()?);
             }
         }
-        parameters
+        Ok(parameters)
     }
 
-    fn consume_newline(&mut self) {
+    fn consume_newline(&mut self) -> Result<()> {
         if check_token!(self.tokens, TokenType::EOL) {
             self.tokens.advance();
+            Ok(())
         } else if self.tokens.at_end() {
             // Do nothing
+            Ok(())
         } else {
-            panic!(
-                "Syntax Error: Expected newline, got {:#?}",
-                self.tokens.peek()
-            );
+            Err(ParseError::Expected {
+                expected: TokenType::EOL,
+                received: self.peek()?,
+            })
         }
     }
 
-    fn parse_identifier(&mut self) -> Expression {
+    fn parse_identifier(&mut self) -> Result<Expression> {
         let mut token_string = "".to_owned();
-        if check_token!(self.tokens, TokenType::ScopeSeparator) {
-            self.tokens.advance();
+        let mut start = 0;
+        if match_token!(self.tokens, TokenType::ScopeSeparator) {
+            start = self.mark_start();
             token_string = "::".to_string();
         }
 
-        let start =
-            consume_token2!(self.tokens, TokenType::Identifier(i) => i, "Expected Identifier");
-        token_string.push_str(start.as_str());
+        self.consume_token(TokenType::Identifier)?;
+        let start_token = self.last().lexeme;
+        // TODO: redo matching beginning of identifier
+        if start == 0 {
+            start = self.mark_start();
+        }
+        token_string.push_str(start_token.as_str());
 
         while !self.tokens.at_end() && match_token!(self.tokens, TokenType::ScopeSeparator) {
-            let start =
-                consume_token2!(self.tokens, TokenType::Identifier(i) => i, "Expected Identifier");
+            self.consume_token(TokenType::Identifier)?;
+            let start = self.last().lexeme;
             token_string.push_str("::");
             token_string.push_str(start.as_str());
         }
+        let end = self.mark_end();
 
-        Expression::Literal(token_string.to_string())
+        Ok(Expression {
+            kind: ExpressionKind::Literal(token_string.to_string()),
+            span: Span::new(start, end),
+        })
+    }
+
+    // Return current position
+    #[inline]
+    fn mark_start(&self) -> usize {
+        self.tokens.previous().unwrap().span.start
+    }
+
+    #[inline]
+    fn mark_end(&self) -> usize {
+        self.mark_start() + self.tokens.previous().unwrap().lexeme.len()
+    }
+
+    #[inline]
+    fn last(&self) -> Token {
+        self.tokens.previous().unwrap()
+    }
+
+    #[inline]
+    fn peek(&self) -> Result<Token> {
+        if let Some(token) = self.tokens.peek() {
+            Ok(token)
+        } else {
+            Err(ParseError::EOF)
+        }
+    }
+
+    fn consume_token(&mut self, type_: TokenType) -> Result<()> {
+        if self.peek()?.token_type == type_ {
+            self.tokens.advance();
+            Ok(())
+        } else {
+            Err(ParseError::Expected {
+                expected: type_,
+                received: self.peek()?,
+            })
+        }
     }
 }

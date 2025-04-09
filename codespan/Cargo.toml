@@ -1,0 +1,10 @@
+[package]
+name = "codespan"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lsp-types = { version = "^0.97.0", optional = true }
+
+[features]
+lsp = ["dep:lsp-types"]

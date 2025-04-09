@@ -1,10 +1,9 @@
 use std::{
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex, OnceLock},
-    usize,
 };
-
-use crate::codespan::FileId;
+use codespan::Span;
+use crate::codespan::{FileId};
 
 #[derive(Clone, Copy, Debug)]
 pub enum SymbolType {
@@ -17,7 +16,7 @@ pub enum SymbolType {
 pub struct Symbol {
     pub file_id: FileId,
     pub label: String,
-    pub line: usize,
+    pub span: Span,
     pub comment: String,
     pub sym_type: SymbolType,
 }
@@ -57,18 +56,18 @@ pub fn symbol_cache_reset(file_id: FileId) {
 
 pub fn symbol_cache_insert(
     file_id: FileId,
-    line: usize,
+    span: Span,
     label: String,
     comment: String,
     sym_type: SymbolType,
 ) {
-    tracing::debug!(
-        "Inserting symbol {:?} {} {} {}",
-        file_id,
-        line,
-        label,
-        comment
-    );
+    // tracing::debug!(
+    //     "Inserting symbol {:?} {} {} {}",
+    //     file_id,
+    //     span,
+    //     label,
+    //     comment
+    // );
     let mut cache = SYMBOL_CACHE
         .get()
         .expect("Symbol cache not initialized")
@@ -76,7 +75,7 @@ pub fn symbol_cache_insert(
         .expect("Symbol cache mutex poisoned");
     cache.push(Symbol {
         label,
-        line,
+        span,
         file_id,
         comment,
         sym_type,

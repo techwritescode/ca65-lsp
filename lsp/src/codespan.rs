@@ -1,12 +1,7 @@
 use core::panic;
-
+use std::fmt::{Display, Formatter};
 use tower_lsp_server::lsp_types::{Position, Range, Uri};
-
-#[derive(Debug, PartialEq)]
-pub enum LocationError {
-    OutOfBounds { given: usize, span: Span },
-    InvalidCharBoundary { given: usize },
-}
+use codespan::File;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FileId(u32);
@@ -20,127 +15,6 @@ impl FileId {
 
     fn get(self) -> usize {
         (self.0 - Self::OFFSET) as usize
-    }
-}
-
-#[allow(dead_code)]
-pub struct File {
-    pub name: String,
-    pub source: String,
-    line_starts: Vec<usize>,
-}
-
-fn get_line_starts(contents: &str) -> Vec<usize> {
-    std::iter::once(0)
-        .chain(contents.match_indices('\n').map(|(i, _)| i + 1))
-        .collect()
-}
-
-impl File {
-    fn new(name: impl Into<String>, source: String) -> Self {
-        let line_starts = get_line_starts(source.as_ref());
-        Self {
-            name: name.into(),
-            source,
-            line_starts,
-        }
-    }
-
-    fn update(&mut self, source: String) {
-        let line_starts = get_line_starts(source.as_ref());
-        self.source = source;
-        self.line_starts = line_starts;
-    }
-
-    fn line_start(&self, line_index: usize) -> anyhow::Result<usize> {
-        use std::cmp::Ordering;
-
-        match line_index.cmp(&self.last_line_index()) {
-            Ordering::Less => Ok(self.line_starts[line_index]),
-            Ordering::Equal => Ok(self.source.len()),
-            Ordering::Greater => {
-                tracing::error!("Line index out of bounds");
-                panic!("Line index out of bounds")
-            }
-        }
-    }
-
-    fn last_line_index(&self) -> usize {
-        self.line_starts.len()
-    }
-
-    fn line_span(&self, line_index: usize) -> anyhow::Result<Span> {
-        let line_start = self.line_start(line_index)?;
-        let next_line_start = self.line_start(line_index + 1)?;
-
-        Ok(Span::new(line_start, next_line_start))
-    }
-
-    fn location(&self, byte_index: usize) -> Result<Position, LocationError> {
-        match self.line_starts.binary_search(&byte_index) {
-            Ok(line) => Ok(Position {
-                line: line as u32,
-                character: 0,
-            }),
-            Err(next_line) => {
-                let line_index = next_line - 1;
-                let line_start_index =
-                    self.line_start(line_index)
-                        .map_err(|_| LocationError::OutOfBounds {
-                            given: byte_index,
-                            span: self.source_span(),
-                        })?;
-
-                let line_src = self
-                    .source
-                    .get((line_start_index as usize)..(byte_index as usize))
-                    .ok_or_else(|| {
-                        let given = byte_index as usize;
-                        if given >= self.source_span().end() {
-                            let span = self.source_span();
-                            LocationError::OutOfBounds { given, span }
-                        } else {
-                            LocationError::InvalidCharBoundary { given }
-                        }
-                    })?;
-
-                Ok(Position::new(line_index as u32, line_src.len() as u32))
-            }
-        }
-    }
-
-    fn source_slice(&self, span: Span) -> anyhow::Result<&str> {
-        let start = span.start as usize;
-        let end = span.end as usize;
-
-        self.source.get(start..end).ok_or_else(|| {
-            tracing::error!("Failed to create source span");
-            panic!()
-        })
-    }
-
-    fn source_span(&self) -> Span {
-        Span::new(0, self.source.len())
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Span {
-    start: usize,
-    end: usize,
-}
-
-impl Span {
-    pub fn new(start: usize, end: usize) -> Self {
-        Self { start, end }
-    }
-
-    fn start(self) -> usize {
-        self.start
-    }
-
-    fn end(self) -> usize {
-        self.end
     }
 }
 
@@ -172,7 +46,7 @@ impl Files {
     }
 
     pub fn update(&mut self, id: FileId, source: String) {
-        tracing::info!("{}", source);
+        // tracing::info!("{}", source);
         self.get_mut(id).update(source)
     }
 }
