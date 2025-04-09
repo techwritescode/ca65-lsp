@@ -396,7 +396,7 @@ impl LanguageServer for Asm {
                 }
             }
             for symbol in symbol_cache_get().iter() {
-                if show_instructions && matches!(symbol.sym_type, SymbolType::Label) {
+                if show_instructions && matches!(symbol.sym_type, SymbolType::Label|SymbolType::Constant) {
                     continue;
                 }
                 if !show_instructions && matches!(symbol.sym_type, SymbolType::Macro) {
