@@ -51,7 +51,7 @@ impl Server {
     }
 
     pub fn dispatch(&self, message: Message) -> Result<()> {
-        tracing::info!("Dispatching");
+        // tracing::info!("Dispatching");
         match message {
             Message::Notification(notification) => self.dispatch_notification(notification),
             Message::Request(request) => self.dispatch_request(request),
