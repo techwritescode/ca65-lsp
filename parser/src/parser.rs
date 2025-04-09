@@ -289,7 +289,7 @@ impl<'a> Parser<'a> {
                         span: Span::new(start, end),
                     }))
                 }
-                ".macro" => Ok(Some(self.parse_macro_def()?)),
+                ".macro"|".mac" => Ok(Some(self.parse_macro_def()?)),
                 ".proc" => {
                     self.consume_token(TokenType::Identifier)?;
                     let ident = self.last();
