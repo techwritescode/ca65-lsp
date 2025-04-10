@@ -210,7 +210,7 @@ impl LanguageServer for Asm {
                     .map(|definition| {
                         let range = state
                             .files
-                            .get(*id)
+                            .get(definition.file_id)
                             .byte_span_to_range(definition.span)
                             .unwrap()
                             .into();
