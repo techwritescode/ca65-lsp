@@ -1,15 +1,17 @@
-use crate::codespan::{FileId, Files, IndexError};
-use crate::configuration::{load_project_configuration, Configuration};
-use crate::symbol_cache::{
-    symbol_cache_fetch, symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
-};
-use crate::{instructions, OPCODE_DOCUMENTATION};
-use analysis::ScopeKind;
 use crate::ca65_doc::CA65_DOC;
-use lazy_static::lazy_static;
-use parser::instructions::Instructions;
+use crate::codespan::{FileId, Files, IndexError};
+use crate::completion::{
+    CompletionProvider, InstructionCompletionProvider, SymbolCompletionProvider,
+};
+use crate::configuration::{load_project_configuration, Configuration};
+use crate::definition::Definition;
+use crate::error::file_error_to_lsp;
+use crate::symbol_cache::{
+    symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
+};
+use crate::OPCODE_DOCUMENTATION;
+use analysis::ScopeKind;
 use parser::ParseError;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::process::Output;
 use std::str::FromStr;
@@ -17,10 +19,10 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp_server::lsp_types::{
     CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionItem,
-    CompletionItemKind, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
+    CompletionOptions, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
     DidChangeWorkspaceFoldersParams, DocumentSymbolParams, DocumentSymbolResponse,
-    FileOperationRegistrationOptions, HoverContents, InitializedParams, InsertTextFormat,
-    MarkupContent, MarkupKind, MessageType, OneOf, ProgressToken, Range, SymbolInformation,
+    FileOperationRegistrationOptions, HoverContents, HoverProviderCapability, InitializedParams,
+    MarkupContent, MarkupKind, MessageType, OneOf, Range, SymbolInformation,
     WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities,
 };
@@ -35,13 +37,10 @@ use tower_lsp_server::{
     Client, LanguageServer,
 };
 
-static BLOCK_CONTROL_COMMANDS: &[&str] = &[
-    "scope", "proc", "macro", "enum", "union", "if", "repeat", "struct",
-];
-
-struct State {
-    sources: HashMap<Uri, FileId>,
-    files: Files,
+pub struct State {
+    pub sources: HashMap<Uri, FileId>,
+    pub files: Files,
+    pub workspace_folder: Option<Uri>
 }
 
 #[allow(dead_code)]
@@ -49,57 +48,28 @@ struct State {
 pub struct Asm {
     client: Client,
     state: Arc<Mutex<State>>,
-    // queue: Sender<FileId>,
     configuration: Arc<Configuration>,
+    completion_providers: Vec<Arc<dyn CompletionProvider + Send + Sync>>,
+    definition: Definition,
 }
 
 impl Asm {
     pub fn new(client: Client) -> Self {
-        // let mut channel = tokio::sync::mpsc::channel(1);
         let configuration = load_project_configuration();
         Asm {
             client,
             state: Arc::new(Mutex::new(State {
                 sources: HashMap::new(),
                 files: Files::new(),
+                workspace_folder: None,
             })),
-            // queue: channel.0,
             configuration: Arc::new(configuration),
+            completion_providers: vec![
+                Arc::from(InstructionCompletionProvider {}),
+                Arc::from(SymbolCompletionProvider {}),
+            ],
+            definition: Definition {},
         }
-        // let server2 = server.clone();
-        // tokio::spawn(async move {
-        //     let duration = Duration::from_millis(800);
-        //
-        //     let mut files_to_update: HashSet<FileId> = HashSet::new();
-        //     let mut timed_out = false;
-        //     loop {
-        //         match time::timeout(duration, channel.1.recv()).await {
-        //             Ok(Some(file_id)) => {
-        //                 files_to_update.insert(file_id);
-        //             }
-        //             Ok(None) => {
-        //                 unreachable!("shouldn't happen");
-        //             }
-        //             Err(_) => {
-        //                 timed_out = true;
-        //             }
-        //         }
-        //
-        //         if timed_out {
-        //             timed_out = false;
-        //             if files_to_update.is_empty() {
-        //                 continue;
-        //             }
-        //
-        //             for file_id in files_to_update.iter() {
-        //                 server2.index(file_id).await;
-        //             }
-        //             files_to_update.clear();
-        //         }
-        //     }
-        // });
-
-        // server
     }
 
     async fn index(&self, file_id: &FileId) {
@@ -149,20 +119,21 @@ async fn make_diagnostics_from_ca65_output(
 
 impl LanguageServer for Asm {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
-        self.client
-            .log_message(
-                MessageType::INFO,
-                format!("{:#?}", params.workspace_folders),
-            )
-            .await;
+        let mut state = self.state.lock().await;
+        if let Some(workspace_folders) = params.workspace_folders {
+            if !workspace_folders.is_empty() {
+                state.workspace_folder = Some(workspace_folders.first().unwrap().clone().uri)
+            }
+        }
+        
         Ok(InitializeResult {
             server_info: None,
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::INCREMENTAL,
                 )),
-                definition_provider: Some(tower_lsp_server::lsp_types::OneOf::Left(true)),
-                completion_provider: Some(tower_lsp_server::lsp_types::CompletionOptions {
+                definition_provider: Some(OneOf::Left(true)),
+                completion_provider: Some(CompletionOptions {
                     ..Default::default()
                 }),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
@@ -177,25 +148,20 @@ impl LanguageServer for Asm {
                     }),
                 }),
                 document_symbol_provider: Some(OneOf::Left(true)),
-                hover_provider: Some(
-                    tower_lsp_server::lsp_types::HoverProviderCapability::Simple(true),
-                ),
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
                 ..ServerCapabilities::default()
             },
         })
     }
 
     async fn initialized(&self, _params: InitializedParams) {
-        self.client
-            .log_message(MessageType::LOG, format!("Test"))
-            .await;
-        _ = self
-            .client
-            .progress(ProgressToken::String("load".to_string()), "Loading")
-            .with_message("Indexing")
-            .with_percentage(50)
-            .begin()
-            .await;
+        // _ = self
+        //     .client
+        //     .progress(ProgressToken::String("load".to_string()), "Loading")
+        //     .with_message("Indexing")
+        //     .with_percentage(50)
+        //     .begin()
+        //     .await;
     }
 
     async fn shutdown(&self) -> Result<()> {
@@ -206,7 +172,7 @@ impl LanguageServer for Asm {
         let mut state = self.state.lock().await;
         let id = get_or_insert_source(&mut state, &params.text_document);
         drop(state);
-        // _ = self.queue.send(id).await;
+
         self.index(&id).await;
     }
 
@@ -214,7 +180,7 @@ impl LanguageServer for Asm {
         let mut state = self.state.lock().await;
         let id = reload_source(&mut state, &params.text_document, params.content_changes);
         drop(state);
-        // _ = self.queue.send(id).await;
+
         self.index(&id).await;
     }
 
@@ -228,39 +194,27 @@ impl LanguageServer for Asm {
             .sources
             .get(&params.text_document_position_params.text_document.uri)
         {
-            let word = state
-                .files
-                .get(*id)
-                .get_word_at_position(params.text_document_position_params.position.into())
-                .unwrap_or_else(|_| {
-                    // tracing::error!("Failed to get word");
-                    panic!();
-                });
-
-            let mut definitions = symbol_cache_fetch(word.to_string());
-
-            // tracing::error!("{} {:#?}", word, definitions);
-
-            definitions.sort_by(|sym, _| {
-                if sym.file_id == *id {
-                    return Ordering::Less;
-                }
-                Ordering::Equal
-            });
+            let definitions = self
+                .definition
+                .get_definition_position(
+                    &state.files,
+                    *id,
+                    params.text_document_position_params.position.into(),
+                )
+                .map_err(file_error_to_lsp)?
+                .unwrap_or(Vec::new());
 
             return Ok(Some(GotoDefinitionResponse::Array(
                 definitions
                     .iter()
                     .map(|definition| {
-                        let source_file =
-                            Uri::from_str(state.files.get(definition.file_id).name.as_str())
-                                .unwrap();
                         let range = state
                             .files
                             .get(*id)
                             .byte_span_to_range(definition.span)
-                            .unwrap();
-                        Location::new(source_file, range.into())
+                            .unwrap()
+                            .into();
+                        Location::new(state.files.get_uri(definition.file_id), range)
                     })
                     .collect(),
             )));
@@ -276,12 +230,11 @@ impl LanguageServer for Asm {
             .sources
             .get(&params.text_document_position_params.text_document.uri)
         {
-            let position = params.text_document_position_params.position.into();
             let word = state
                 .files
                 .get(*id)
-                .get_word_at_position(position)
-                .expect("Word out of bounds");
+                .get_word_at_position(params.text_document_position_params.position.into())
+                .map_err(file_error_to_lsp)?;
 
             if let Some(documentation) = OPCODE_DOCUMENTATION
                 .get()
@@ -311,21 +264,27 @@ impl LanguageServer for Asm {
                 }));
             }
 
-            let mut symbols = symbol_cache_fetch(word.to_string());
-            symbols.sort_by(|sym, _| {
-                if sym.file_id == *id {
-                    return Ordering::Less;
-                }
-                Ordering::Equal
-            });
-            let documentation = symbols
-                .first()
-                .map(|symbol| format!("```ca65\n{}\n```", symbol.comment.clone()))
-                .map(MarkedString::from_markdown);
-            return Ok(documentation.map(|doc| Hover {
-                range: None,
-                contents: HoverContents::Scalar(doc),
-            }));
+            let definitions = self
+                .definition
+                .get_definition_position(
+                    &state.files,
+                    *id,
+                    params.text_document_position_params.position.into(),
+                )
+                .map_err(file_error_to_lsp)?;
+
+            return if let Some(definitions) = definitions {
+                let documentation = definitions
+                    .first()
+                    .map(|symbol| format!("```ca65\n{}\n```", symbol.comment.clone()))
+                    .map(MarkedString::from_markdown);
+                Ok(documentation.map(|doc| Hover {
+                    range: None,
+                    contents: HoverContents::Scalar(doc),
+                }))
+            } else {
+                Ok(None)
+            };
         }
 
         Ok(None)
@@ -370,63 +329,28 @@ impl LanguageServer for Asm {
             .sources
             .get(&params.text_document_position.text_document.uri)
         {
-            let tokens = state
-                .files
-                .line_tokens(*id, params.text_document_position.position.into());
-            let offset = state
-                .files
-                .get(*id)
-                .position_to_byte_index(params.text_document_position.position.into())
-                .unwrap();
-            let show_instructions = tokens.is_empty() || tokens[0].span.end >= offset; // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
-
             let mut completion_items: Vec<CompletionItem> = vec![];
-            if show_instructions {
-                for (opcode, description) in instructions::INSTRUCTION_MAP
-                    .get()
-                    .expect("Instructions not loaded")
-                    .iter()
-                {
-                    completion_items.push(CompletionItem {
-                        label: opcode.to_lowercase().to_owned(),
-                        detail: Some(description.to_owned()),
-                        kind: Some(CompletionItemKind::KEYWORD),
-                        ..Default::default()
-                    });
-                }
+            for provider in self.completion_providers.iter() {
+                completion_items.extend(provider.completions_for(
+                    &state,
+                    *id,
+                    params.text_document_position.position.into(),
+                ));
             }
-            for symbol in symbol_cache_get().iter() {
-                if show_instructions && matches!(symbol.sym_type, SymbolType::Label|SymbolType::Constant) {
-                    continue;
-                }
-                if !show_instructions && matches!(symbol.sym_type, SymbolType::Macro) {
-                    continue;
-                }
-                completion_items.push(CompletionItem {
-                    label: symbol.label.to_owned(),
-                    detail: Some(symbol.comment.to_owned()),
-                    kind: Some(match symbol.sym_type {
-                        SymbolType::Label => CompletionItemKind::FUNCTION,
-                        SymbolType::Constant => CompletionItemKind::CONSTANT,
-                        SymbolType::Macro => CompletionItemKind::SNIPPET
-                    }),
-                    ..Default::default()
-                });
-            }
-            if show_instructions {
-                completion_items.extend(BLOCK_CONTROL_COMMANDS.iter().map(|command| {
-                    CompletionItem {
-                        label: (*command).to_string(),
-                        kind: Some(CompletionItemKind::FUNCTION),
-                        insert_text: Some(format!(
-                            ".{} $1\n\t$0\n.end{} ; End $1",
-                            *command, *command
-                        )),
-                        insert_text_format: Some(InsertTextFormat::SNIPPET),
-                        ..Default::default()
-                    }
-                }));
-            }
+            // if show_instructions {
+            //     completion_items.extend(BLOCK_CONTROL_COMMANDS.iter().map(|command| {
+            //         CompletionItem {
+            //             label: (*command).to_string(),
+            //             kind: Some(CompletionItemKind::FUNCTION),
+            //             insert_text: Some(format!(
+            //                 ".{} $1\n\t$0\n.end{} ; End $1",
+            //                 *command, *command
+            //             )),
+            //             insert_text_format: Some(InsertTextFormat::SNIPPET),
+            //             ..Default::default()
+            //         }
+            //     }));
+            // }
             Ok(Some(CompletionResponse::Array(completion_items)))
         } else {
             Ok(None)

@@ -13,3 +13,4 @@ main:
     test 1, 2, 3
     jmp test_proc
     lda #MY_CONST
+    lda #ScreenEdge_X_Pos

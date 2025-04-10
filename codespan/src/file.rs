@@ -16,7 +16,7 @@ fn get_line_starts(contents: &str) -> Vec<usize> {
         .collect()
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum FileError {
     OutOfBounds { given: usize, span: Span },
     InvalidCharBoundary { given: usize },

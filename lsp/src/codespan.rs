@@ -1,7 +1,10 @@
+use crate::path::diff_paths;
 use codespan::{File, Position};
 use lazy_static::lazy_static;
 use parser::{Ast, Instructions, ParseError, Token, TokenizerError};
 use std::fmt::Display;
+use std::path::Path;
+use std::str::FromStr;
 use tower_lsp_server::lsp_types::Uri;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -41,6 +44,21 @@ pub struct Files {
     files: Vec<CacheFile>,
 }
 
+impl Files {
+    pub fn get_uri_relative(&self, id: FileId, root: FileId) -> Option<String> {
+        let target_uri = self.get_uri(id);
+        let relative_uri = self.get_uri(root);
+
+        let path = diff_paths(
+            Path::new(&target_uri.path().to_string()),
+            Path::new(&relative_uri.path().to_string()).parent()?,
+        )?;
+
+
+        Some(path.to_string_lossy().to_string())
+    }
+}
+
 pub enum IndexError {
     TokenizerError(TokenizerError),
     ParseError(ParseError),
@@ -72,6 +90,10 @@ impl Files {
         &mut self.files[id.get()].file
     }
 
+    pub fn get_uri(&self, id: FileId) -> Uri {
+        Uri::from_str(self.get(id).name.as_str()).unwrap()
+    }
+
     pub fn source(&self, id: FileId) -> &String {
         &self.get(id).source
     }
@@ -94,6 +116,12 @@ impl Files {
     pub fn update(&mut self, id: FileId, source: String) {
         // tracing::info!("{}", source);
         self.get_mut(id).update(source)
+    }
+
+    pub fn show_instructions(&self, id: FileId, position: Position) -> bool {
+        let tokens = self.line_tokens(id, position);
+        let offset = self.get(id).position_to_byte_index(position).unwrap();
+        tokens.is_empty() || tokens[0].span.end >= offset // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
     }
 
     pub fn index(&mut self, id: FileId) -> Result<()> {
