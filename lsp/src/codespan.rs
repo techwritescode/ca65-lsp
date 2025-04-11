@@ -54,7 +54,6 @@ impl Files {
             Path::new(&relative_uri.path().to_string()).parent()?,
         )?;
 
-
         Some(path.to_string_lossy().to_string())
     }
 }
