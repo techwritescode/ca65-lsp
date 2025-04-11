@@ -21,7 +21,7 @@ async fn main() -> anyhow::Result<()> {
 
     symbol_cache::init_symbol_cache();
     instructions::init_instruction_map();
-    documentation::init_documentation_map();
+    documentation::init_documentation_maps();
 
     let (service, socket) = LspService::new(|client| {
         Asm::new(client)

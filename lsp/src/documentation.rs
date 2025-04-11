@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::OnceLock
+    sync::OnceLock,
 };
 use serde::Deserialize;
 
@@ -9,9 +9,6 @@ pub struct IndexedDocumentation {
     keys_to_doc: HashMap<String, String>,
     keys_with_shared_doc: HashMap<String, String>,
 }
-
-pub static CA65_DOC: OnceLock<IndexedDocumentation> = OnceLock::new();
-pub static INSTRUCTION_DOC: OnceLock<IndexedDocumentation> = OnceLock::new();
 
 impl IndexedDocumentation {
     pub fn get_doc_for_word(&self, word: &str) -> Option<String> {
@@ -25,16 +22,18 @@ impl IndexedDocumentation {
     }
 }
 
+pub static CA65_DOC: OnceLock<IndexedDocumentation> = OnceLock::new();
+pub static OPCODE_DOC: OnceLock<IndexedDocumentation> = OnceLock::new();
 
-pub fn init_documentation_map() {
+pub fn init_documentation_maps() {
     if let Ok(doc) = serde_json::from_str::<IndexedDocumentation>(include_str!("../../data/ca65-keyword-doc.json")) {
         if CA65_DOC.set(doc).is_err() {
             eprintln!("CA65_KEYWORDS_MAP not able to be initialized");
         }
     }
     if let Ok(doc) = serde_json::from_str::<IndexedDocumentation>(include_str!("../../data/65xx-instruction-doc.json")) {
-        if INSTRUCTION_DOC.set(doc).is_err() {
-            eprintln!("INSTRUCTION_DOC not able to be initialized");
+        if OPCODE_DOC.set(doc).is_err() {
+            eprintln!("OPCODE_DOC not able to be initialized");
         }
     }
 }
