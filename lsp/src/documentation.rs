@@ -6,6 +6,7 @@ use serde::Deserialize;
 
 type Key = String;
 type Documentation = String;
+
 #[derive(Deserialize)]
 pub struct IndexedDocumentation {
     keys_to_doc: HashMap<Key, Documentation>,
@@ -24,17 +25,17 @@ impl IndexedDocumentation {
     }
 }
 
-pub static CA65_DOC: OnceLock<IndexedDocumentation> = OnceLock::new();
-pub static OPCODE_DOC: OnceLock<IndexedDocumentation> = OnceLock::new();
+pub static CA65_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
+pub static OPCODE_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
 
 pub fn init_documentation_maps() {
     if let Ok(doc) = serde_json::from_str::<IndexedDocumentation>(include_str!("../../data/ca65-keyword-doc.json")) {
-        if CA65_DOC.set(doc).is_err() {
+        if CA65_DOCUMENTATION.set(doc).is_err() {
             eprintln!("CA65_KEYWORDS_MAP not able to be initialized");
         }
     }
     if let Ok(doc) = serde_json::from_str::<IndexedDocumentation>(include_str!("../../data/65xx-instruction-doc.json")) {
-        if OPCODE_DOC.set(doc).is_err() {
+        if OPCODE_DOCUMENTATION.set(doc).is_err() {
             eprintln!("OPCODE_DOC not able to be initialized");
         }
     }
