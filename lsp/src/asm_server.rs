@@ -6,8 +6,8 @@ use crate::error::file_error_to_lsp;
 use crate::symbol_cache::{
     symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
 };
+use crate::documentation::{CA65_DOCUMENTATION, OPCODE_DOCUMENTATION};
 use analysis::ScopeKind;
-use crate::documentation::{CA65_DOC, OPCODE_DOC};
 use parser::ParseError;
 use std::collections::HashMap;
 use std::process::Output;
@@ -234,7 +234,7 @@ impl LanguageServer for Asm {
                 .get_word_at_position(params.text_document_position_params.position.into())
                 .map_err(file_error_to_lsp)?;
 
-            if let Some(documentation) = OPCODE_DOC
+            if let Some(documentation) = OPCODE_DOCUMENTATION
                 .get()
                 .unwrap()
                 .get_doc_for_word(&word.to_lowercase())
@@ -248,7 +248,7 @@ impl LanguageServer for Asm {
                 }));
             }
 
-            if let Some(documentation) = CA65_DOC
+            if let Some(documentation) = CA65_DOCUMENTATION
                 .get()
                 .unwrap()
                 .get_doc_for_word(&word.to_uppercase())
