@@ -4,10 +4,12 @@ use std::{
 };
 use serde::Deserialize;
 
+type Key = String;
+type Documentation = String;
 #[derive(Deserialize)]
 pub struct IndexedDocumentation {
-    keys_to_doc: HashMap<String, String>,
-    keys_with_shared_doc: HashMap<String, String>,
+    keys_to_doc: HashMap<Key, Documentation>,
+    keys_with_shared_doc: HashMap<Key, Key>,
 }
 
 impl IndexedDocumentation {
