@@ -211,7 +211,8 @@ impl<'a> Parser<'a> {
 
             return operation;
         }
-        panic!("Syntax Error: Unexpected token {:#?}", self.tokens.peek());
+        
+        Err(ParseError::UnexpectedToken(self.tokens.peek().unwrap()))
     }
 
     fn parse_macro(&mut self) -> Result<Option<Line>> {

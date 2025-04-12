@@ -6,6 +6,10 @@ mod instructions;
 mod logger;
 mod symbol_cache;
 mod ca65_doc;
+mod completion;
+mod definition;
+mod error;
+mod path;
 
 use asm_server::Asm;
 use tower_lsp_server::{LspService, Server};
