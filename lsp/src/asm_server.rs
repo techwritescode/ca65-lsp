@@ -1,6 +1,6 @@
 use crate::ca65_doc::CA65_DOC;
 use crate::codespan::{FileId, Files, IndexError};
-use crate::completion::{BlockControlCompletionProvider, CompletionProvider, InstructionCompletionProvider, SymbolCompletionProvider};
+use crate::completion::{BlockControlCompletionProvider, Ca65KeywordCompletionProvider, CompletionProvider, InstructionCompletionProvider, SymbolCompletionProvider};
 use crate::configuration::{load_project_configuration, Configuration};
 use crate::definition::Definition;
 use crate::error::file_error_to_lsp;
@@ -65,7 +65,8 @@ impl Asm {
             completion_providers: vec![
                 Arc::from(InstructionCompletionProvider {}),
                 Arc::from(SymbolCompletionProvider {}),
-                Arc::from(BlockControlCompletionProvider {})
+                Arc::from(BlockControlCompletionProvider {}),
+                Arc::from(Ca65KeywordCompletionProvider {}),
             ],
             definition: Definition {},
         }
@@ -252,7 +253,7 @@ impl LanguageServer for Asm {
             if let Some(documentation) = CA65_DOC
                 .get()
                 .unwrap()
-                .get_doc_for_word(&word.to_uppercase())
+                .get_doc_for_word(&word.to_lowercase())
             {
                 return Ok(Some(Hover {
                     range: None,

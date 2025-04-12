@@ -1,9 +1,11 @@
+use tokio::io::join;
 use crate::asm_server::State;
 use crate::codespan::FileId;
 use crate::instructions;
 use crate::symbol_cache::{symbol_cache_get, SymbolType};
 use codespan::Position;
-use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails, InsertTextFormat};
+use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails, Documentation, InsertTextFormat, MarkupContent, MarkupKind};
+use crate::ca65_doc::CA65_DOC;
 
 static BLOCK_CONTROL_COMMANDS: &[&str] = &[
     "scope", "proc", "macro", "enum", "union", "if", "repeat", "struct",
@@ -105,5 +107,32 @@ impl CompletionProvider for BlockControlCompletionProvider {
         } else {
             Vec::new()
         }
+    }
+}
+
+pub struct Ca65KeywordCompletionProvider;
+
+impl CompletionProvider for Ca65KeywordCompletionProvider {
+    fn completions_for(
+        &self,
+        state: &State,
+        id: FileId,
+        position: Position,
+    ) -> Vec<CompletionItem> {
+        CA65_DOC
+            .get()
+            .unwrap()
+            .get_vec_of_all_entries()
+            .iter()
+            .map(|(k, v)| CompletionItem {
+                label: k.clone(),
+                kind: Some(CompletionItemKind::KEYWORD),
+                documentation: Some(Documentation::MarkupContent(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: v.clone(),
+                })),
+                ..Default::default()
+            })
+            .collect()
     }
 }
