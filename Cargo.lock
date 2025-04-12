@@ -78,7 +78,6 @@ dependencies = [
  "analysis",
  "anyhow",
  "codespan",
- "data",
  "lazy_static",
  "parser",
  "serde",
@@ -123,14 +122,6 @@ dependencies = [
  "lock_api",
  "once_cell",
  "parking_lot_core",
-]
-
-[[package]]
-name = "data"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
 ]
 
 [[package]]
