@@ -1,6 +1,6 @@
 {
   "block_control_commands": {
-    "snippet_text": ".{} $1\n\t$0\n.end{} ; End $1",
+    "snippet_text": ".cmd $1\n\t$0\n.endcmd ; End $1",
     "members": [
       "scope",
       "proc",
@@ -11,8 +11,32 @@
       "struct"
     ]
   },
+  "param_if_control_commands": {
+    "snippet_text": ".cmd $1\n\t$0\n.endif ; End cmd",
+    "members": [
+      "if",
+      "ifblank",
+      "ifconst",
+      "ifdef",
+      "ifnblank",
+      "ifndef",
+      "ifnref",
+      "ifref"
+    ]
+  },
+  "no_param_if_control_commands": {
+    "snippet_text": ".cmd\n\t$0\n.endif ; End cmd",
+    "members": [
+      "ifp02",
+      "ifp4510",
+      "ifp816",
+      "ifpc02",
+      "ifpdtv",
+      "ifpsc02"
+    ]
+  },
   "pseudo_functions": {
-    "snippet_text": ".{}($0)",
+    "snippet_text": ".cmd($0)",
     "members": [
       "addrsize",
       "bank",
@@ -48,7 +72,7 @@
     ]
   },
   "string_control_commands": {
-    "snippet_text": ".{} \"$0\"",
+    "snippet_text": ".cmd \"$0\"",
     "members": [
       "include",
       "incbin",
@@ -62,13 +86,13 @@
     ]
   },
   "char_control_commands": {
-    "snippet_text": ".{} '$0'",
+    "snippet_text": ".cmd '$0'",
     "members": [
       "localchar"
     ]
   },
   "param_control_commands": {
-    "snippet_text": ".{} $0",
+    "snippet_text": ".cmd $0",
     "members": [
       "addr",
       "align",
@@ -117,7 +141,7 @@
     ]
   },
   "no_param_control_commands": {
-    "snippet_text": ".{}",
+    "snippet_text": ".cmd",
     "members": [
       "asize",
       "cpu",
@@ -165,6 +189,18 @@
       "rodata",
       "smart",
       "zeropage"
+    ]
+  },
+  "else_if": {
+    "snippet_text": ".cmd $1\n\t$0",
+    "members": [
+      "elseif"
+    ]
+  },
+  "else": {
+    "snippet_text": ".cmd\n\t$0",
+    "members": [
+      "else"
     ]
   }
 }

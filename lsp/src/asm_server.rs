@@ -1,5 +1,5 @@
 use crate::codespan::{FileId, Files, IndexError};
-use crate::completion::{BlockControlCompletionProvider, Ca65KeywordCompletionProvider, CompletionProvider, InstructionCompletionProvider, SymbolCompletionProvider};
+use crate::completion::{Ca65KeywordCompletionProvider, CompletionProvider, InstructionCompletionProvider, SymbolCompletionProvider};
 use crate::configuration::{load_project_configuration, Configuration};
 use crate::definition::Definition;
 use crate::error::file_error_to_lsp;
@@ -64,7 +64,6 @@ impl Asm {
             completion_providers: vec![
                 Arc::from(InstructionCompletionProvider {}),
                 Arc::from(SymbolCompletionProvider {}),
-                Arc::from(BlockControlCompletionProvider {}),
                 Arc::from(Ca65KeywordCompletionProvider {}),
             ],
             definition: Definition {},
@@ -336,20 +335,6 @@ impl LanguageServer for Asm {
                     params.text_document_position.position.into(),
                 ));
             }
-            // if show_instructions {
-            //     completion_items.extend(BLOCK_CONTROL_COMMANDS.iter().map(|command| {
-            //         CompletionItem {
-            //             label: (*command).to_string(),
-            //             kind: Some(CompletionItemKind::FUNCTION),
-            //             insert_text: Some(format!(
-            //                 ".{} $1\n\t$0\n.end{} ; End $1",
-            //                 *command, *command
-            //             )),
-            //             insert_text_format: Some(InsertTextFormat::SNIPPET),
-            //             ..Default::default()
-            //         }
-            //     }));
-            // }
             Ok(Some(CompletionResponse::Array(completion_items)))
         } else {
             Ok(None)

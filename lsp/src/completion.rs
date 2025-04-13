@@ -84,35 +84,6 @@ impl CompletionProvider for SymbolCompletionProvider {
     }
 }
 
-pub struct BlockControlCompletionProvider;
-
-impl CompletionProvider for BlockControlCompletionProvider {
-    fn completions_for(
-        &self,
-        state: &State,
-        id: FileId,
-        position: Position,
-    ) -> Vec<CompletionItem> {
-        if state.files.show_instructions(id, position) {
-            BLOCK_CONTROL_COMMANDS
-                .iter()
-                .map(|command| CompletionItem {
-                    label: (*command).to_string(),
-                    kind: Some(CompletionItemKind::FUNCTION),
-                    insert_text: Some(format!(".{} $1\n\t$0\n.end{} ; End $1", *command, *command)),
-                    insert_text_format: Some(InsertTextFormat::SNIPPET),
-                    ..Default::default()
-                })
-                .collect()
-        } else {
-            Vec::new()
-        }
-    }
-}
-
-struct Ca65KeywordSnippet {
-
-}
 pub struct Ca65KeywordCompletionProvider;
 
 impl CompletionProvider for Ca65KeywordCompletionProvider {
@@ -134,6 +105,8 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
                     kind: MarkupKind::Markdown,
                     value: v.clone(),
                 })),
+                insert_text: Some(crate::documentation::get_ca65_keyword_snippet_text(k)),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
                 ..Default::default()
             })
             .collect()
