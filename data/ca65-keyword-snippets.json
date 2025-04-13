@@ -92,7 +92,7 @@
     ]
   },
   "param_control_commands": {
-    "snippet_text": ".cmd $0",
+    "snippet_text": ".cmd ",
     "members": [
       "addr",
       "align",
@@ -141,7 +141,7 @@
     ]
   },
   "no_param_control_commands": {
-    "snippet_text": ".cmd",
+    "snippet_text": ".cmd\n",
     "members": [
       "asize",
       "cpu",

@@ -7,10 +7,6 @@ use codespan::Position;
 use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails, Documentation, InsertTextFormat, MarkupContent, MarkupKind};
 use crate::documentation::CA65_DOCUMENTATION;
 
-static BLOCK_CONTROL_COMMANDS: &[&str] = &[
-    "scope", "proc", "macro", "enum", "union", "if", "repeat", "struct",
-];
-
 pub trait CompletionProvider {
     fn completions_for(&self, state: &State, id: FileId, position: Position)
         -> Vec<CompletionItem>;
