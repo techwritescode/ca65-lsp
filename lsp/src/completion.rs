@@ -110,6 +110,9 @@ impl CompletionProvider for BlockControlCompletionProvider {
     }
 }
 
+struct Ca65KeywordSnippet {
+
+}
 pub struct Ca65KeywordCompletionProvider;
 
 impl CompletionProvider for Ca65KeywordCompletionProvider {
@@ -125,7 +128,7 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
             .get_vec_of_all_entries()
             .iter()
             .map(|(k, v)| CompletionItem {
-                label: k.clone(),
+                label: format!(".{k}"),
                 kind: Some(CompletionItemKind::KEYWORD),
                 documentation: Some(Documentation::MarkupContent(MarkupContent {
                     kind: MarkupKind::Markdown,
