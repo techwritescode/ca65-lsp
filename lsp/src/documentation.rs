@@ -46,3 +46,36 @@ pub fn init_documentation_maps() {
         }
     }
 }
+
+#[derive(Deserialize)]
+struct Ca65KeywordSnippet {
+    snippet_text: String,
+    members: Vec<String>,
+}
+static CA65_KEYWORD_SNIPPETS: OnceLock<HashMap<String, Ca65KeywordSnippet>> = OnceLock::new();
+static KEYWORDS_TO_SNIPPETS: OnceLock<HashMap<String, String>> = OnceLock::new();
+pub fn init_ca65_keyword_snippets() {
+    if let Ok(snippets) = serde_json::from_str::<HashMap<String, Ca65KeywordSnippet>>(include_str!("../../data/ca65-keyword-snippets.json")) {
+        if CA65_KEYWORD_SNIPPETS.set(snippets).is_err() {
+            eprintln!("CA65_KEYWORD_SNIPPETS not able to be initialized");
+        } else {
+            let mut keywords_to_snippets: HashMap<String, String> = HashMap::new();
+            CA65_KEYWORD_SNIPPETS.get().unwrap().iter()
+                .for_each(|(snippet_name, snippet)| {
+                    snippet.members.iter()
+                        .for_each(|keyword| {
+                            keywords_to_snippets.insert(keyword.clone(), snippet_name.clone());
+                        })
+                });
+            KEYWORDS_TO_SNIPPETS.set(keywords_to_snippets).unwrap();
+        }
+    }
+
+}
+pub fn get_ca65_keyword_snippet_text(keyword: &str) -> String {
+    let ca65_keyword_snippets = CA65_KEYWORD_SNIPPETS.get().unwrap();
+    let keywords_to_snippets = KEYWORDS_TO_SNIPPETS.get().unwrap();
+    let snippet_name = keywords_to_snippets.get(keyword).unwrap();
+    let snippet = ca65_keyword_snippets.get(snippet_name).unwrap();
+    snippet.snippet_text.replace("cmd", keyword)
+}
