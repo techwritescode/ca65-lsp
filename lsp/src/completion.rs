@@ -5,7 +5,7 @@ use crate::instructions;
 use crate::symbol_cache::{symbol_cache_get, SymbolType};
 use codespan::Position;
 use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails, Documentation, InsertTextFormat, MarkupContent, MarkupKind};
-use crate::ca65_doc::CA65_DOC;
+use crate::documentation::CA65_DOCUMENTATION;
 
 static BLOCK_CONTROL_COMMANDS: &[&str] = &[
     "scope", "proc", "macro", "enum", "union", "if", "repeat", "struct",
@@ -122,7 +122,7 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
         id: FileId,
         position: Position,
     ) -> Vec<CompletionItem> {
-        CA65_DOC
+        CA65_DOCUMENTATION
             .get()
             .unwrap()
             .get_vec_of_all_entries()

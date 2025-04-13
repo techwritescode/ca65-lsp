@@ -23,6 +23,12 @@ impl IndexedDocumentation {
             None
         }
     }
+    pub fn get_vec_of_all_entries(&self) -> Vec<(String, String)> {
+        self.keys_to_doc
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
+    }
 }
 
 pub static CA65_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
