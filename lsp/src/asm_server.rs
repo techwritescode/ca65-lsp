@@ -1,4 +1,3 @@
-use crate::ca65_doc::CA65_DOC;
 use crate::codespan::{FileId, Files, IndexError};
 use crate::completion::{BlockControlCompletionProvider, Ca65KeywordCompletionProvider, CompletionProvider, InstructionCompletionProvider, SymbolCompletionProvider};
 use crate::configuration::{load_project_configuration, Configuration};
@@ -7,7 +6,7 @@ use crate::error::file_error_to_lsp;
 use crate::symbol_cache::{
     symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
 };
-use crate::OPCODE_DOCUMENTATION;
+use crate::documentation::{CA65_DOCUMENTATION, OPCODE_DOCUMENTATION};
 use analysis::ScopeKind;
 use parser::ParseError;
 use std::collections::HashMap;
@@ -239,18 +238,18 @@ impl LanguageServer for Asm {
             if let Some(documentation) = OPCODE_DOCUMENTATION
                 .get()
                 .unwrap()
-                .get(&word.to_string().to_lowercase())
+                .get_doc_for_word(&word.to_lowercase())
             {
                 return Ok(Some(Hover {
                     range: None,
                     contents: HoverContents::Markup(MarkupContent {
                         kind: MarkupKind::Markdown,
-                        value: documentation.clone(),
+                        value: documentation,
                     }),
                 }));
             }
 
-            if let Some(documentation) = CA65_DOC
+            if let Some(documentation) = CA65_DOCUMENTATION
                 .get()
                 .unwrap()
                 .get_doc_for_word(&word.to_lowercase())
