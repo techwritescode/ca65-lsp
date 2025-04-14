@@ -51,22 +51,13 @@ pub fn init_documentation_maps() {
     }
 }
 
-#[derive(Deserialize)]
-struct Ca65KeywordSnippet {
-    snippet_text: String,
-    members: Vec<String>,
-}
 pub static CA65_KEYWORD_COMPLETION_ITEMS: OnceLock<Vec<lsp_types::CompletionItem>> = OnceLock::new();
-pub static OPCODE_COMPLETION_ITEMS: OnceLock<Vec<lsp_types::CompletionItem>> = OnceLock::new();
 pub fn init_completion_item_vecs() {
     let ca65_documentation = CA65_DOCUMENTATION.get().expect("Could not get CA65_DOCUMENTATION in init_completion_item_vecs()");
-    let opcode_documentation = OPCODE_DOCUMENTATION.get().expect("Could not get OPCODE_DOCUMENTATION in init_completion_item_vecs()");
 
     let ca65_keyword_completion_items = get_completion_item_vec_from_indexed_documentation(ca65_documentation);
-    let opcode_completion_items = get_completion_item_vec_from_indexed_documentation(opcode_documentation);
 
     CA65_KEYWORD_COMPLETION_ITEMS.set(ca65_keyword_completion_items).unwrap();
-    OPCODE_COMPLETION_ITEMS.set(opcode_completion_items).unwrap();
 }
 fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation) -> Vec<lsp_types::CompletionItem> {
     let snippets = SNIPPETS.get().expect("Could not get SNIPPETS in get_completion_item_vec_from_indexed_documentation()");
