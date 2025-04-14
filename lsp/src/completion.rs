@@ -5,7 +5,7 @@ use crate::instructions;
 use crate::symbol_cache::{symbol_cache_get, SymbolType};
 use codespan::Position;
 use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails, Documentation, InsertTextFormat, MarkupContent, MarkupKind};
-use crate::documentation::CA65_DOCUMENTATION;
+use crate::documentation::{CA65_KEYWORD_COMPLETION_ITEMS, OPCODE_COMPLETION_ITEMS};
 
 pub trait CompletionProvider {
     fn completions_for(&self, state: &State, id: FileId, position: Position)
@@ -22,17 +22,7 @@ impl CompletionProvider for InstructionCompletionProvider {
         position: Position,
     ) -> Vec<CompletionItem> {
         if state.files.show_instructions(id, position) {
-            instructions::INSTRUCTION_MAP
-                .get()
-                .expect("Instructions not loaded")
-                .iter()
-                .map(|(opcode, description)| CompletionItem {
-                    label: opcode.to_lowercase().to_owned(),
-                    detail: Some(description.to_owned()),
-                    kind: Some(CompletionItemKind::KEYWORD),
-                    ..Default::default()
-                })
-                .collect()
+            OPCODE_COMPLETION_ITEMS.get().expect("could not get OPCODE_COMPLETION_ITEMS in completion provider").clone()
         } else {
             Vec::new()
         }
@@ -89,22 +79,6 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
         id: FileId,
         position: Position,
     ) -> Vec<CompletionItem> {
-        CA65_DOCUMENTATION
-            .get()
-            .unwrap()
-            .get_vec_of_all_entries()
-            .iter()
-            .map(|(k, v)| CompletionItem {
-                label: format!(".{k}"),
-                kind: Some(CompletionItemKind::KEYWORD),
-                documentation: Some(Documentation::MarkupContent(MarkupContent {
-                    kind: MarkupKind::Markdown,
-                    value: v.clone(),
-                })),
-                insert_text: Some(crate::documentation::get_ca65_keyword_snippet_text(k)),
-                insert_text_format: Some(InsertTextFormat::SNIPPET),
-                ..Default::default()
-            })
-            .collect()
+        CA65_KEYWORD_COMPLETION_ITEMS.get().expect("Could not get ca65 completion items in completion provider").clone()
     }
 }
