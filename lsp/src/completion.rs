@@ -5,7 +5,7 @@ use crate::instructions;
 use crate::symbol_cache::{symbol_cache_get, SymbolType};
 use codespan::Position;
 use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails, Documentation, InsertTextFormat, MarkupContent, MarkupKind};
-use crate::documentation::{CA65_KEYWORD_COMPLETION_ITEMS, OPCODE_COMPLETION_ITEMS};
+use crate::documentation::CA65_KEYWORD_COMPLETION_ITEMS;
 
 pub trait CompletionProvider {
     fn completions_for(&self, state: &State, id: FileId, position: Position)
@@ -22,7 +22,17 @@ impl CompletionProvider for InstructionCompletionProvider {
         position: Position,
     ) -> Vec<CompletionItem> {
         if state.files.show_instructions(id, position) {
-            OPCODE_COMPLETION_ITEMS.get().expect("could not get OPCODE_COMPLETION_ITEMS in completion provider").clone()
+            instructions::INSTRUCTION_MAP
+                .get()
+                .expect("Instructions not loaded")
+                .iter()
+                .map(|(opcode, description)| CompletionItem {
+                    label: opcode.to_lowercase().to_owned(),
+                    detail: Some(description.to_owned()),
+                    kind: Some(CompletionItemKind::KEYWORD),
+                    ..Default::default()
+                })
+                .collect()
         } else {
             Vec::new()
         }
