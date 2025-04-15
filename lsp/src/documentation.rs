@@ -35,7 +35,13 @@ pub static CA65_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
 pub static OPCODE_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
 pub static SNIPPETS: OnceLock<HashMap<String, String>> = OnceLock::new();
 
-pub fn init_documentation_maps() {
+pub fn init() {
+    parse_json_to_hashmaps();
+    init_completion_item_vecs();
+}
+
+#[inline]
+fn parse_json_to_hashmaps() {
     if let Ok(doc) = serde_json::from_str::<IndexedDocumentation>(include_str!("../../data/ca65-keyword-doc.json")) {
         if CA65_DOCUMENTATION.set(doc).is_err() {
             eprintln!("CA65_KEYWORDS_MAP not able to be initialized");
@@ -54,7 +60,8 @@ pub fn init_documentation_maps() {
 }
 
 pub static CA65_KEYWORD_COMPLETION_ITEMS: OnceLock<Vec<lsp_types::CompletionItem>> = OnceLock::new();
-pub fn init_completion_item_vecs() {
+#[inline]
+fn init_completion_item_vecs() {
     let ca65_documentation = CA65_DOCUMENTATION.get().expect("Could not get CA65_DOCUMENTATION in init_completion_item_vecs()");
 
     let ca65_keyword_completion_items = get_completion_item_vec_from_indexed_documentation(ca65_documentation);
