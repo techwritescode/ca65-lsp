@@ -1,11 +1,10 @@
-use tokio::io::join;
 use crate::asm_server::State;
 use crate::codespan::FileId;
 use crate::instructions;
 use crate::symbol_cache::{symbol_cache_get, SymbolType};
-use codespan::Position;
-use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails, Documentation, InsertTextFormat, MarkupContent, MarkupKind};
 use crate::documentation::CA65_KEYWORD_COMPLETION_ITEMS;
+use codespan::Position;
+use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails};
 
 pub trait CompletionProvider {
     fn completions_for(&self, state: &State, id: FileId, position: Position)
