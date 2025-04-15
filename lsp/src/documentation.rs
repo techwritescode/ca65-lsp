@@ -33,11 +33,10 @@ impl IndexedDocumentation {
 
 pub static CA65_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
 pub static OPCODE_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
-pub static SNIPPETS: OnceLock<HashMap<String, String>> = OnceLock::new();
 
 pub fn init() {
     parse_json_to_hashmaps();
-    init_completion_item_vecs();
+    parse_json_to_completion_items();
 }
 
 #[inline]
@@ -52,24 +51,17 @@ fn parse_json_to_hashmaps() {
             eprintln!("OPCODE_DOC not able to be initialized");
         }
     }
-    if let Ok(snippets) = serde_json::from_str::<HashMap<String, String>>(include_str!("../../data/snippets.json")) {
-        if SNIPPETS.set(snippets).is_err() {
-            eprintln!("SNIPPETS not able to be initialized");
-        }
-    }
 }
 
-pub static CA65_KEYWORD_COMPLETION_ITEMS: OnceLock<Vec<lsp_types::CompletionItem>> = OnceLock::new();
+pub static CA65_KEYWORD_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
 #[inline]
-fn init_completion_item_vecs() {
+fn parse_json_to_completion_items() {
+    let snippets = serde_json::from_str::<HashMap<String, String>>(include_str!("../../data/snippets.json")).expect("Could not parse snippets JSON");
     let ca65_documentation = CA65_DOCUMENTATION.get().expect("Could not get CA65_DOCUMENTATION in init_completion_item_vecs()");
-
-    let ca65_keyword_completion_items = get_completion_item_vec_from_indexed_documentation(ca65_documentation);
-
+    let ca65_keyword_completion_items = get_completion_item_vec_from_indexed_documentation(ca65_documentation, &snippets);
     CA65_KEYWORD_COMPLETION_ITEMS.set(ca65_keyword_completion_items).unwrap();
 }
-fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation) -> Vec<CompletionItem> {
-    let snippets = SNIPPETS.get().expect("Could not get SNIPPETS in get_completion_item_vec_from_indexed_documentation()");
+fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation, snippets: &HashMap<String, String>) -> Vec<CompletionItem> {
     doc
         .keys_to_doc
         .iter()
