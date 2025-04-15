@@ -13,10 +13,11 @@ pub struct KeywordInfo {
     snippet_type: String,
 }
 
+type Keyword = String;
 #[derive(Deserialize)]
 pub struct IndexedDocumentation {
-    keys_to_doc: HashMap<String, KeywordInfo>,
-    keys_with_shared_doc: HashMap<String, String>,
+    keys_to_doc: HashMap<Keyword, KeywordInfo>,
+    keys_with_shared_doc: HashMap<Keyword, Keyword>,
 }
 
 impl IndexedDocumentation {
