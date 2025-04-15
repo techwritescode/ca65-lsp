@@ -59,7 +59,7 @@ fn parse_json_to_completion_items() {
     let snippets = serde_json::from_str::<HashMap<String, String>>(include_str!("../../data/snippets.json")).expect("Could not parse snippets JSON");
     let ca65_documentation = CA65_DOCUMENTATION.get().expect("Could not get CA65_DOCUMENTATION in init_completion_item_vecs()");
     let ca65_keyword_completion_items = get_completion_item_vec_from_indexed_documentation(ca65_documentation, &snippets);
-    CA65_KEYWORD_COMPLETION_ITEMS.set(ca65_keyword_completion_items).unwrap();
+    CA65_KEYWORD_COMPLETION_ITEMS.set(ca65_keyword_completion_items).expect("Could not set CA65_KEYWORD_COMPLETION_ITEMS");
 }
 fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation, snippets: &HashMap<String, String>) -> Vec<CompletionItem> {
     doc
