@@ -3,7 +3,9 @@ use std::{
     sync::OnceLock,
 };
 use serde::Deserialize;
-use tower_lsp_server::lsp_types;
+use tower_lsp_server::lsp_types::{
+    self, CompletionItem, CompletionItemKind, MarkupContent, MarkupKind, InsertTextFormat,
+};
 
 #[derive(Deserialize)]
 pub struct KeywordInfo {
@@ -59,16 +61,16 @@ pub fn init_completion_item_vecs() {
 
     CA65_KEYWORD_COMPLETION_ITEMS.set(ca65_keyword_completion_items).unwrap();
 }
-fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation) -> Vec<lsp_types::CompletionItem> {
+fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation) -> Vec<CompletionItem> {
     let snippets = SNIPPETS.get().expect("Could not get SNIPPETS in get_completion_item_vec_from_indexed_documentation()");
     doc
         .keys_to_doc
         .iter()
-        .map(|(keyword, keyword_info)| lsp_types::CompletionItem {
+        .map(|(keyword, keyword_info)| CompletionItem {
             label: format!(".{keyword}"),
-            kind: Some(lsp_types::CompletionItemKind::KEYWORD),
-            documentation: Some(lsp_types::Documentation::MarkupContent(lsp_types::MarkupContent {
-                kind: lsp_types::MarkupKind::Markdown,
+            kind: Some(CompletionItemKind::KEYWORD),
+            documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
                 value: keyword_info.documentation.clone(),
             })),
             insert_text: Some(snippets
@@ -76,7 +78,7 @@ fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation
                 .expect("Could not get snippet type for keyword")
                 .replace("%", keyword)
             ),
-            insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
             ..Default::default()
         })
         .collect()
