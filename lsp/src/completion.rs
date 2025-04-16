@@ -2,12 +2,9 @@ use crate::asm_server::State;
 use crate::codespan::FileId;
 use crate::instructions;
 use crate::symbol_cache::{symbol_cache_get, SymbolType};
+use crate::documentation::CA65_KEYWORD_COMPLETION_ITEMS;
 use codespan::Position;
-use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails, InsertTextFormat};
-
-static BLOCK_CONTROL_COMMANDS: &[&str] = &[
-    "scope", "proc", "macro", "enum", "union", "if", "repeat", "struct",
-];
+use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails};
 
 pub trait CompletionProvider {
     fn completions_for(&self, state: &State, id: FileId, position: Position)
@@ -82,28 +79,15 @@ impl CompletionProvider for SymbolCompletionProvider {
     }
 }
 
-pub struct BlockControlCompletionProvider;
+pub struct Ca65KeywordCompletionProvider;
 
-impl CompletionProvider for BlockControlCompletionProvider {
+impl CompletionProvider for Ca65KeywordCompletionProvider {
     fn completions_for(
         &self,
         state: &State,
         id: FileId,
         position: Position,
     ) -> Vec<CompletionItem> {
-        if state.files.show_instructions(id, position) {
-            BLOCK_CONTROL_COMMANDS
-                .iter()
-                .map(|command| CompletionItem {
-                    label: (*command).to_string(),
-                    kind: Some(CompletionItemKind::FUNCTION),
-                    insert_text: Some(format!(".{} $1\n\t$0\n.end{} ; End $1", *command, *command)),
-                    insert_text_format: Some(InsertTextFormat::SNIPPET),
-                    ..Default::default()
-                })
-                .collect()
-        } else {
-            Vec::new()
-        }
+        CA65_KEYWORD_COMPLETION_ITEMS.get().expect("Could not get ca65 completion items in completion provider").clone()
     }
 }
