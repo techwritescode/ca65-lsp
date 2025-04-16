@@ -1,0 +1,15 @@
+{
+  "instruction_newline": "%\n",
+  "instruction_space": "% ",
+  "ca65_pseudo_function": ".%($1)",
+  "ca65_pseudo_function_string": ".%(\"$1\")",
+  "ca65_keyword_newline": ".%\n",
+  "ca65_keyword_space": ".% ",
+  "ca65_keyword_string": ".% \"$1\"",
+  "ca65_keyword_char": ".% '$1'",
+  "ca65_keyword_block": ".% $1\n\t$0\n.end% ; End $1",
+  "ca65_if_param": ".% $1\n\t$0\n.endif",
+  "ca65_if_no_param": ".%\n\t$0\n.endif",
+  "ca65_else": ".%\n\t$0",
+  "ca65_else_if": ".% $1\n\t$0"
+}
