@@ -34,6 +34,7 @@ impl IndexedDocumentation {
 
 pub static CA65_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
 pub static OPCODE_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
+pub static MACPACK_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
 
 pub fn init() {
     parse_json_to_hashmaps();
@@ -52,15 +53,25 @@ fn parse_json_to_hashmaps() {
             eprintln!("OPCODE_DOC not able to be initialized");
         }
     }
+    if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!("../../data/mackpack-packages-doc.json")) {
+        if MACPACK_DOCUMENTATION.set(doc).is_err() {
+            eprintln!("MACPACK_DOC not able to be initialized");
+        }
+    }
 }
 
 pub static CA65_KEYWORD_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
+pub static MACPACK_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
 #[inline]
 fn parse_json_to_completion_items() {
     let snippets = serde_json::from_str::<HashMap<String, String>>(include_str!("../../data/snippets.json")).expect("Could not parse snippets JSON");
     let ca65_documentation = CA65_DOCUMENTATION.get().expect("Could not get CA65_DOCUMENTATION in init_completion_item_vecs()");
     let ca65_keyword_completion_items = get_completion_item_vec_from_indexed_documentation(ca65_documentation, &snippets);
     CA65_KEYWORD_COMPLETION_ITEMS.set(ca65_keyword_completion_items).expect("Could not set CA65_KEYWORD_COMPLETION_ITEMS");
+
+    let macpack_documentation = MACPACK_DOCUMENTATION.get().expect("Could not get MACPACK_DOCUMENTATION in init_completion_item_vecs()");
+    let macpack_completion_items = get_completion_item_vec_from_string_string_hashmap(macpack_documentation);
+    MACPACK_COMPLETION_ITEMS.set(macpack_completion_items).expect("Could not set MACACK_COMPLETION_ITEMS");
 }
 fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation, snippets: &HashMap<String, String>) -> Vec<CompletionItem> {
     doc
@@ -79,6 +90,21 @@ fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation
                 .replace("%", keyword)
             ),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
+            ..Default::default()
+        })
+        .collect()
+}
+
+fn get_completion_item_vec_from_string_string_hashmap(doc: &HashMap<String, String>) -> Vec<CompletionItem> {
+    doc
+        .iter()
+        .map(|(k, v)| CompletionItem {
+            label: k.clone(),
+            kind: Some(CompletionItemKind::MODULE),
+            documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: v.clone(),
+            })),
             ..Default::default()
         })
         .collect()
