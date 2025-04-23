@@ -92,15 +92,19 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
     }
 }
 
-pub struct MackpackCompletionProvider;
+pub struct MacpackCompletionProvider;
 
-impl CompletionProvider for MackpackCompletionProvider {
+impl CompletionProvider for MacpackCompletionProvider {
     fn completions_for(
         &self,
         state: &State,
         id: FileId,
         position: Position
     ) -> Vec<CompletionItem> {
-        MACPACK_COMPLETION_ITEMS.get().expect("Could not get MACPACK_COMPLETION_ITEMS in completion provider").clone()
+        if state.files.line_tokens(id, position).last().is_some_and(|tok| tok.lexeme == ".macpack") {
+            MACPACK_COMPLETION_ITEMS.get().expect("Could not get MACPACK_COMPLETION_ITEMS in completion provider").clone()
+        } else {
+            Vec::new()
+        }
     }
 }
