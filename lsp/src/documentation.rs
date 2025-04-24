@@ -98,12 +98,12 @@ fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation
 fn get_completion_item_vec_from_string_string_hashmap(doc: &HashMap<String, String>) -> Vec<CompletionItem> {
     doc
         .iter()
-        .map(|(k, v)| CompletionItem {
-            label: k.clone(),
+        .map(|(keyword, documentation_text)| CompletionItem {
+            label: keyword.clone(),
             kind: Some(CompletionItemKind::MODULE),
             documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value: v.clone(),
+                value: documentation_text.clone(),
             })),
             ..Default::default()
         })
