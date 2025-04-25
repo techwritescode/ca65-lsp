@@ -1,5 +1,8 @@
 use crate::codespan::{FileId, Files, IndexError};
-use crate::completion::{Ca65KeywordCompletionProvider, CompletionProvider, InstructionCompletionProvider, SymbolCompletionProvider, MacpackCompletionProvider};
+use crate::completion::{
+    Ca65KeywordCompletionProvider, CompletionProvider, InstructionCompletionProvider,
+    SymbolCompletionProvider, MacpackCompletionProvider, FeatureCompletionProvider,
+};
 use crate::configuration::{load_project_configuration, Configuration};
 use crate::definition::Definition;
 use crate::error::file_error_to_lsp;
@@ -66,6 +69,7 @@ impl Asm {
                 Arc::from(SymbolCompletionProvider {}),
                 Arc::from(Ca65KeywordCompletionProvider {}),
                 Arc::from(MacpackCompletionProvider {}),
+                Arc::from(FeatureCompletionProvider {}),
             ],
             definition: Definition {},
         }

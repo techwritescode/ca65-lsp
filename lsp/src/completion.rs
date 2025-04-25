@@ -2,7 +2,7 @@ use crate::asm_server::State;
 use crate::codespan::FileId;
 use crate::instructions;
 use crate::symbol_cache::{symbol_cache_get, SymbolType};
-use crate::documentation::{CA65_KEYWORD_COMPLETION_ITEMS, MACPACK_COMPLETION_ITEMS};
+use crate::documentation::{CA65_KEYWORD_COMPLETION_ITEMS, FEATURES_COMPLETION_ITEMS, MACPACK_COMPLETION_ITEMS};
 use codespan::Position;
 use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails};
 
@@ -106,5 +106,21 @@ impl CompletionProvider for MacpackCompletionProvider {
         } else {
             Vec::new()
         }
+    }
+}
+
+pub struct FeatureCompletionProvider;
+impl CompletionProvider for FeatureCompletionProvider {
+    fn completions_for(
+        &self,
+        state: &State,
+        id: FileId,
+        position: Position
+    ) -> Vec<CompletionItem> {
+        // if state.files.line_tokens(id, position).last().is_some_and(|tok| tok.lexeme == ".feature") {
+            FEATURES_COMPLETION_ITEMS.get().expect("Could not get FEATURE_COMPLETION_ITEMS in completion provider").clone()
+        // } else {
+        //     Vec::new()
+        // }
     }
 }
