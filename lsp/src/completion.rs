@@ -21,17 +21,7 @@ impl CompletionProvider for InstructionCompletionProvider {
         position: Position,
     ) -> Vec<CompletionItem> {
         if state.files.show_instructions(id, position) {
-            instructions::INSTRUCTION_MAP
-                .get()
-                .expect("Instructions not loaded")
-                .iter()
-                .map(|(opcode, description)| CompletionItem {
-                    label: opcode.to_lowercase().to_owned(),
-                    detail: Some(description.to_owned()),
-                    kind: Some(CompletionItemKind::KEYWORD),
-                    ..Default::default()
-                })
-                .collect()
+            OPCODE_COMPLETION_ITEMS.get().expect("Could not get OPCODE_COMPLETION_ITEMS").clone()
         } else {
             Vec::new()
         }
