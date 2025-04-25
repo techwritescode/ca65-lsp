@@ -144,6 +144,7 @@ pub enum LineKind {
 
     MacroInvocation(MacroInvocation),
     MacroPack(String),
+    Feature(String),
     Scope(String, Vec<Line>),
     IncludeBinary(Token),
     MacroDefinition(Token, Vec<Token>, Vec<Line>),
@@ -228,6 +229,16 @@ impl<'a> Parser<'a> {
                     self.consume_newline()?;
                     Ok(Some(Line {
                         kind: LineKind::MacroPack(pack),
+                        span: Span::new(start, end),
+                    }))
+                }
+                ".feature" => {
+                    self.consume_token(TokenType::Identifier)?;
+                    let feature = self.last().lexeme;
+                    let end = self.mark_end();
+                    self.consume_newline()?;
+                    Ok(Some(Line {
+                        kind: LineKind::Feature(feature),
                         span: Span::new(start, end),
                     }))
                 }
