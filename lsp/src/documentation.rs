@@ -2,10 +2,13 @@ use std::{
     collections::HashMap,
     sync::OnceLock,
 };
+use std::iter::Once;
+use std::string::ToString;
 use serde::Deserialize;
 use tower_lsp_server::lsp_types::{
     self, CompletionItem, CompletionItemKind, MarkupContent, MarkupKind, InsertTextFormat,
 };
+use tower_lsp_server::lsp_types::request::Completion;
 
 #[derive(Deserialize)]
 pub struct KeywordInfo {
@@ -67,14 +70,20 @@ fn parse_json_to_hashmaps() {
 }
 
 pub static CA65_KEYWORD_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
+pub static OPCODE_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
 pub static MACPACK_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
 pub static FEATURE_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
 #[inline]
 fn parse_json_to_completion_items() {
     let snippets = serde_json::from_str::<HashMap<String, String>>(include_str!("../../data/snippets.json")).expect("Could not parse snippets JSON");
+
     let ca65_documentation = CA65_DOCUMENTATION.get().expect("Could not get CA65_DOCUMENTATION in init_completion_item_vecs()");
-    let ca65_keyword_completion_items = get_completion_item_vec_from_indexed_documentation(ca65_documentation, &snippets);
+    let ca65_keyword_completion_items = get_completion_item_vec_from_indexed_documentation(ca65_documentation, &snippets, ".");
     CA65_KEYWORD_COMPLETION_ITEMS.set(ca65_keyword_completion_items).expect("Could not set CA65_KEYWORD_COMPLETION_ITEMS");
+
+    let opcode_documentation = OPCODE_DOCUMENTATION.get().expect("Could not get CA65_DOCUMENTATION in init_completion_item_vecs()");
+    let opcode_completion_items = get_completion_item_vec_from_indexed_documentation(opcode_documentation, &snippets, "");
+    OPCODE_COMPLETION_ITEMS.set(opcode_completion_items).expect("Could not set CA65_KEYWORD_COMPLETION_ITEMS");
 
     let macpack_documentation = MACPACK_DOCUMENTATION.get().expect("Could not get MACPACK_DOCUMENTATION in init_completion_item_vecs()");
     let macpack_completion_items = get_completion_item_vec_from_string_string_hashmap(macpack_documentation);
@@ -84,12 +93,12 @@ fn parse_json_to_completion_items() {
     let features_completion_items = get_completion_item_vec_from_string_string_hashmap(features_documentation);
     FEATURE_COMPLETION_ITEMS.set(features_completion_items).expect("Could not set FEATURE_COMPLETION_ITEMS");
 }
-fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation, snippets: &HashMap<String, String>) -> Vec<CompletionItem> {
+fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation, snippets: &HashMap<String, String>, keyword_prepend_text: &str) -> Vec<CompletionItem> {
     doc
         .keys_to_doc
         .iter()
         .map(|(keyword, keyword_info)| CompletionItem {
-            label: format!(".{keyword}"),
+            label: format!("{keyword_prepend_text}{keyword}"),
             kind: Some(CompletionItemKind::KEYWORD),
             documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
