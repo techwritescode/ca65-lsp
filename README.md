@@ -42,3 +42,4 @@ TBD
     name = "ca65"
     source = { git = "https://github.com/simonhochrein/tree-sitter-ca65", rev = "9e73befb5c3c6852f905964c22740c9605b03af8" }
     ```
+  - TODO: I believe in order to get syntax highlighting to work you need to implement [queries](https://docs.helix-editor.com/guides/adding_languages.html#queries)
