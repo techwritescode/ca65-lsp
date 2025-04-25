@@ -117,10 +117,10 @@ impl CompletionProvider for FeatureCompletionProvider {
         id: FileId,
         position: Position
     ) -> Vec<CompletionItem> {
-        // if state.files.line_tokens(id, position).last().is_some_and(|tok| tok.lexeme == ".feature") {
+        if state.files.line_tokens(id, position).last().is_some_and(|tok| tok.lexeme == ".feature") {
             FEATURES_COMPLETION_ITEMS.get().expect("Could not get FEATURE_COMPLETION_ITEMS in completion provider").clone()
-        // } else {
-        //     Vec::new()
-        // }
+        } else {
+            Vec::new()
+        }
     }
 }
