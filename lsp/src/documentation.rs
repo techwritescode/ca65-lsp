@@ -35,7 +35,7 @@ impl IndexedDocumentation {
 pub static CA65_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
 pub static OPCODE_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
 pub static MACPACK_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
-pub static FEATURES_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
+pub static FEATURE_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
 
 pub fn init() {
     parse_json_to_hashmaps();
@@ -60,7 +60,7 @@ fn parse_json_to_hashmaps() {
         }
     }
     if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!("../../data/features-doc.json")) {
-        if FEATURES_DOCUMENTATION.set(doc).is_err() {
+        if FEATURE_DOCUMENTATION.set(doc).is_err() {
             eprintln!("FEATURES_DOCUMENTATION not able to be initialized");
         }
     }
@@ -68,7 +68,7 @@ fn parse_json_to_hashmaps() {
 
 pub static CA65_KEYWORD_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
 pub static MACPACK_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
-pub static FEATURES_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
+pub static FEATURE_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
 #[inline]
 fn parse_json_to_completion_items() {
     let snippets = serde_json::from_str::<HashMap<String, String>>(include_str!("../../data/snippets.json")).expect("Could not parse snippets JSON");
@@ -80,9 +80,9 @@ fn parse_json_to_completion_items() {
     let macpack_completion_items = get_completion_item_vec_from_string_string_hashmap(macpack_documentation);
     MACPACK_COMPLETION_ITEMS.set(macpack_completion_items).expect("Could not set MACACK_COMPLETION_ITEMS");
 
-    let features_documentation = FEATURES_DOCUMENTATION.get().expect("Could not get FEATURES_DOCUMENTATION in init_completion_item_vecs()");
+    let features_documentation = FEATURE_DOCUMENTATION.get().expect("Could not get FEATURES_DOCUMENTATION in init_completion_item_vecs()");
     let features_completion_items = get_completion_item_vec_from_string_string_hashmap(features_documentation);
-    FEATURES_COMPLETION_ITEMS.set(features_completion_items).expect("Could not set FEATURE_COMPLETION_ITEMS");
+    FEATURE_COMPLETION_ITEMS.set(features_completion_items).expect("Could not set FEATURE_COMPLETION_ITEMS");
 }
 fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation, snippets: &HashMap<String, String>) -> Vec<CompletionItem> {
     doc
