@@ -2,13 +2,10 @@ use std::{
     collections::HashMap,
     sync::OnceLock,
 };
-use std::iter::Once;
-use std::string::ToString;
 use serde::Deserialize;
 use tower_lsp_server::lsp_types::{
     self, CompletionItem, CompletionItemKind, MarkupContent, MarkupKind, InsertTextFormat,
 };
-use tower_lsp_server::lsp_types::request::Completion;
 
 #[derive(Deserialize)]
 pub struct KeywordInfo {
