@@ -23,7 +23,7 @@ TBD
   }
   require 'lspconfig'.ca65.setup{}
   ```
-- [Helix](https://helix-editor.com/)
+- Helix
   - if it doesn't already exist, create a [`languages.toml` file](https://docs.helix-editor.com/languages.html#languagestoml-files). I put mine in my [config directory](https://docs.helix-editor.com/configuration.html) which for me (on Windows 11) is `~/AppData/Roaming/helix/`
   - add the following to it:
     ```toml
