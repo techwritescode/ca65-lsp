@@ -31,7 +31,7 @@ impl IndexedDocumentation {
 }
 
 pub static CA65_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
-pub static OPCODE_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
+pub static INSTRUCTION_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
 pub static MACPACK_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
 pub static FEATURE_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
 
@@ -48,11 +48,11 @@ fn parse_json_to_hashmaps() {
         }
     }
     if let Ok(doc) = serde_json::from_str::<IndexedDocumentation>(include_str!("../../data/65xx-instruction-doc.json")) {
-        if OPCODE_DOCUMENTATION.set(doc).is_err() {
-            eprintln!("OPCODE_DOC not able to be initialized");
+        if INSTRUCTION_DOCUMENTATION.set(doc).is_err() {
+            eprintln!("INSTRUCTION_DOC not able to be initialized");
         }
     }
-    if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!("../../data/mackpack-packages-doc.json")) {
+    if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!("../../data/macpack-packages-doc.json")) {
         if MACPACK_DOCUMENTATION.set(doc).is_err() {
             eprintln!("MACPACK_DOC not able to be initialized");
         }
@@ -65,7 +65,7 @@ fn parse_json_to_hashmaps() {
 }
 
 pub static CA65_KEYWORD_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
-pub static OPCODE_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
+pub static INSTRUCTION_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
 pub static MACPACK_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
 pub static FEATURE_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
 #[inline]
@@ -76,9 +76,9 @@ fn parse_json_to_completion_items() {
     let ca65_keyword_completion_items = get_completion_item_vec_from_indexed_documentation(ca65_documentation, &snippets, ".");
     CA65_KEYWORD_COMPLETION_ITEMS.set(ca65_keyword_completion_items).expect("Could not set CA65_KEYWORD_COMPLETION_ITEMS");
 
-    let opcode_documentation = OPCODE_DOCUMENTATION.get().expect("Could not get CA65_DOCUMENTATION in init_completion_item_vecs()");
-    let opcode_completion_items = get_completion_item_vec_from_indexed_documentation(opcode_documentation, &snippets, "");
-    OPCODE_COMPLETION_ITEMS.set(opcode_completion_items).expect("Could not set CA65_KEYWORD_COMPLETION_ITEMS");
+    let instruction_documentation = INSTRUCTION_DOCUMENTATION.get().expect("Could not get CA65_DOCUMENTATION in init_completion_item_vecs()");
+    let instruction_completion_items = get_completion_item_vec_from_indexed_documentation(instruction_documentation, &snippets, "");
+    INSTRUCTION_COMPLETION_ITEMS.set(instruction_completion_items).expect("Could not set CA65_KEYWORD_COMPLETION_ITEMS");
 
     let macpack_documentation = MACPACK_DOCUMENTATION.get().expect("Could not get MACPACK_DOCUMENTATION in init_completion_item_vecs()");
     let macpack_completion_items = get_completion_item_vec_from_string_string_hashmap(macpack_documentation);
