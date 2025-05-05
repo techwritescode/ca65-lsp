@@ -3,9 +3,7 @@ use std::{
     sync::OnceLock,
 };
 use serde::Deserialize;
-use tower_lsp_server::lsp_types::{
-    self, CompletionItem, CompletionItemKind, MarkupContent, MarkupKind, InsertTextFormat,
-};
+use tower_lsp_server::lsp_types::{self, CompletionItem, CompletionItemKind, MarkupContent, MarkupKind, InsertTextFormat, Documentation};
 
 #[derive(Deserialize)]
 pub struct KeywordInfo {
@@ -91,25 +89,47 @@ fn parse_json_to_completion_items() {
     FEATURE_COMPLETION_ITEMS.set(features_completion_items).expect("Could not set FEATURE_COMPLETION_ITEMS");
 }
 fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation, snippets: &HashMap<String, String>, keyword_prepend_text: &str) -> Vec<CompletionItem> {
-    doc
-        .keys_to_doc
-        .iter()
-        .map(|(keyword, keyword_info)| CompletionItem {
-            label: format!("{keyword_prepend_text}{keyword}"),
-            kind: Some(CompletionItemKind::KEYWORD),
-            documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: keyword_info.documentation.clone(),
-            })),
-            insert_text: Some(snippets
-                .get(&keyword_info.snippet_type)
-                .expect("Could not get snippet type for keyword")
-                .replace("%", keyword)
-            ),
-            insert_text_format: Some(InsertTextFormat::SNIPPET),
-            ..Default::default()
-        })
-        .collect()
+    vec![
+        doc
+            .keys_to_doc
+            .iter()
+            .map(|(keyword, keyword_info)| CompletionItem {
+                label: format!("{keyword_prepend_text}{keyword}"),
+                kind: Some(CompletionItemKind::KEYWORD),
+                documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: keyword_info.documentation.clone(),
+                })),
+                insert_text: Some(snippets
+                    .get(&keyword_info.snippet_type)
+                    .expect("Could not get snippet type for keyword")
+                    .replace("%", keyword)
+                ),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                ..Default::default()
+            })
+            .collect::<Vec<CompletionItem>>(),
+        doc
+            .keys_with_shared_doc
+            .iter()
+            .map(|(alias, key)| (alias, doc.keys_to_doc.get(key).expect("Alias in IndexedDocumentation did not point to a key")))
+            .map(|(alias, keyword_info)| CompletionItem {
+                label: format!("{keyword_prepend_text}{alias}"),
+                kind: Some(CompletionItemKind::KEYWORD),
+                documentation: Some(Documentation::MarkupContent(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: keyword_info.documentation.clone(),
+                })),
+                insert_text: Some(snippets
+                    .get(keyword_info.snippet_type.as_str())
+                    .expect("Could not get snippet type for keyword")
+                    .replace("%", alias)
+                ),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                ..Default::default()
+            })
+            .collect()
+    ].concat()
 }
 
 fn get_completion_item_vec_from_string_string_hashmap(doc: &HashMap<String, String>) -> Vec<CompletionItem> {
