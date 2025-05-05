@@ -9,7 +9,7 @@ use crate::error::file_error_to_lsp;
 use crate::symbol_cache::{
     symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
 };
-use crate::documentation::{CA65_DOCUMENTATION, OPCODE_DOCUMENTATION};
+use crate::documentation::{CA65_DOCUMENTATION, INSTRUCTION_DOCUMENTATION};
 use analysis::ScopeKind;
 use parser::ParseError;
 use std::collections::HashMap;
@@ -239,7 +239,7 @@ impl LanguageServer for Asm {
                 .get_word_at_position(params.text_document_position_params.position.into())
                 .map_err(file_error_to_lsp)?;
 
-            if let Some(documentation) = OPCODE_DOCUMENTATION
+            if let Some(documentation) = INSTRUCTION_DOCUMENTATION
                 .get()
                 .unwrap()
                 .get_doc_for_word(&word.to_lowercase())
