@@ -9,7 +9,7 @@ use crate::error::file_error_to_lsp;
 use crate::symbol_cache::{
     symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
 };
-use crate::documentation::{CA65_DOCUMENTATION, INSTRUCTION_DOCUMENTATION};
+use crate::documentation::{CA65_DOCUMENTATION, FEATURE_DOCUMENTATION, INSTRUCTION_DOCUMENTATION, MACPACK_DOCUMENTATION};
 use analysis::ScopeKind;
 use parser::ParseError;
 use std::collections::HashMap;
@@ -263,6 +263,34 @@ impl LanguageServer for Asm {
                     contents: HoverContents::Markup(MarkupContent {
                         kind: MarkupKind::Markdown,
                         value: documentation,
+                    }),
+                }));
+            }
+
+            if let Some(documentation) = FEATURE_DOCUMENTATION
+                .get()
+                .unwrap()
+                .get(&word.to_lowercase())
+            {
+                return Ok(Some(Hover {
+                    range: None,
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: documentation.clone(),
+                    }),
+                }));
+            }
+
+            if let Some(documentation) = MACPACK_DOCUMENTATION
+                .get()
+                .unwrap()
+                .get(&word.to_lowercase())
+            {
+                return Ok(Some(Hover {
+                    range: None,
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: documentation.clone(),
                     }),
                 }));
             }
