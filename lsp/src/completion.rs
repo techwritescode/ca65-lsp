@@ -97,7 +97,7 @@ impl CompletionProvider for MacpackCompletionProvider {
             .filter(|tok| tok.token_type != TokenType::EOL)
             .nth_back(1)
             .is_some_and(|tok| tok.lexeme == ".macpack"
-            ) {
+        ) {
             MACPACK_COMPLETION_ITEMS.get().expect("Could not get MACPACK_COMPLETION_ITEMS in completion provider").clone()
         } else {
             Vec::new()
