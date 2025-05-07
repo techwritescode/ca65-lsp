@@ -107,7 +107,7 @@ impl Files {
 
         tokens
             .iter()
-            .filter(|token| token.span.start >= line_span.start && token.span.end < line_span.end)
+            .filter(|token| token.span.start >= line_span.start && token.span.end <= line_span.end)
             .cloned()
             .collect::<Vec<Token>>()
     }
