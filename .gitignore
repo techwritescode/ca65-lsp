@@ -1,3 +1,4 @@
 /target
 asm.log
 nes.toml
+test*.s
