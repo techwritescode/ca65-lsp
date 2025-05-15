@@ -373,12 +373,6 @@ impl LanguageServer for Asm {
                     params.text_document_position.position.into(),
                 ));
             }
-
-            // let mut str = String::new();
-
-            let bensack = format!("{:?}", SYMBOL_CACHE.get().unwrap().lock().unwrap());
-
-            self.client.log_message(MessageType::INFO, bensack).await;
             Ok(Some(CompletionResponse::Array(completion_items)))
         } else {
             Ok(None)
@@ -448,9 +442,6 @@ impl LanguageServer for Asm {
     }
 
     async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
-        self.client
-            .log_message(MessageType::LOG, "inlay hint")
-            .await;
         Ok(Some(vec![InlayHint {
             position: tower_lsp_server::lsp_types::Position {
                 line: 1,
