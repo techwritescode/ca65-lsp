@@ -1,9 +1,9 @@
+use crate::codespan::FileId;
+use codespan::Span;
 use std::{
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex, OnceLock},
 };
-use codespan::Span;
-use crate::codespan::{FileId};
 
 #[derive(Clone, Copy, Debug)]
 pub enum SymbolType {
@@ -23,6 +23,7 @@ pub struct Symbol {
 
 type SymCache = Vec<Symbol>;
 
+#[derive(Debug)]
 pub struct SymbolCache(SymCache);
 
 impl Deref for SymbolCache {

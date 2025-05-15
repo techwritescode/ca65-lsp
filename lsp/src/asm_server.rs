@@ -1,18 +1,22 @@
 use crate::codespan::{FileId, Files, IndexError};
 use crate::completion::{
-    Ca65KeywordCompletionProvider, CompletionProvider, InstructionCompletionProvider,
-    SymbolCompletionProvider, MacpackCompletionProvider, FeatureCompletionProvider,
+    Ca65KeywordCompletionProvider, CompletionProvider, FeatureCompletionProvider,
+    InstructionCompletionProvider, MacpackCompletionProvider, SymbolCompletionProvider,
 };
 use crate::configuration::{load_project_configuration, Configuration};
 use crate::definition::Definition;
+use crate::documentation::{
+    CA65_DOCUMENTATION, FEATURE_DOCUMENTATION, INSTRUCTION_DOCUMENTATION, MACPACK_DOCUMENTATION,
+};
 use crate::error::file_error_to_lsp;
 use crate::symbol_cache::{
-    symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
+    symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType, SYMBOL_CACHE,
 };
-use crate::documentation::{CA65_DOCUMENTATION, FEATURE_DOCUMENTATION, INSTRUCTION_DOCUMENTATION, MACPACK_DOCUMENTATION};
 use analysis::ScopeKind;
+use codespan::Position;
 use parser::ParseError;
 use std::collections::HashMap;
+use std::net::ToSocketAddrs;
 use std::process::Output;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -22,9 +26,9 @@ use tower_lsp_server::lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
     DidChangeWorkspaceFoldersParams, DocumentSymbolParams, DocumentSymbolResponse,
     FileOperationRegistrationOptions, HoverContents, HoverProviderCapability, InitializedParams,
-    MarkupContent, MarkupKind, MessageType, OneOf, Range, SymbolInformation,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities,
+    InlayHint, InlayHintLabel, InlayHintParams, MarkupContent, MarkupKind, MessageType, OneOf,
+    Range, SymbolInformation, WorkspaceFileOperationsServerCapabilities,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use tower_lsp_server::{
     jsonrpc::Result,
@@ -40,7 +44,7 @@ use tower_lsp_server::{
 pub struct State {
     pub sources: HashMap<Uri, FileId>,
     pub files: Files,
-    pub workspace_folder: Option<Uri>
+    pub workspace_folder: Option<Uri>,
 }
 
 #[allow(dead_code)]
@@ -128,7 +132,7 @@ impl LanguageServer for Asm {
                 state.workspace_folder = Some(workspace_folders.first().unwrap().clone().uri)
             }
         }
-        
+
         Ok(InitializeResult {
             server_info: None,
             capabilities: ServerCapabilities {
@@ -152,6 +156,7 @@ impl LanguageServer for Asm {
                 }),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
+                inlay_hint_provider: Some(OneOf::Left(true)),
                 ..ServerCapabilities::default()
             },
         })
@@ -368,6 +373,12 @@ impl LanguageServer for Asm {
                     params.text_document_position.position.into(),
                 ));
             }
+
+            // let mut str = String::new();
+
+            let bensack = format!("{:?}", SYMBOL_CACHE.get().unwrap().lock().unwrap());
+
+            self.client.log_message(MessageType::INFO, bensack).await;
             Ok(Some(CompletionResponse::Array(completion_items)))
         } else {
             Ok(None)
@@ -434,6 +445,25 @@ impl LanguageServer for Asm {
         self.client
             .log_message(MessageType::INFO, format!("Config: {:#?}", params))
             .await;
+    }
+
+    async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
+        self.client
+            .log_message(MessageType::LOG, "inlay hint")
+            .await;
+        Ok(Some(vec![InlayHint {
+            position: tower_lsp_server::lsp_types::Position {
+                line: 1,
+                character: 1,
+            },
+            label: InlayHintLabel::String("= $EA".to_string()),
+            kind: None,
+            text_edits: None,
+            tooltip: None,
+            padding_left: Some(true),
+            padding_right: Some(true),
+            data: None,
+        }]))
     }
 }
 
