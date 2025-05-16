@@ -450,6 +450,12 @@ impl LanguageServer for Asm {
         // go through each line in the view
         if let Some(id) = state.sources.get(&params.text_document.uri) {
             for line in params.range.start.line..params.range.end.line {
+                let line_span = state
+                    .files
+                    .get(id.clone())
+                    .get_line(line as usize)
+                    .unwrap()
+                    .start;
                 // go through each of that line's tokens
                 let tokens = state
                     .files
@@ -460,9 +466,9 @@ impl LanguageServer for Asm {
                         hints.push(InlayHint {
                             position: tower_lsp_server::lsp_types::Position {
                                 line,
-                                character: (token.span.end + 1) as u32,
+                                character: (token.span.end - line_span) as u32,
                             },
-                            label: InlayHintLabel::String(format!("= {}", token.lexeme)),
+                            label: InlayHintLabel::String(format!("= {}", token.lexeme,)),
                             kind: None,
                             text_edits: None,
                             tooltip: None,
