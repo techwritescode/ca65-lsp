@@ -102,7 +102,11 @@ impl Files {
     }
 
     pub fn line_tokens(&self, id: FileId, position: Position) -> Vec<Token> {
-        let line_span = self.get(id).get_line(position.line).unwrap();
+        self.line_tokens_for_given_line(id, position.line)
+    }
+
+    pub fn line_tokens_for_given_line(&self, id: FileId, line_index: usize) -> Vec<Token> {
+        let line_span = self.get(id).get_line(line_index).unwrap();
         let tokens = &self.files[id.get()].tokens;
 
         tokens

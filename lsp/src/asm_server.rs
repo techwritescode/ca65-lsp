@@ -10,7 +10,8 @@ use crate::documentation::{
 };
 use crate::error::file_error_to_lsp;
 use crate::symbol_cache::{
-    symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType, SYMBOL_CACHE,
+    symbol_cache_fetch, symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
+    SYMBOL_CACHE,
 };
 use analysis::ScopeKind;
 use codespan::Position;
@@ -442,19 +443,39 @@ impl LanguageServer for Asm {
     }
 
     async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
-        Ok(Some(vec![InlayHint {
-            position: tower_lsp_server::lsp_types::Position {
-                line: 1,
-                character: 1,
-            },
-            label: InlayHintLabel::String("= $EA".to_string()),
-            kind: None,
-            text_edits: None,
-            tooltip: None,
-            padding_left: Some(true),
-            padding_right: Some(true),
-            data: None,
-        }]))
+        let mut hints: Vec<InlayHint> = vec![];
+        let mut pos = params.range.start;
+        let state = self.state.lock().await;
+
+        // go through each line in the view
+        if let Some(id) = state.sources.get(&params.text_document.uri) {
+            for line in params.range.start.line..params.range.end.line {
+                // go through each of that line's tokens
+                let tokens = state
+                    .files
+                    .line_tokens_for_given_line(id.clone(), line as usize);
+                tokens.iter().for_each(|token| {
+                    let symbols = symbol_cache_fetch(token.lexeme.clone());
+                    if let Some(symbol) = symbols.first() {
+                        hints.push(InlayHint {
+                            position: tower_lsp_server::lsp_types::Position {
+                                line,
+                                character: (token.span.end + 1) as u32,
+                            },
+                            label: InlayHintLabel::String(format!("= {}", token.lexeme)),
+                            kind: None,
+                            text_edits: None,
+                            tooltip: None,
+                            padding_left: Some(true),
+                            padding_right: Some(true),
+                            data: None,
+                        })
+                    }
+                })
+            }
+        }
+
+        Ok(Some(hints))
     }
 }
 
