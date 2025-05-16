@@ -1,5 +1,6 @@
 use crate::codespan::FileId;
 use codespan::Span;
+use parser::Expression;
 use std::{
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex, OnceLock},
@@ -19,6 +20,7 @@ pub struct Symbol {
     pub span: Span,
     pub comment: String,
     pub sym_type: SymbolType,
+    pub value: Option<Expression>,
 }
 
 type SymCache = Vec<Symbol>;
@@ -61,6 +63,7 @@ pub fn symbol_cache_insert(
     label: String,
     comment: String,
     sym_type: SymbolType,
+    value: Option<Expression>,
 ) {
     // tracing::debug!(
     //     "Inserting symbol {:?} {} {} {}",
@@ -80,6 +83,7 @@ pub fn symbol_cache_insert(
         file_id,
         comment,
         sym_type,
+        value,
     });
 }
 

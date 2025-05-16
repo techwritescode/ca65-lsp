@@ -463,19 +463,24 @@ impl LanguageServer for Asm {
                 tokens.iter().for_each(|token| {
                     let symbols = symbol_cache_fetch(token.lexeme.clone());
                     if let Some(symbol) = symbols.first() {
-                        hints.push(InlayHint {
-                            position: tower_lsp_server::lsp_types::Position {
-                                line,
-                                character: (token.span.end - line_span) as u32,
-                            },
-                            label: InlayHintLabel::String(format!("= {}", token.lexeme,)),
-                            kind: None,
-                            text_edits: None,
-                            tooltip: None,
-                            padding_left: Some(true),
-                            padding_right: Some(true),
-                            data: None,
-                        })
+                        if let Some(expr) = symbol.value.clone() {
+                            match expr.kind {
+                                parser::ExpressionKind::Literal(val) => hints.push(InlayHint {
+                                    position: tower_lsp_server::lsp_types::Position {
+                                        line,
+                                        character: (token.span.end - line_span) as u32,
+                                    },
+                                    label: InlayHintLabel::String(format!("= {}", val,)),
+                                    kind: None,
+                                    text_edits: None,
+                                    tooltip: None,
+                                    padding_left: Some(true),
+                                    padding_right: Some(true),
+                                    data: None,
+                                }),
+                                _ => (),
+                            }
+                        }
                     }
                 })
             }
@@ -543,6 +548,7 @@ impl Asm {
                             ScopeKind::Constant => SymbolType::Constant,
                             ScopeKind::Parameter => SymbolType::Constant,
                         },
+                        scope.value.clone(),
                     );
                 }
             }

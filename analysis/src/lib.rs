@@ -2,7 +2,7 @@ use std::fmt::Write;
 mod arena;
 
 use codespan::Span;
-use parser::{Line, LineKind, Token};
+use parser::{Expression, Line, LineKind, Token};
 use std::collections::HashMap;
 
 pub struct ScopeAnalyzer {
@@ -15,7 +15,7 @@ pub enum ScopeKind {
     Label,
     Macro,
     Constant,
-    Parameter
+    Parameter,
 }
 
 pub struct Scope {
@@ -23,6 +23,7 @@ pub struct Scope {
     pub description: String,
     pub span: Span,
     pub kind: ScopeKind,
+    pub value: Option<Expression>,
 }
 
 impl ScopeAnalyzer {
@@ -51,6 +52,7 @@ impl ScopeAnalyzer {
                         description: assign.name.lexeme.clone(), // TODO: Add expression flattening/preview? Might need method on ast nodes to print formatted output
                         span: assign.name.span,
                         kind: ScopeKind::Constant,
+                        value: Some(assign.value.clone()),
                     },
                 )]
             }
@@ -62,6 +64,7 @@ impl ScopeAnalyzer {
                         description: format!("{}:", label.lexeme.clone()),
                         span: label.span,
                         kind: ScopeKind::Label,
+                        value: None,
                     },
                 )]
             }
@@ -73,6 +76,7 @@ impl ScopeAnalyzer {
                         description: format!("{}:", name.lexeme.clone()),
                         span: name.span,
                         kind: ScopeKind::Label,
+                        value: None,
                     },
                 )];
 
@@ -90,6 +94,7 @@ impl ScopeAnalyzer {
                         description: format_parameters(name, parameters),
                         span: name.span,
                         kind: ScopeKind::Macro,
+                        value: None,
                     },
                 )];
 
@@ -101,6 +106,7 @@ impl ScopeAnalyzer {
                             description: line.lexeme.clone(),
                             span: line.span,
                             kind: ScopeKind::Parameter,
+                            value: None,
                         },
                     ));
                 }
