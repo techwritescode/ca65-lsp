@@ -43,6 +43,7 @@ pub enum TokenType {
     NotEqual,
     LessThanEq,
     GreaterThanEq,
+    ConstAssign,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -159,6 +160,9 @@ impl<'a> Tokenizer<'a> {
             Some(':') => Ok(Some(if self.input.peek() == Some(':') {
                 self.input.advance();
                 self.make_token(TokenType::ScopeSeparator)
+            } else if self.input.peek() == Some('=') {
+                self.input.advance();
+                self.make_token(TokenType::ConstAssign)
             } else {
                 self.make_token(TokenType::Colon)
             })),

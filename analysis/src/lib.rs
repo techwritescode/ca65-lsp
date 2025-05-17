@@ -2,11 +2,11 @@ use std::fmt::Write;
 mod arena;
 
 use codespan::Span;
-use parser::{Line, LineKind, Token};
+use parser::{Statement, StatementKind, Token};
 use std::collections::HashMap;
 
 pub struct ScopeAnalyzer {
-    lines: Vec<Line>,
+    lines: Vec<Statement>,
     symtab: HashMap<String, Scope>,
 }
 
@@ -26,7 +26,7 @@ pub struct Scope {
 }
 
 impl ScopeAnalyzer {
-    pub fn new(lines: Vec<Line>) -> ScopeAnalyzer {
+    pub fn new(lines: Vec<Statement>) -> ScopeAnalyzer {
         ScopeAnalyzer {
             lines,
             symtab: HashMap::new(),
@@ -41,9 +41,9 @@ impl ScopeAnalyzer {
         self.symtab
     }
 
-    fn parse_line(line: &Line) -> Vec<(String, Scope)> {
+    fn parse_line(line: &Statement) -> Vec<(String, Scope)> {
         match &line.kind {
-            LineKind::ConstantAssign(assign) => {
+            StatementKind::ConstantAssign(assign) => {
                 vec![(
                     assign.name.lexeme.clone(),
                     Scope {
@@ -54,7 +54,7 @@ impl ScopeAnalyzer {
                     },
                 )]
             }
-            LineKind::Label(label) => {
+            StatementKind::Label(label) => {
                 vec![(
                     label.lexeme.clone(),
                     Scope {
@@ -65,7 +65,7 @@ impl ScopeAnalyzer {
                     },
                 )]
             }
-            LineKind::Procedure(name, instructions) => {
+            StatementKind::Procedure(name, instructions) => {
                 let mut symbols = vec![(
                     name.lexeme.clone(),
                     Scope {
@@ -82,7 +82,7 @@ impl ScopeAnalyzer {
 
                 symbols
             }
-            LineKind::MacroDefinition(name, parameters, _) => {
+            StatementKind::MacroDefinition(name, parameters, _) => {
                 let mut symbols = vec![(
                     name.lexeme.clone(),
                     Scope {
