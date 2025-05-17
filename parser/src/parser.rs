@@ -130,12 +130,12 @@ pub struct Instruction {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum LineKind {
+pub enum StatementKind {
     ConstantAssign(ConstantAssign),
     Include(Token),
     Label(Token),
     Instruction(Instruction),
-    Procedure(Token, Vec<Line>),
+    Procedure(Token, Vec<Statement>),
     Macro,
     Enum,
     SetCPU(String),
@@ -145,20 +145,20 @@ pub enum LineKind {
     MacroInvocation(MacroInvocation),
     MacroPack(String),
     Feature(String),
-    Scope(String, Vec<Line>),
+    Scope(String, Vec<Statement>),
     IncludeBinary(Token),
-    MacroDefinition(Token, Vec<Token>, Vec<Line>),
+    MacroDefinition(Token, Vec<Token>, Vec<Statement>),
     Data(Vec<Expression>),
     Org(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Line {
-    pub kind: LineKind,
+pub struct Statement {
+    pub kind: StatementKind,
     pub span: Span,
 }
 
-pub type Ast = Vec<Line>;
+pub type Ast = Vec<Statement>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ControlCommandType {}
@@ -197,7 +197,7 @@ impl<'a> Parser<'a> {
         Ok(lines)
     }
 
-    fn parse_line(&mut self) -> Result<Option<Line>> {
+    fn parse_line(&mut self) -> Result<Option<Statement>> {
         if let Some(token) = self.tokens.peek() {
             let operation = match token.token_type {
                 TokenType::Macro => self.parse_macro(),
@@ -216,7 +216,7 @@ impl<'a> Parser<'a> {
         Err(ParseError::UnexpectedToken(self.tokens.peek().unwrap()))
     }
 
-    fn parse_macro(&mut self) -> Result<Option<Line>> {
+    fn parse_macro(&mut self) -> Result<Option<Statement>> {
         if match_token!(self.tokens, TokenType::Macro) {
             let mac = self.tokens.previous()?;
             let start = self.mark_start();
@@ -227,8 +227,8 @@ impl<'a> Parser<'a> {
                     let pack = self.last().lexeme;
                     let end = self.mark_end();
                     self.consume_newline()?;
-                    Ok(Some(Line {
-                        kind: LineKind::MacroPack(pack),
+                    Ok(Some(Statement {
+                        kind: StatementKind::MacroPack(pack),
                         span: Span::new(start, end),
                     }))
                 }
@@ -237,8 +237,8 @@ impl<'a> Parser<'a> {
                     let feature = self.last().lexeme;
                     let end = self.mark_end();
                     self.consume_newline()?;
-                    Ok(Some(Line {
-                        kind: LineKind::Feature(feature),
+                    Ok(Some(Statement {
+                        kind: StatementKind::Feature(feature),
                         span: Span::new(start, end),
                     }))
                 }
@@ -247,8 +247,8 @@ impl<'a> Parser<'a> {
                     let path = self.last();
                     let end = self.mark_end();
                     self.consume_newline()?;
-                    Ok(Some(Line {
-                        kind: LineKind::Include(path),
+                    Ok(Some(Statement {
+                        kind: StatementKind::Include(path),
                         span: Span::new(start, end),
                     }))
                 }
@@ -257,8 +257,8 @@ impl<'a> Parser<'a> {
                     let path = self.last();
                     let end = self.mark_end();
                     self.consume_newline()?;
-                    Ok(Some(Line {
-                        kind: LineKind::IncludeBinary(path),
+                    Ok(Some(Statement {
+                        kind: StatementKind::IncludeBinary(path),
                         span: Span::new(start, end),
                     }))
                 }
@@ -268,8 +268,8 @@ impl<'a> Parser<'a> {
                     let end = self.mark_end();
                     self.consume_newline()?;
 
-                    Ok(Some(Line {
-                        kind: LineKind::SetCPU(cpu),
+                    Ok(Some(Statement {
+                        kind: StatementKind::SetCPU(cpu),
                         span: Span::new(start, end),
                     }))
                 }
@@ -278,8 +278,8 @@ impl<'a> Parser<'a> {
                     let end = self.mark_end();
                     self.consume_newline()?;
                     
-                    Ok(Some(Line{
-                        kind: LineKind::Org(address.lexeme.clone()),
+                    Ok(Some(Statement {
+                        kind: StatementKind::Org(address.lexeme.clone()),
                         span: Span::new(start, end),
                     }))
                 }
@@ -296,8 +296,8 @@ impl<'a> Parser<'a> {
                     let end = self.mark_end();
                     self.consume_newline()?;
 
-                    Ok(Some(Line {
-                        kind: LineKind::Segment(segment),
+                    Ok(Some(Statement {
+                        kind: StatementKind::Segment(segment),
                         span: Span::new(start, end),
                     }))
                 }
@@ -306,15 +306,15 @@ impl<'a> Parser<'a> {
                     self.consume_token(TokenType::Identifier)?;
                     let ident = self.last();
                     self.consume_newline()?;
-                    let mut commands: Vec<Line> = vec![];
+                    let mut commands: Vec<Statement> = vec![];
                     while !self.tokens.at_end() {
                         if check_token!(self.tokens, TokenType::Macro) {
                             let m = self.peek()?.lexeme;
                             if m == ".endproc" {
                                 self.tokens.advance();
                                 let end = self.mark_end();
-                                return Ok(Some(Line {
-                                    kind: LineKind::Procedure(ident, commands),
+                                return Ok(Some(Statement {
+                                    kind: StatementKind::Procedure(ident, commands),
                                     span: Span::new(start, end),
                                 }));
                             }
@@ -332,15 +332,15 @@ impl<'a> Parser<'a> {
                     self.consume_token(TokenType::Identifier)?;
                     let ident = self.last().lexeme;
                     self.consume_newline()?;
-                    let mut commands: Vec<Option<Line>> = vec![];
+                    let mut commands: Vec<Option<Statement>> = vec![];
                     while !self.tokens.at_end() {
                         if check_token!(self.tokens, TokenType::Macro) {
                             let m = self.peek()?.lexeme;
                             if m == ".endscope" {
                                 self.tokens.advance();
                                 let end = self.mark_end();
-                                return Ok(Some(Line {
-                                    kind: LineKind::Scope(
+                                return Ok(Some(Statement {
+                                    kind: StatementKind::Scope(
                                         ident,
                                         commands
                                             .iter()
@@ -365,8 +365,8 @@ impl<'a> Parser<'a> {
                     let end = self.mark_end();
                     self.consume_newline()?;
 
-                    Ok(Some(Line {
-                        kind: LineKind::Reserve(right),
+                    Ok(Some(Statement {
+                        kind: StatementKind::Reserve(right),
                         span: Span::new(start, end),
                     }))
                 }
@@ -374,8 +374,8 @@ impl<'a> Parser<'a> {
                     let end = self.mark_end();
                     self.consume_newline()?;
 
-                    Ok(Some(Line {
-                        kind: LineKind::Segment("zeropage".to_string()),
+                    Ok(Some(Statement {
+                        kind: StatementKind::Segment("zeropage".to_string()),
                         span: Span::new(start, end),
                     }))
                 }
@@ -385,8 +385,8 @@ impl<'a> Parser<'a> {
                     self.consume_newline()?;
 
                     // TODO: Add kind
-                    Ok(Some(Line {
-                        kind: LineKind::Data(parameters),
+                    Ok(Some(Statement {
+                        kind: StatementKind::Data(parameters),
                         span: Span::new(start, end),
                     }))
                 }
@@ -402,7 +402,7 @@ impl<'a> Parser<'a> {
         Ok(Some(self.parse_assignment()?))
     }
 
-    fn parse_macro_def(&mut self) -> Result<Line> {
+    fn parse_macro_def(&mut self) -> Result<Statement> {
         let start = self.mark_start();
         self.consume_token(TokenType::Identifier)?;
         let ident = self.last();
@@ -416,15 +416,15 @@ impl<'a> Parser<'a> {
         }
         self.consume_newline()?;
 
-        let mut commands: Vec<Line> = vec![];
+        let mut commands: Vec<Statement> = vec![];
         while !self.tokens.at_end() {
             if check_token!(self.tokens, TokenType::Macro) {
                 let m = self.peek()?.lexeme;
                 if m == ".endmacro" {
                     self.tokens.advance();
                     let end = self.mark_end();
-                    return Ok(Line {
-                        kind: LineKind::MacroDefinition(ident, parameters, commands),
+                    return Ok(Statement {
+                        kind: StatementKind::MacroDefinition(ident, parameters, commands),
                         span: Span::new(start, end),
                     });
                 }
@@ -440,14 +440,14 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_assignment(&mut self) -> Result<Line> {
+    fn parse_assignment(&mut self) -> Result<Statement> {
         if let Some(token) = self.tokens.peek() {
             if match_token!(self.tokens, TokenType::Identifier) {
                 let start = self.last().span.start;
                 if match_token!(self.tokens, TokenType::Equal) {
                     let value = self.parse_expression()?;
                     let end = self.tokens.previous()?.span.end;
-                    let operation = LineKind::ConstantAssign(ConstantAssign {
+                    let operation = StatementKind::ConstantAssign(ConstantAssign {
                         name: token,
                         value,
                         span: Span::new(start, end),
@@ -455,7 +455,23 @@ impl<'a> Parser<'a> {
 
                     self.consume_newline()?;
 
-                    return Ok(Line {
+                    return Ok(Statement {
+                        kind: operation,
+                        span: Span::new(start, end),
+                    });
+                }
+                if match_token!(self.tokens, TokenType::ConstAssign) {
+                    let value = self.parse_expression()?;
+                    let end = self.tokens.previous()?.span.end;
+                    let operation = StatementKind::ConstantAssign(ConstantAssign {
+                        name: token,
+                        value,
+                        span: Span::new(start, end),
+                    });
+
+                    self.consume_newline()?;
+
+                    return Ok(Statement {
                         kind: operation,
                         span: Span::new(start, end),
                     });
@@ -469,7 +485,7 @@ impl<'a> Parser<'a> {
         self.parse_instruction()
     }
 
-    fn parse_instruction(&mut self) -> Result<Line> {
+    fn parse_instruction(&mut self) -> Result<Statement> {
         if match_token!(self.tokens, TokenType::Instruction) {
             let mnemonic = self.last().lexeme;
             let start = self.mark_start();
@@ -478,8 +494,8 @@ impl<'a> Parser<'a> {
 
             self.consume_newline()?;
 
-            return Ok(Line {
-                kind: LineKind::Instruction(Instruction {
+            return Ok(Statement {
+                kind: StatementKind::Instruction(Instruction {
                     mnemonic,
                     parameters,
                 }),
@@ -492,25 +508,25 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_label(&mut self) -> Result<Line> {
+    fn parse_label(&mut self) -> Result<Statement> {
         let start = self.mark_start();
         let name = self.tokens.previous()?;
         self.consume_token(TokenType::Colon)?;
 
         let end = self.mark_end();
-        Ok(Line {
-            kind: LineKind::Label(name),
+        Ok(Statement {
+            kind: StatementKind::Label(name),
             span: Span::new(start, end),
         })
     }
 
-    fn parse_macro_invocation(&mut self) -> Result<Line> {
+    fn parse_macro_invocation(&mut self) -> Result<Statement> {
         let start = self.mark_start();
         let name = self.tokens.previous()?;
         let parameters = self.parse_parameters()?;
         let end = self.mark_end();
-        Ok(Line {
-            kind: LineKind::MacroInvocation(MacroInvocation { name, parameters }),
+        Ok(Statement {
+            kind: StatementKind::MacroInvocation(MacroInvocation { name, parameters }),
             span: Span::new(start, end),
         })
     }
