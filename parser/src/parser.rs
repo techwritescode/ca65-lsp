@@ -478,11 +478,11 @@ impl<'a> Parser<'a> {
         while !self.tokens.at_end() {
             if check_token!(self.tokens, TokenType::Macro) {
                 let m = self.peek()?.lexeme;
-                if m == ".endmacro" {
+                if m == ".endif" {
                     self.tokens.advance();
                     let end = self.mark_end();
                     return Ok(Statement {
-                        kind: StatementKind::MacroDefinition(ident, parameters, commands),
+                        kind: StatementKind::If(if_kind),
                         span: Span::new(start, end),
                     });
                 }
@@ -491,18 +491,6 @@ impl<'a> Parser<'a> {
                 commands.push(line);
             }
         }
-
-        Err(ParseError::Expected {
-            received: self.peek()?,
-            expected: TokenType::Macro,
-        })
-
-        // while !self.tokens.at_end() {
-        //     return Ok(Line {
-        //         kind: LineKind::If(condition),
-        //         span: Span::new(start, end),
-        //     });
-        // }
 
         Err(ParseError::Expected {
             received: self.peek()?,
