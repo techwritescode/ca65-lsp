@@ -150,6 +150,7 @@ pub enum StatementKind {
     MacroDefinition(Token, Vec<Token>, Vec<Statement>),
     Data(Vec<Expression>),
     Org(String),
+    Repeat(Token, Token, Vec<Statement>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -306,59 +307,38 @@ impl<'a> Parser<'a> {
                     self.consume_token(TokenType::Identifier)?;
                     let ident = self.last();
                     self.consume_newline()?;
-                    let mut commands: Vec<Statement> = vec![];
-                    while !self.tokens.at_end() {
-                        if check_token!(self.tokens, TokenType::Macro) {
-                            let m = self.peek()?.lexeme;
-                            if m == ".endproc" {
-                                self.tokens.advance();
-                                let end = self.mark_end();
-                                return Ok(Some(Statement {
-                                    kind: StatementKind::Procedure(ident, commands),
-                                    span: Span::new(start, end),
-                                }));
-                            }
-                        }
-                        if let Some(line) = self.parse_line()? {
-                            commands.push(line);
-                        }
-                    }
-                    Err(ParseError::Expected {
-                        received: self.peek()?,
-                        expected: TokenType::Macro,
-                    })
+                    let commands: Vec<Statement> = self.parse_statement_block(".endproc")?;
+                    let end = self.mark_end();
+                    return Ok(Some(Statement {
+                        kind: StatementKind::Procedure(ident, commands),
+                        span: Span::new(start, end),
+                    }));
                 }
                 ".scope" => {
                     self.consume_token(TokenType::Identifier)?;
                     let ident = self.last().lexeme;
                     self.consume_newline()?;
-                    let mut commands: Vec<Option<Statement>> = vec![];
-                    while !self.tokens.at_end() {
-                        if check_token!(self.tokens, TokenType::Macro) {
-                            let m = self.peek()?.lexeme;
-                            if m == ".endscope" {
-                                self.tokens.advance();
-                                let end = self.mark_end();
-                                return Ok(Some(Statement {
-                                    kind: StatementKind::Scope(
-                                        ident,
-                                        commands
-                                            .iter()
-                                            .filter(|c| c.is_some())
-                                            .cloned()
-                                            .map(|c| c.unwrap())
-                                            .collect(),
-                                    ),
-                                    span: Span::new(start, end),
-                                }));
-                            }
-                        }
-                        commands.push(self.parse_line()?);
-                    }
-                    Err(ParseError::Expected {
-                        received: self.peek()?,
-                        expected: TokenType::Macro,
-                    })
+                    let commands = self.parse_statement_block(".endscope")?;
+                    let end = self.mark_end();
+                    return Ok(Some(Statement {
+                        kind: StatementKind::Scope(
+                            ident,
+                            commands,
+                        ),
+                        span: Span::new(start, end),
+                    }));
+                }
+                ".repeat" => {
+                    let max = self.consume_token(TokenType::Number)?;
+                    self.consume_token(TokenType::Comma)?;
+                    let ident = self.consume_token(TokenType::Identifier)?;
+                    self.consume_newline()?;
+                    let commands = self.parse_statement_block(".endrepeat")?;
+                    let end = self.mark_end();
+                    return Ok(Some(Statement{
+                        kind: StatementKind::Repeat(max, ident, commands),
+                        span: Span::new(start, end),
+                    }))
                 }
                 ".res" => {
                     let right = self.parse_expression()?;
@@ -416,27 +396,11 @@ impl<'a> Parser<'a> {
         }
         self.consume_newline()?;
 
-        let mut commands: Vec<Statement> = vec![];
-        while !self.tokens.at_end() {
-            if check_token!(self.tokens, TokenType::Macro) {
-                let m = self.peek()?.lexeme;
-                if m == ".endmacro" {
-                    self.tokens.advance();
-                    let end = self.mark_end();
-                    return Ok(Statement {
-                        kind: StatementKind::MacroDefinition(ident, parameters, commands),
-                        span: Span::new(start, end),
-                    });
-                }
-            }
-            if let Some(line) = self.parse_line()? {
-                commands.push(line);
-            }
-        }
-
-        Err(ParseError::Expected {
-            received: self.peek()?,
-            expected: TokenType::Macro,
+        let commands = self.parse_statement_block(".endmacro")?;
+        let end = self.mark_end();
+        Ok(Statement {
+            kind: StatementKind::MacroDefinition(ident, parameters, commands),
+            span: Span::new(start, end),
         })
     }
 
@@ -824,6 +788,28 @@ impl<'a> Parser<'a> {
             kind: ExpressionKind::Literal(token_string.to_string()),
             span: Span::new(start, end),
         })
+    }
+    
+    #[inline]
+    fn parse_statement_block(&mut self, macro_end: &str) -> Result<Vec<Statement>> {
+        let mut commands: Vec<Statement> = vec![];
+        while !self.tokens.at_end() {
+            if check_token!(self.tokens, TokenType::Macro) {
+                let m = self.peek()?.lexeme;
+                if m == macro_end {
+                    self.tokens.advance();
+                    return Ok(commands);
+                }
+            }
+            if let Some(line) = self.parse_line()? {
+                commands.push(line);
+            }
+        }
+
+        Err(ParseError::Expected {
+            received: self.peek()?,
+            expected: TokenType::Macro,
+        }) 
     }
 
     // Return current position
