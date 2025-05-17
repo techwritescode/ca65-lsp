@@ -132,6 +132,22 @@ pub struct Instruction {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum IfKind {
+    Regular(Expression),
+    Blank(Vec<Token>),
+    NotBlank(Vec<Token>),
+    Defined(Vec<Token>),
+    NotDefined(Vec<Token>),
+    Referenced(Vec<Token>),
+    NotReferenced(Vec<Token>),
+    Const(Expression),
+    P02,
+    P4510,
+    P816,
+    PC02,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum StatementKind {
     ConstantAssign(ConstantAssign),
     Include(Token),
@@ -156,7 +172,7 @@ pub enum StatementKind {
     Global(Vec<Token>, bool), // Identifier, is zero page?
     Export(Vec<Token>, bool),
     Ascii(Token),
-    If(Expression),
+    If(IfKind),
 }
 
 #[derive(Debug, Clone, PartialEq)]
