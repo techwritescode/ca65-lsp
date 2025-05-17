@@ -1,11 +1,10 @@
 use crate::asm_server::State;
 use crate::codespan::FileId;
-use crate::instructions;
+use crate::documentation::{CA65_KEYWORD_COMPLETION_ITEMS, FEATURE_COMPLETION_ITEMS, INSTRUCTION_COMPLETION_ITEMS, MACPACK_COMPLETION_ITEMS};
 use crate::symbol_cache::{symbol_cache_get, SymbolType};
-use crate::documentation::{CA65_KEYWORD_COMPLETION_ITEMS, FEATURE_COMPLETION_ITEMS, MACPACK_COMPLETION_ITEMS, INSTRUCTION_COMPLETION_ITEMS};
 use codespan::Position;
-use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails};
 use parser::TokenType;
+use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails};
 
 pub trait CompletionProvider {
     fn completions_for(&self, state: &State, id: FileId, position: Position)
@@ -75,9 +74,9 @@ pub struct Ca65KeywordCompletionProvider;
 impl CompletionProvider for Ca65KeywordCompletionProvider {
     fn completions_for(
         &self,
-        state: &State,
-        id: FileId,
-        position: Position,
+        _state: &State,
+        _id: FileId,
+        _position: Position,
     ) -> Vec<CompletionItem> {
         CA65_KEYWORD_COMPLETION_ITEMS.get().expect("Could not get ca65 completion items in completion provider").clone()
     }

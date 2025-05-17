@@ -2,7 +2,6 @@ use crate::path::diff_paths;
 use codespan::{File, Position};
 use lazy_static::lazy_static;
 use parser::{Ast, Instructions, ParseError, Token, TokenizerError};
-use std::fmt::Display;
 use std::path::Path;
 use std::str::FromStr;
 use tower_lsp_server::lsp_types::Uri;
