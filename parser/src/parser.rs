@@ -448,7 +448,7 @@ impl<'a> Parser<'a> {
         Ok(Some(self.parse_assignment()?))
     }
 
-    fn parse_if(&mut self) -> Result<Line> {
+    fn parse_if(&mut self) -> Result<Statement> {
         let start = self.mark_start();
         let if_token = self.last();
         let if_kind = match if_token.lexeme.as_str() {
