@@ -450,16 +450,20 @@ impl<'a> Parser<'a> {
 
     fn parse_if(&mut self) -> Result<Line> {
         let start = self.mark_start();
-        let condition = self.parse_expression()?;
-        let end = self.mark_end();
-        self.consume_newline()?;
+        let if_token = self.last();
+        let if_kind = match if_token.lexeme.as_str() {
+            ".if" => IfKind::Regular(self.parse_expression()?),
+            ".ifconst" => IfKind::Const(self.parse_expression()?),
+            ".ifblank" => IfKind::Blank(self.parse_parameters()?),
+            _ => IfKind::P02,
+        };
 
-        while !self.tokens.at_end() {
-            return Ok(Line {
-                kind: LineKind::If(condition),
-                span: Span::new(start, end),
-            });
-        }
+        // while !self.tokens.at_end() {
+        //     return Ok(Line {
+        //         kind: LineKind::If(condition),
+        //         span: Span::new(start, end),
+        //     });
+        // }
 
         Err(ParseError::Expected {
             received: self.peek()?,
