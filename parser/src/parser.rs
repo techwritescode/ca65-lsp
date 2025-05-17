@@ -134,13 +134,13 @@ pub struct Instruction {
 #[derive(Debug, Clone, PartialEq)]
 pub enum IfKind {
     Regular(Expression),
+    Const(Expression),
     Blank(Vec<Token>),
     NotBlank(Vec<Token>),
     Defined(Vec<Token>),
     NotDefined(Vec<Token>),
     Referenced(Vec<Token>),
     NotReferenced(Vec<Token>),
-    Const(Expression),
     P02,
     P4510,
     P816,
@@ -436,6 +436,10 @@ impl<'a> Parser<'a> {
                         span: Span::new(start, end),
                     }))
                 }
+                ".if" | ".ifconst" | ".ifblank" | ".ifnblank" | ".ifdef" | ".ifndef" | ".ifref"
+                | ".ifnref" | ".ifp02" | ".ifp4510" | ".ifp816" | ".ifpC02" => {
+                    Ok(Some(self.parse_if()?))
+                }
                 // Ignored for now
                 ".index" | ".mem" | ".align" | ".addr" => {
                     self.parse_parameters()?;
@@ -454,9 +458,44 @@ impl<'a> Parser<'a> {
         let if_kind = match if_token.lexeme.as_str() {
             ".if" => IfKind::Regular(self.parse_expression()?),
             ".ifconst" => IfKind::Const(self.parse_expression()?),
-            ".ifblank" => IfKind::Blank(self.parse_parameters()?),
-            _ => IfKind::P02,
+            ".ifblank" => IfKind::Blank(self.parse_parameters_tokens()?),
+            ".ifnblank" => IfKind::NotBlank(self.parse_parameters_tokens()?),
+            ".ifdef" => IfKind::Defined(self.parse_parameters_tokens()?),
+            ".ifndef" => IfKind::NotDefined(self.parse_parameters_tokens()?),
+            ".ifref" => IfKind::Referenced(self.parse_parameters_tokens()?),
+            ".ifnref" => IfKind::NotReferenced(self.parse_parameters_tokens()?),
+            ".ifp02" => IfKind::P02,
+            ".ifp4510" => IfKind::P4510,
+            ".ifp816" => IfKind::P816,
+            ".ifpC02" => IfKind::PC02,
+            _ => {
+                unreachable!(".if strings in parse_if() do not match .if strings in parse_macro()")
+            }
         };
+        self.consume_newline()?;
+
+        let mut commands: Vec<Statement> = vec![];
+        while !self.tokens.at_end() {
+            if check_token!(self.tokens, TokenType::Macro) {
+                let m = self.peek()?.lexeme;
+                if m == ".endmacro" {
+                    self.tokens.advance();
+                    let end = self.mark_end();
+                    return Ok(Statement {
+                        kind: StatementKind::MacroDefinition(ident, parameters, commands),
+                        span: Span::new(start, end),
+                    });
+                }
+            }
+            if let Some(line) = self.parse_line()? {
+                commands.push(line);
+            }
+        }
+
+        Err(ParseError::Expected {
+            received: self.peek()?,
+            expected: TokenType::Macro,
+        })
 
         // while !self.tokens.at_end() {
         //     return Ok(Line {
@@ -855,6 +894,15 @@ impl<'a> Parser<'a> {
                 self.consume_token(TokenType::Comma)?;
                 parameters.push(self.parse_expression()?);
             }
+        }
+        Ok(parameters)
+    }
+
+    fn parse_parameters_tokens(&mut self) -> Result<Vec<Token>> {
+        let mut parameters: Vec<Token> = vec![];
+        parameters.push(self.consume_token(TokenType::Identifier)?);
+        while !self.tokens.at_end() && match_token!(self.tokens, TokenType::Comma) {
+            parameters.push(self.consume_token(TokenType::Identifier)?);
         }
         Ok(parameters)
     }
