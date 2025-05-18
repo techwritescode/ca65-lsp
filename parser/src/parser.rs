@@ -377,7 +377,7 @@ impl<'a> Parser<'a> {
                     return Ok(Some(Statement {
                         kind: StatementKind::Scope(
                             ident,
-                            commands
+                            commands,
                         ),
                         span: Span::new(start, end),
                     }));
@@ -396,7 +396,7 @@ impl<'a> Parser<'a> {
                     return Ok(Some(Statement{
                         kind: StatementKind::Repeat(max, iter, commands),
                         span: Span::new(start, end),
-                    }));
+                    }))
                 }
                 ".res"|".tag" => {
                     let right = self.parse_expression()?;
@@ -447,7 +447,7 @@ impl<'a> Parser<'a> {
                 ".index" | ".mem" | ".align" | ".addr" => {
                     self.parse_parameters()?;
                     Ok(None)
-                },
+                }, 
                 _ => Err(ParseError::UnexpectedToken(mac)),
             };
         }
