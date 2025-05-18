@@ -44,6 +44,10 @@ pub enum TokenType {
     LessThanEq,
     GreaterThanEq,
     ConstAssign,
+    LeftBrace,
+    RightBrace,
+    Bank,
+    SizeOf,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -133,6 +137,8 @@ impl<'a> Tokenizer<'a> {
                     ".shr" => self.make_token(TokenType::ShiftRight),
                     ".shl" => self.make_token(TokenType::ShiftLeft),
                     ".xor" => self.make_token(TokenType::Xor),
+                    ".bank" => self.make_token(TokenType::Bank),
+                    ".sizeof" => self.make_token(TokenType::SizeOf),
                     _ => self.make_token(TokenType::Macro),
                 }))
             }
@@ -142,6 +148,8 @@ impl<'a> Tokenizer<'a> {
             }
             Some('(') => Ok(Some(self.make_token(TokenType::LeftParen))),
             Some(')') => Ok(Some(self.make_token(TokenType::RightParen))),
+            Some('{') => Ok(Some(self.make_token(TokenType::LeftBrace))),
+            Some('}') => Ok(Some(self.make_token(TokenType::RightBrace))),
             Some('a'..='z' | 'A'..='Z' | '_') => {
                 self.identifier();
                 Ok(Some(
