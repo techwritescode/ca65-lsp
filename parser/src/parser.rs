@@ -133,18 +133,9 @@ pub struct Instruction {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IfKind {
-    Regular(Expression),
-    Const(Expression),
-    Blank(Vec<Token>),
-    NotBlank(Vec<Token>),
-    Defined(Vec<Token>),
-    NotDefined(Vec<Token>),
-    Referenced(Vec<Token>),
-    NotReferenced(Vec<Token>),
-    P02,
-    P4510,
-    P816,
-    PC02,
+    WithExpression(Expression),
+    WithTokens(Vec<Token>),
+    NoParams,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -439,8 +430,7 @@ impl<'a> Parser<'a> {
                         span: Span::new(start, end),
                     }))
                 }
-                ".if" | ".ifconst" | ".ifblank" | ".ifnblank" | ".ifdef" | ".ifndef" | ".ifref"
-                | ".ifnref" | ".ifp02" | ".ifp4510" | ".ifp816" | ".ifpC02" => {
+                ".if" | ".ifconst" | ".ifblank" | ".ifnblank" | ".ifdef" | ".ifndef" | ".ifref" | ".ifnref" | ".ifp02" | ".ifp4510" | ".ifp816" | ".ifpC02" => {
                     Ok(Some(self.parse_if()?))
                 }
                 // Ignored for now
@@ -459,18 +449,9 @@ impl<'a> Parser<'a> {
         let start = self.mark_start();
         let if_token = self.last();
         let if_kind = match if_token.lexeme.as_str() {
-            ".if" => IfKind::Regular(self.parse_expression()?),
-            ".ifconst" => IfKind::Const(self.parse_expression()?),
-            ".ifblank" => IfKind::Blank(self.parse_parameters_tokens()?),
-            ".ifnblank" => IfKind::NotBlank(self.parse_parameters_tokens()?),
-            ".ifdef" => IfKind::Defined(self.parse_parameters_tokens()?),
-            ".ifndef" => IfKind::NotDefined(self.parse_parameters_tokens()?),
-            ".ifref" => IfKind::Referenced(self.parse_parameters_tokens()?),
-            ".ifnref" => IfKind::NotReferenced(self.parse_parameters_tokens()?),
-            ".ifp02" => IfKind::P02,
-            ".ifp4510" => IfKind::P4510,
-            ".ifp816" => IfKind::P816,
-            ".ifpC02" => IfKind::PC02,
+            ".if" | ".ifconst" => IfKind::WithExpression(self.parse_expression()?),
+            ".ifblank" | ".ifnblank" | ".ifdef" | ".ifndef" | ".ifref" | ".ifnref" => IfKind::WithTokens(self.parse_parameters_tokens()?),
+            ".ifp02" | ".ifp4510" | ".ifp816" | ".ifpC02" => IfKind::NoParams,
             _ => {
                 unreachable!(".if strings in parse_if() do not match .if strings in parse_macro()")
             }
