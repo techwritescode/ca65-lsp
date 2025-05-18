@@ -461,14 +461,26 @@ impl<'a> Parser<'a> {
         let mut commands: Vec<Statement> = vec![];
         while !self.tokens.at_end() {
             if check_token!(self.tokens, TokenType::Macro) {
-                let m = self.peek()?.lexeme;
-                if m == ".endif" {
-                    self.tokens.advance();
-                    let end = self.mark_end();
-                    return Ok(Statement {
-                        kind: StatementKind::If(if_kind),
-                        span: Span::new(start, end),
-                    });
+                let tok_lexeme = self.peek()?.lexeme;
+                match tok_lexeme.as_str() {
+                    ".elseif" => {
+                        self.tokens.advance();
+                        self.parse_expression()?;
+                        self.consume_newline()?;
+                    }
+                    ".else" => {
+                        self.tokens.advance();
+                        self.consume_newline()?;
+                    }
+                    ".endif" => {
+                        self.tokens.advance();
+                        let end = self.mark_end();
+                        return Ok(Statement {
+                            kind: StatementKind::If(if_kind),
+                            span: Span::new(start, end),
+                        });
+                    }
+                    _ => ()
                 }
             }
             if let Some(line) = self.parse_line()? {
