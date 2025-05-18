@@ -15,7 +15,7 @@ pub enum ScopeKind {
     Label,
     Macro,
     Constant,
-    Parameter,
+    Parameter
 }
 
 pub struct Scope {
