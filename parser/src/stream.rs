@@ -36,9 +36,13 @@ impl Stream {
     }
 
     pub fn advance(&mut self) -> Option<char> {
-        let c = self.input.as_bytes()[self.position] as char;
-        self.position += 1;
-        Some(c)
+        if self.at_end() {
+            None
+        } else {
+            let c = self.input.as_bytes()[self.position] as char;
+            self.position += 1;
+            Some(c)
+        }
     }
 
     pub fn match_char(&mut self, expected: char) -> bool {
