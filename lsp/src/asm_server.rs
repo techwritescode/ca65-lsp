@@ -1,16 +1,16 @@
 use crate::codespan::{FileId, Files, IndexError};
 use crate::completion::{
-    Ca65KeywordCompletionProvider, CompletionProvider, InstructionCompletionProvider,
-    SymbolCompletionProvider, MacpackCompletionProvider, FeatureCompletionProvider,
+    Ca65KeywordCompletionProvider, CompletionProvider, FeatureCompletionProvider,
+    InstructionCompletionProvider, MacpackCompletionProvider, SymbolCompletionProvider,
 };
 use crate::configuration::{load_project_configuration, Configuration};
 use crate::definition::Definition;
+use crate::documentation::{CA65_DOCUMENTATION, FEATURE_DOCUMENTATION, INSTRUCTION_DOCUMENTATION, MACPACK_DOCUMENTATION};
 use crate::error::file_error_to_lsp;
 use crate::symbol_cache::{
     symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
 };
-use crate::documentation::{CA65_DOCUMENTATION, FEATURE_DOCUMENTATION, INSTRUCTION_DOCUMENTATION, MACPACK_DOCUMENTATION};
-use analysis::ScopeKind;
+use analysis::{Scope, ScopeAnalyzer, ScopeKind};
 use parser::ParseError;
 use std::collections::HashMap;
 use std::process::Output;
@@ -39,6 +39,7 @@ use tower_lsp_server::{
 
 pub struct State {
     pub sources: HashMap<Uri, FileId>,
+    pub scopes: HashMap<Uri, Vec<Scope>>,
     pub files: Files,
     pub workspace_folder: Option<Uri>
 }
@@ -60,6 +61,7 @@ impl Asm {
             client,
             state: Arc::new(Mutex::new(State {
                 sources: HashMap::new(),
+                scopes: Default::default(),
                 files: Files::new(),
                 workspace_folder: None,
             })),
@@ -76,8 +78,7 @@ impl Asm {
     }
 
     async fn index(&self, file_id: &FileId) {
-        let mut state = self.state.lock().await;
-        self.parse_labels(&mut state.files, *file_id).await;
+        self.parse_labels(*file_id).await;
     }
 }
 
@@ -360,7 +361,21 @@ impl LanguageServer for Asm {
             .sources
             .get(&params.text_document_position.text_document.uri)
         {
-            let mut completion_items: Vec<CompletionItem> = vec![];
+            let pos = params.text_document_position.position.into();
+
+            let prefix = if let Some(scopes) = state.scopes.get(&state.files.get_uri(*id)) {
+                let file = state.files.get(*id);
+                let index = file.position_to_byte_index(pos).or(Ok(0))?;
+
+                let scopes = ScopeAnalyzer::search(scopes.clone(), index);
+                scopes.join("::")
+            } else {
+                "".to_string()
+            };
+
+            let mut completion_items: Vec<CompletionItem> = vec![
+                CompletionItem::new_simple(prefix, "".into()),
+            ];
             for provider in self.completion_providers.iter() {
                 completion_items.extend(provider.completions_for(
                     &state,
@@ -475,13 +490,18 @@ fn reload_source(
 }
 
 impl Asm {
-    async fn parse_labels(&self, files: &mut Files, id: FileId) {
+    async fn parse_labels(&self, id: FileId) {
+        let mut state = self.state.lock().await;
+        let uri = state.files.get_uri(id);
+
         symbol_cache_reset(id);
         let mut diagnostics = vec![];
 
-        match files.index(id) {
+        match state.files.index(id) {
             Ok(()) => {
-                let symbols = analysis::ScopeAnalyzer::new(files.ast(id).clone()).parse();
+                let scopes = ScopeAnalyzer::new(state.files.ast(id).clone()).analyze();
+                state.scopes.insert(uri, scopes);
+                let symbols = analysis::DefAnalyzer::new(state.files.ast(id).clone()).parse();
 
                 for (symbol, scope) in symbols.iter() {
                     symbol_cache_insert(
@@ -500,7 +520,7 @@ impl Asm {
             }
             Err(err) => match err {
                 IndexError::TokenizerError(err) => {
-                    let pos = files.get(id).byte_index_to_position(err.offset).unwrap();
+                    let pos = state.files.get(id).byte_index_to_position(err.offset).unwrap();
                     diagnostics.push(Diagnostic::new_simple(
                         Range::new(pos.into(), pos.into()),
                         "Unexpected character".to_string(),
@@ -509,13 +529,13 @@ impl Asm {
                 IndexError::ParseError(err) => match err {
                     ParseError::UnexpectedToken(token) => {
                         diagnostics.push(Diagnostic::new_simple(
-                            files.get(id).byte_span_to_range(token.span).unwrap().into(),
+                            state.files.get(id).byte_span_to_range(token.span).unwrap().into(),
                             format!("Unexpected Token {:?}", token.token_type),
                         ));
                     }
                     ParseError::Expected { expected, received } => {
                         diagnostics.push(Diagnostic::new_simple(
-                            files
+                            state.files
                                 .get(id)
                                 .byte_span_to_range(received.span)
                                 .unwrap()
@@ -527,9 +547,9 @@ impl Asm {
                         ));
                     }
                     ParseError::EOF => {
-                        let pos = files
+                        let pos = state.files
                             .get(id)
-                            .byte_index_to_position(files.get(id).source.len() - 1)
+                            .byte_index_to_position(state.files.get(id).source.len() - 1)
                             .unwrap();
                         diagnostics.push(Diagnostic::new_simple(
                             Range::new(pos.into(), pos.into()),
@@ -542,7 +562,7 @@ impl Asm {
 
         self.client
             .publish_diagnostics(
-                Uri::from_str(files.get(id).name.as_str()).unwrap(),
+                Uri::from_str(state.files.get(id).name.as_str()).unwrap(),
                 diagnostics,
                 None,
             )

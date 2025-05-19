@@ -24,4 +24,8 @@ impl Span {
     pub fn end(self) -> usize {
         self.end
     }
+    
+    pub fn contains(self, index: usize) -> bool {
+        self.start <= index && index < self.end
+    }
 }
