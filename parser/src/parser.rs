@@ -238,16 +238,16 @@ impl<'a> Parser<'a> {
             let macro_matcher = ident.to_lowercase();
             return match macro_matcher.as_str() {
                 ".global"|".globalzp" => {
-                    let zp = macro_matcher == ".globalzp";
-                    let mut idents = vec![];
-                    idents.push(self.consume_token(TokenType::Identifier)?);
+                    let zero_page = macro_matcher == ".globalzp";
+                    let mut identifiers = vec![];
+                    identifiers.push(self.consume_token(TokenType::Identifier)?);
                     while match_token!(self.tokens, TokenType::Comma) {
-                        idents.push(self.consume_token(TokenType::Identifier)?);
+                        identifiers.push(self.consume_token(TokenType::Identifier)?);
                     }
                     let end = self.mark_end();
                     self.consume_newline()?;
                     Ok(Some(Statement {
-                        kind: StatementKind::Global{ identifiers: idents, zero_page: zp },
+                        kind: StatementKind::Global{ identifiers, zero_page },
                         span: Span::new(start, end),
                     }))
                 }
