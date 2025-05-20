@@ -16,10 +16,10 @@ TBD
   -- init.lua
   require 'lspconfig.configs'.ca65 = {
   	default_config = {
-		cmd = { "/path/to/ca65-lsp" },
-		filetypes = { "s", "asm" },
-		root_dir = require 'lspconfig'.util.root_pattern('nes.toml')
-	}
+  		cmd = { "/path/to/ca65-lsp" },
+  		filetypes = { "s", "asm" },
+  		root_dir = require 'lspconfig'.util.root_pattern('nes.toml')
+  	}
   }
   require 'lspconfig'.ca65.setup{}
   ```
