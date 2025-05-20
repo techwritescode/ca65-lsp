@@ -160,8 +160,8 @@ pub enum StatementKind {
     Data(Vec<Expression>),
     Org(String),
     Repeat(Expression, Option<Expression>, Vec<Statement>),
-    Global(Vec<Token>, bool), // Identifier, is zero page?
-    Export(Vec<Token>, bool),
+    Global{ identifiers: Vec<Token>, zero_page: bool },
+    Export{ identifiers: Vec<Token>, zero_page: bool },
     Ascii(Token),
     If(IfKind),
 }
@@ -238,16 +238,16 @@ impl<'a> Parser<'a> {
             let macro_matcher = ident.to_lowercase();
             return match macro_matcher.as_str() {
                 ".global"|".globalzp" => {
-                    let zp = macro_matcher == ".globalzp";
-                    let mut idents = vec![];
-                    idents.push(self.consume_token(TokenType::Identifier)?);
+                    let zero_page = macro_matcher == ".globalzp";
+                    let mut identifiers = vec![];
+                    identifiers.push(self.consume_token(TokenType::Identifier)?);
                     while match_token!(self.tokens, TokenType::Comma) {
-                        idents.push(self.consume_token(TokenType::Identifier)?);
+                        identifiers.push(self.consume_token(TokenType::Identifier)?);
                     }
                     let end = self.mark_end();
                     self.consume_newline()?;
                     Ok(Some(Statement {
-                        kind: StatementKind::Global(idents, zp),
+                        kind: StatementKind::Global{ identifiers, zero_page },
                         span: Span::new(start, end),
                     }))
                 }
@@ -261,7 +261,7 @@ impl<'a> Parser<'a> {
                     let end = self.mark_end();
                     self.consume_newline()?;
                     Ok(Some(Statement {
-                        kind: StatementKind::Export(idents, zp),
+                        kind: StatementKind::Export{identifiers: idents, zero_page: zp},
                         span: Span::new(start, end),
                     }))
                 }
