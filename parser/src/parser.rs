@@ -405,10 +405,10 @@ impl<'a> Parser<'a> {
                     let end = self.mark_end();
                     self.consume_newline()?;
 
-                    let segment_name = &macro_matcher[1..];
+                    let segment_name = macro_matcher[1..].to_string();
 
                     Ok(Some(Statement {
-                        kind: StatementKind::Segment(segment_name.into()),
+                        kind: StatementKind::Segment(segment_name),
                         span: Span::new(start, end),
                     }))
                 }
