@@ -401,12 +401,14 @@ impl<'a> Parser<'a> {
                         span: Span::new(start, end),
                     }))
                 }
-                ".zeropage" => {
+                ".zeropage" | ".code" | ".bss" | ".data" | ".rodata" => {
                     let end = self.mark_end();
                     self.consume_newline()?;
 
+                    let segment_name = &macro_matcher[1..];
+
                     Ok(Some(Statement {
-                        kind: StatementKind::Segment("zeropage".to_string()),
+                        kind: StatementKind::Segment(segment_name.into()),
                         span: Span::new(start, end),
                     }))
                 }
