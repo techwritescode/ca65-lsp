@@ -42,6 +42,6 @@ impl Configuration {
 
 pub fn load_project_configuration() -> Configuration {
     let path = std::env::current_dir().expect("Failed to get current dir");
-    let config_path = std::path::Path::new(&path).join("nes.toml");
+    let config_path = Path::new(&path).join("nes.toml");
     Configuration::new(config_path)
 }
