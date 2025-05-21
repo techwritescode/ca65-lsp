@@ -105,6 +105,7 @@ pub enum ExpressionKind {
     Immediate(Box<Expression>),
     Unary(TokenType, Box<Expression>),
     Literal(String),
+    UnnamedLabel(i8),
     Group(Box<Expression>),
     UnaryPositive(Box<Expression>),
     Math(TokenType, Box<Expression>, Box<Expression>),
