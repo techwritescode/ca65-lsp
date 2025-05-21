@@ -105,7 +105,7 @@ pub enum ExpressionKind {
     Immediate(Box<Expression>),
     Unary(TokenType, Box<Expression>),
     Literal(String),
-    UnnamedLabel(i8),
+    UnnamedLabelReference(i8),
     Group(Box<Expression>),
     UnaryPositive(Box<Expression>),
     Math(TokenType, Box<Expression>, Box<Expression>),
@@ -144,6 +144,7 @@ pub enum StatementKind {
     ConstantAssign(ConstantAssign),
     Include(Token),
     Label(Token),
+    UnnamedLabel,
     Instruction(Instruction),
     Procedure(Token, Vec<Statement>),
     Enum(Option<Token>, Vec<Expression>),
@@ -918,6 +919,9 @@ impl<'a> Parser<'a> {
         {
             return self.parse_identifier();
         }
+        if check_token!(self.tokens, TokenType::Colon) {
+            return self.parse_unnamed_label_reference();
+        }
         if match_token!(self.tokens, TokenType::LeftParen) {
             let start = self.mark_start();
             let expr = self.parse_expression()?;
@@ -997,6 +1001,48 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_unnamed_label_reference(&mut self) -> Result<Expression> {
+        let start = self.mark_start();
+        let mut distance: i8 = 0;
+
+        self.consume_token(TokenType::Colon)?;
+        let next_tok = self.peek()?;
+        match next_tok.token_type {
+            TokenType::Plus => {
+                while self.consume_token(TokenType::Plus).is_ok() {
+                    distance += 1;
+                }
+                self.consume_newline();
+            }
+            TokenType::GreaterThan => {
+                while self.consume_token(TokenType::GreaterThan).is_ok() {
+                    distance += 1;
+                }
+                self.consume_newline();
+            }
+            TokenType::Minus => {
+                while self.consume_token(TokenType::Minus).is_ok() {
+                    distance -= 1;
+                }
+                self.consume_newline();
+            }
+            TokenType::LessThan => {
+                while self.consume_token(TokenType::LessThan).is_ok() {
+                    distance -= 1;
+                }
+                self.consume_newline();
+            }
+            _ => (),
+        }
+
+        let end = self.mark_end();
+
+        Ok(Expression {
+            kind: ExpressionKind::UnnamedLabelReference(distance),
+            span: Span::new(start, end),
+        })
+    }
+
     #[inline]
     fn parse_statement_block(&mut self, macro_end: &str) -> Result<Vec<Statement>> {
         let mut commands: Vec<Statement> = vec![];
@@ -1054,11 +1100,11 @@ impl<'a> Parser<'a> {
             })
         }
     }
-    
+
     fn error_recovery(&mut self) {
         loop {
             if self.tokens.at_end() {
-               break; 
+                break;
             }
             if let Some(token) = self.tokens.peek() {
                 if token.token_type == TokenType::EOL {
