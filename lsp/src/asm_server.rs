@@ -13,6 +13,7 @@ use crate::symbol_cache::{symbol_cache_get, symbol_cache_insert, symbol_cache_re
 use analysis::{Scope, ScopeAnalyzer, Symbol};
 use codespan::Span;
 use parser::ParseError;
+use std::any::Any;
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::Output;

@@ -919,7 +919,7 @@ impl<'a> Parser<'a> {
         {
             return self.parse_identifier();
         }
-        if check_token!(self.tokens, TokenType::Colon) {
+        if check_token!(self.tokens, TokenType::UnnamedLabelReference) {
             return self.parse_unnamed_label_reference();
         }
         if match_token!(self.tokens, TokenType::LeftParen) {
@@ -1003,37 +1003,15 @@ impl<'a> Parser<'a> {
 
     fn parse_unnamed_label_reference(&mut self) -> Result<Expression> {
         let start = self.mark_start();
-        let mut distance: i8 = 0;
 
-        self.consume_token(TokenType::Colon)?;
-        let next_tok = self.peek()?;
-        match next_tok.token_type {
-            TokenType::Plus => {
-                while self.consume_token(TokenType::Plus).is_ok() {
-                    distance += 1;
-                }
-                self.consume_newline();
-            }
-            TokenType::GreaterThan => {
-                while self.consume_token(TokenType::GreaterThan).is_ok() {
-                    distance += 1;
-                }
-                self.consume_newline();
-            }
-            TokenType::Minus => {
-                while self.consume_token(TokenType::Minus).is_ok() {
-                    distance -= 1;
-                }
-                self.consume_newline();
-            }
-            TokenType::LessThan => {
-                while self.consume_token(TokenType::LessThan).is_ok() {
-                    distance -= 1;
-                }
-                self.consume_newline();
-            }
-            _ => (),
-        }
+        self.consume_token(TokenType::UnnamedLabelReference)?;
+
+        let distance_abs = self.last().lexeme.trim_start_matches(':').len() as i8;
+        let distance = match self.last().lexeme.chars().nth(1) {
+            Some('+') | Some('>') => distance_abs,
+            Some('-') | Some('<') => -distance_abs,
+            _ => 0,
+        };
 
         let end = self.mark_end();
 
