@@ -1,7 +1,7 @@
-use std::fmt::Write;
 use codespan::Span;
 use parser::{Statement, StatementKind, Token};
 use std::collections::HashMap;
+use std::fmt::Write;
 
 pub struct DefAnalyzer {
     statements: Vec<Statement>,
@@ -13,7 +13,7 @@ pub enum ScopeKind {
     Label,
     Macro,
     Constant,
-    Parameter
+    Parameter,
 }
 
 pub struct SymDef {
@@ -123,7 +123,7 @@ fn format_parameters(name: &Token, parameters: &[Token]) -> String {
             0 => write!(output, "{}", token.lexeme),
             _ => write!(output, ", {}", token.lexeme),
         }
-            .unwrap()
+        .unwrap()
     }
 
     output
