@@ -232,6 +232,7 @@ impl<'a> Parser<'a> {
                 TokenType::Macro => self.parse_macro(),
                 TokenType::Identifier => Ok(Some(self.parse_assignment()?)),
                 TokenType::Instruction => Ok(Some(self.parse_instruction()?)),
+                TokenType::Colon => self.parse_unnamed_label(),
                 TokenType::EOL => {
                     self.tokens.advance();
                     Ok(None)
@@ -656,6 +657,16 @@ impl<'a> Parser<'a> {
             kind: StatementKind::Label(name),
             span: Span::new(start, end),
         })
+    }
+
+    fn parse_unnamed_label(&mut self) -> Result<Option<Statement>> {
+        let start = self.mark_start();
+        self.consume_token(TokenType::Colon)?;
+        let end = self.mark_end();
+        Ok(Some(Statement {
+            kind: StatementKind::UnnamedLabel,
+            span: Span::new(start, end),
+        }))
     }
 
     fn parse_macro_invocation(&mut self) -> Result<Statement> {
