@@ -48,6 +48,7 @@ pub enum TokenType {
     RightBrace,
     Bank,
     SizeOf,
+    UnnamedLabelReference,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -165,15 +166,40 @@ impl<'a> Tokenizer<'a> {
                 self.identifier();
                 Ok(Some(self.make_token(TokenType::Identifier)))
             }
-            Some(':') => Ok(Some(if self.input.peek() == Some(':') {
-                self.input.advance();
-                self.make_token(TokenType::ScopeSeparator)
-            } else if self.input.peek() == Some('=') {
-                self.input.advance();
-                self.make_token(TokenType::ConstAssign)
-            } else {
-                self.make_token(TokenType::Colon)
-            })),
+            Some(':') => {
+                let next_char = self.input.peek();
+                if next_char.is_none() {
+                    return Ok(Some(self.make_token(TokenType::Colon)));
+                }
+                let char_following_colon = next_char.unwrap();
+                Ok(Some(match char_following_colon {
+                    ':' => {
+                        self.input.advance();
+                        self.make_token(TokenType::ScopeSeparator)
+                    }
+                    '=' => {
+                        self.input.advance();
+                        self.make_token(TokenType::ConstAssign)
+                    }
+                    '+' | '-' | '>' | '<' => {
+                        loop {
+                            let c = self.input.peek();
+                            if c.is_some_and(|c| c.is_whitespace()) {
+                                break;
+                            } else if c.is_some_and(|c| c != char_following_colon) {
+                                return Err(TokenizerError {
+                                    kind: TokenizerErrorKind::UnexpectedToken,
+                                    offset: self.input.pos(),
+                                });
+                            }
+
+                            self.input.advance();
+                        }
+                        self.make_token(TokenType::UnnamedLabelReference)
+                    }
+                    _ => self.make_token(TokenType::Colon),
+                }))
+            }
             Some('0'..='9') => {
                 self.number();
                 Ok(Some(self.make_token(TokenType::Number)))
