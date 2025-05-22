@@ -44,6 +44,9 @@ impl CompletionProvider for SymbolCompletionProvider {
         let byte_position = state.files.get(id).position_to_byte_index(position).unwrap_or(0);
         let scope = ScopeAnalyzer::search(&scopes, byte_position);
 
+        let word_at_position = state.files.get(id).get_word_at_position(position).unwrap_or("");
+        let has_namespace = word_at_position.contains(":");
+
         symbol_cache_get()
             .iter()
             .filter_map(|symbol| {
@@ -54,12 +57,21 @@ impl CompletionProvider for SymbolCompletionProvider {
                 } else if !show_instructions && matches!(symbol.sym_type, SymbolType::Macro) {
                     None
                 } else {
-                    let name = ScopeAnalyzer::remove_denominator(&scope, symbol.fqn.clone());
+                    let name = if has_namespace {
+                        symbol.fqn.clone()
+                    } else {
+                        ScopeAnalyzer::remove_denominator(&scope, symbol.fqn.clone())
+                    };
+
+                    let postfix = if matches!(symbol.sym_type, SymbolType::Scope) {
+                        "::"
+                    } else {
+                        ""
+                    };
 
                     Some(CompletionItem {
-                        label: name.clone(),
-                        filter_text: Some(symbol.label.clone()),
-                        preselect: Some(true),
+                        label: format!("{name}{postfix}"),
+                        filter_text: if has_namespace { Some(symbol.fqn.clone()) } else {Some(symbol.label.clone())},
                         detail: Some(symbol.comment.to_owned()),
                         label_details: Some(CompletionItemLabelDetails{
                             detail: None,

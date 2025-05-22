@@ -473,11 +473,11 @@ impl Asm {
         let mut state = self.state.lock().await;
         let uri = state.files.get_uri(id);
 
-        symbol_cache_reset(id);
         let mut diagnostics = vec![];
 
         match state.files.index(id) {
             Ok(()) => {
+                symbol_cache_reset(id);
                 let mut analyzer = ScopeAnalyzer::new(state.files.ast(id).clone());
                 let (scopes, symtab) = analyzer.analyze();
                 state.scopes.insert(uri, scopes);
