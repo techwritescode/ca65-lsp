@@ -13,9 +13,7 @@ impl Definition {
         id: FileId,
         position: Position,
     ) -> Result<Option<Vec<Symbol>>, FileError> {
-        let word = files
-            .get(id)
-            .get_word_at_position(position)?;
+        let word = files.get(id).get_word_at_position(position)?;
 
         let mut definitions = symbol_cache_fetch(word.to_string());
 
@@ -25,7 +23,7 @@ impl Definition {
             }
             Ordering::Equal
         });
-        
+
         Ok(Some(definitions))
     }
 }

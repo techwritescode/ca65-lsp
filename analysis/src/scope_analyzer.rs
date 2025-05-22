@@ -5,22 +5,11 @@ use std::fmt::Write;
 
 #[derive(Debug, Clone)]
 pub enum Symbol {
-    Scope {
-        name: Token,
-    },
-    Label {
-        name: Token,
-    },
-    Macro {
-        name: Token,
-        parameters: Vec<Token>,
-    },
-    Constant {
-        name: Token,
-    },
-    Parameter {
-        name: Token,
-    }, // Disabled for now, need to track macro scopes
+    Scope { name: Token },
+    Label { name: Token },
+    Macro { name: Token, parameters: Vec<Token> },
+    Constant { name: Token },
+    Parameter { name: Token }, // Disabled for now, need to track macro scopes
 }
 
 impl Symbol {
@@ -142,12 +131,8 @@ impl ScopeAnalyzer {
         match statement.kind {
             StatementKind::Scope(Some(name), statements) => {
                 let lexeme = name.lexeme.clone();
-                self.symtab.insert(
-                    self.format_name(&name),
-                    Symbol::Scope {
-                        name,
-                    },
-                );
+                self.symtab
+                    .insert(self.format_name(&name), Symbol::Scope { name });
                 self.stack.push(lexeme.clone());
                 let scopes = statements
                     .iter()
@@ -171,9 +156,8 @@ impl ScopeAnalyzer {
             }
             StatementKind::Procedure(name, statements) => {
                 let lexeme = name.lexeme.clone();
-                self.symtab.insert(self.format_name(&name), Symbol::Label {
-                    name
-                });
+                self.symtab
+                    .insert(self.format_name(&name), Symbol::Label { name });
 
                 self.stack.push(lexeme.clone());
                 let scopes = statements
@@ -190,10 +174,8 @@ impl ScopeAnalyzer {
                 })
             }
             StatementKind::MacroDefinition(name, parameters, _) => {
-                self.symtab.insert(self.format_name(&name), Symbol::Macro {
-                    name,
-                    parameters,
-                });
+                self.symtab
+                    .insert(self.format_name(&name), Symbol::Macro { name, parameters });
 
                 None
             }

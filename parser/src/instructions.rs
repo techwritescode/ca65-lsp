@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 pub struct Instructions {
-    instructions: HashMap<String, String>
+    instructions: HashMap<String, String>,
 }
 
 impl Instructions {
@@ -16,6 +16,7 @@ impl Instructions {
     }
 
     pub fn is_instruction(&self, mnemonic: String) -> bool {
-        self.instructions.contains_key(mnemonic.to_lowercase().as_str())
+        self.instructions
+            .contains_key(mnemonic.to_lowercase().as_str())
     }
 }
