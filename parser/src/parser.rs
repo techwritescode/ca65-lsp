@@ -205,16 +205,23 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Result<Ast> {
+    pub fn parse(&mut self) -> (Ast, Vec<ParseError>) {
         let mut lines = vec![];
+        let mut errors = vec![];
 
         while !self.tokens.at_end() {
-            if let Some(operation) = self.parse_line()? {
-                lines.push(operation);
+            let result = self.parse_line();
+            match result {
+                Ok(Some(operation)) => lines.push(operation),
+                Ok(None) => (),
+                Err(e) => {
+                    errors.push(e);
+                    self.error_recovery();
+                }
             }
         }
 
-        Ok(lines)
+        (lines, errors)
     }
 
     fn parse_line(&mut self) -> Result<Option<Statement>> {
@@ -1044,6 +1051,23 @@ impl<'a> Parser<'a> {
                 expected: type_,
                 received: self.peek()?,
             })
+        }
+    }
+    
+    fn error_recovery(&mut self) {
+        loop {
+            if self.tokens.at_end() {
+               break; 
+            }
+            if let Some(token) = self.tokens.peek() {
+                if token.token_type == TokenType::EOL {
+                    break;
+                } else {
+                    self.tokens.advance();
+                }
+            } else {
+                break;
+            }
         }
     }
 }
