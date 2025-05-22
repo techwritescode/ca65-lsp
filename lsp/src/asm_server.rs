@@ -3,27 +3,29 @@ use crate::completion::{
     Ca65KeywordCompletionProvider, CompletionProvider, FeatureCompletionProvider,
     InstructionCompletionProvider, MacpackCompletionProvider, SymbolCompletionProvider,
 };
-use crate::configuration::{load_project_configuration, Configuration};
+use crate::configuration::Configuration;
 use crate::definition::Definition;
 use crate::documentation::{
     CA65_DOCUMENTATION, FEATURE_DOCUMENTATION, INSTRUCTION_DOCUMENTATION, MACPACK_DOCUMENTATION,
 };
 use crate::error::file_error_to_lsp;
 use crate::symbol_cache::{symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType};
-use analysis::{Scope, ScopeAnalyzer, ScopeKind, Symbol};
+use analysis::{Scope, ScopeAnalyzer, Symbol};
 use parser::ParseError;
 use std::collections::HashMap;
+use std::future::Future;
+use std::path::Path;
 use std::process::Output;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp_server::lsp_types::{
     CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionItem,
-    CompletionItemCapability, CompletionOptions, CompletionParams, CompletionResponse, Diagnostic,
-    DiagnosticSeverity, DidChangeWorkspaceFoldersParams, DocumentSymbolParams,
+    CompletionOptions, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
+    DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams, DocumentSymbolParams,
     DocumentSymbolResponse, FileOperationRegistrationOptions, HoverContents,
     HoverProviderCapability, InitializedParams, MarkupContent, MarkupKind, MessageType, OneOf,
-    Range, SymbolInformation, WorkspaceFileOperationsServerCapabilities,
+    Range, Registration, SymbolInformation, WorkspaceFileOperationsServerCapabilities,
     WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use tower_lsp_server::{
@@ -49,14 +51,13 @@ pub struct State {
 pub struct Asm {
     client: Client,
     state: Arc<Mutex<State>>,
-    configuration: Arc<Configuration>,
+    configuration: Arc<Mutex<Configuration>>,
     completion_providers: Vec<Arc<dyn CompletionProvider + Send + Sync>>,
     definition: Definition,
 }
 
 impl Asm {
     pub fn new(client: Client) -> Self {
-        let configuration = load_project_configuration();
         Asm {
             client,
             state: Arc::new(Mutex::new(State {
@@ -65,7 +66,7 @@ impl Asm {
                 files: Files::new(),
                 workspace_folder: None,
             })),
-            configuration: Arc::new(configuration),
+            configuration: Arc::new(Mutex::new(Configuration::default())),
             completion_providers: vec![
                 Arc::from(SymbolCompletionProvider {}),
                 Arc::from(InstructionCompletionProvider {}),
@@ -79,6 +80,25 @@ impl Asm {
 
     async fn index(&self, file_id: &FileId) {
         self.parse_labels(*file_id).await;
+    }
+
+    async fn load_config(&self, path: &Path) -> Result<()> {
+        let uri_str = "file://".to_owned() + path.to_str().unwrap();
+        let uri = Uri::from_str(&uri_str).unwrap();
+
+        match Configuration::load(path) {
+            Ok(configuration) => {
+                *self.configuration.lock().await = configuration;
+                self.client.publish_diagnostics(uri, vec![], None).await;
+            }
+            Err(diagnostic) => {
+                self.client
+                    .publish_diagnostics(uri, vec![diagnostic], None)
+                    .await;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -160,6 +180,33 @@ impl LanguageServer for Asm {
     }
 
     async fn initialized(&self, _params: InitializedParams) {
+        let registration = Registration {
+            id: "config-watcher".to_string(),
+            method: "workspace/didChangeWatchedFiles".to_string(),
+            register_options: Some(serde_json::json!({
+                "watchers": [
+                    {
+                        "globPattern": "**/nes.toml",
+                        "kind": 7,
+                    }
+                ]
+            })),
+        };
+
+        let folder = self.state.lock().await.workspace_folder.clone();
+        if let Some(workspace_folder) = folder {
+            let config_path = Path::new(workspace_folder.path().as_str()).join("nes.toml");
+            if config_path.exists() {
+                self.load_config(&config_path)
+                    .await
+                    .expect("Failed to read config");
+            }
+        }
+
+        self.client
+            .register_capability(vec![registration])
+            .await
+            .unwrap();
         // _ = self
         //     .client
         //     .progress(ProgressToken::String("load".to_string()), "Loading")
@@ -436,6 +483,14 @@ impl LanguageServer for Asm {
         self.client
             .log_message(MessageType::INFO, format!("Config: {:#?}", params))
             .await;
+    }
+
+    async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
+        if let Some(event) = params.changes.first() {
+            self.load_config(Path::new(event.uri.path().as_str()))
+                .await
+                .expect("load_config failed");
+        }
     }
 }
 
