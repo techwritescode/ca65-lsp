@@ -107,7 +107,6 @@ pub struct ScopeAnalyzer {
 impl ScopeAnalyzer {
     pub fn remove_denominator(scope: &[String], fqn: String) -> String {
         let target: Vec<String> = fqn.split("::").map(|s| s.to_string()).collect();
-        eprintln!("{scope:#?} {target:#?}");
 
         for (i, (a, b)) in target.iter().zip(scope).enumerate() {
             if *a != *b {
