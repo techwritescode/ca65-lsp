@@ -5,11 +5,11 @@ use crate::completion::{
 };
 use crate::configuration::{load_project_configuration, Configuration};
 use crate::definition::Definition;
-use crate::documentation::{CA65_DOCUMENTATION, FEATURE_DOCUMENTATION, INSTRUCTION_DOCUMENTATION, MACPACK_DOCUMENTATION};
-use crate::error::file_error_to_lsp;
-use crate::symbol_cache::{
-    symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
+use crate::documentation::{
+    CA65_DOCUMENTATION, FEATURE_DOCUMENTATION, INSTRUCTION_DOCUMENTATION, MACPACK_DOCUMENTATION,
 };
+use crate::error::file_error_to_lsp;
+use crate::symbol_cache::{symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType};
 use analysis::{Scope, ScopeAnalyzer, ScopeKind, Symbol};
 use parser::ParseError;
 use std::collections::HashMap;
@@ -17,7 +17,15 @@ use std::process::Output;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tower_lsp_server::lsp_types::{CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionItem, CompletionItemCapability, CompletionOptions, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity, DidChangeWorkspaceFoldersParams, DocumentSymbolParams, DocumentSymbolResponse, FileOperationRegistrationOptions, HoverContents, HoverProviderCapability, InitializedParams, MarkupContent, MarkupKind, MessageType, OneOf, Range, SymbolInformation, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities};
+use tower_lsp_server::lsp_types::{
+    CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionItem,
+    CompletionItemCapability, CompletionOptions, CompletionParams, CompletionResponse, Diagnostic,
+    DiagnosticSeverity, DidChangeWorkspaceFoldersParams, DocumentSymbolParams,
+    DocumentSymbolResponse, FileOperationRegistrationOptions, HoverContents,
+    HoverProviderCapability, InitializedParams, MarkupContent, MarkupKind, MessageType, OneOf,
+    Range, SymbolInformation, WorkspaceFileOperationsServerCapabilities,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+};
 use tower_lsp_server::{
     jsonrpc::Result,
     lsp_types::{
@@ -33,7 +41,7 @@ pub struct State {
     pub sources: HashMap<Uri, FileId>,
     pub scopes: HashMap<Uri, Vec<Scope>>,
     pub files: Files,
-    pub workspace_folder: Option<Uri>
+    pub workspace_folder: Option<Uri>,
 }
 
 #[allow(dead_code)]
@@ -121,7 +129,7 @@ impl LanguageServer for Asm {
                 state.workspace_folder = Some(workspace_folders.first().unwrap().clone().uri)
             }
         }
-        
+
         Ok(InitializeResult {
             server_info: None,
             capabilities: ServerCapabilities {
@@ -491,10 +499,10 @@ impl Asm {
                         scope.get_name(),
                         scope.get_description(),
                         match &scope {
-                            Symbol::Macro {..} => SymbolType::Macro,
-                            Symbol::Label {..} => SymbolType::Label,
-                            Symbol::Constant {..} => SymbolType::Constant,
-                            Symbol::Parameter {..} => SymbolType::Constant,
+                            Symbol::Macro { .. } => SymbolType::Macro,
+                            Symbol::Label { .. } => SymbolType::Label,
+                            Symbol::Constant { .. } => SymbolType::Constant,
+                            Symbol::Parameter { .. } => SymbolType::Constant,
                             Symbol::Scope { .. } => SymbolType::Scope,
                         },
                     );
@@ -502,7 +510,11 @@ impl Asm {
             }
             Err(err) => match err {
                 IndexError::TokenizerError(err) => {
-                    let pos = state.files.get(id).byte_index_to_position(err.offset).unwrap();
+                    let pos = state
+                        .files
+                        .get(id)
+                        .byte_index_to_position(err.offset)
+                        .unwrap();
                     diagnostics.push(Diagnostic::new_simple(
                         Range::new(pos.into(), pos.into()),
                         "Unexpected character".to_string(),
@@ -511,13 +523,19 @@ impl Asm {
                 IndexError::ParseError(err) => match err {
                     ParseError::UnexpectedToken(token) => {
                         diagnostics.push(Diagnostic::new_simple(
-                            state.files.get(id).byte_span_to_range(token.span).unwrap().into(),
+                            state
+                                .files
+                                .get(id)
+                                .byte_span_to_range(token.span)
+                                .unwrap()
+                                .into(),
                             format!("Unexpected Token {:?}", token.token_type),
                         ));
                     }
                     ParseError::Expected { expected, received } => {
                         diagnostics.push(Diagnostic::new_simple(
-                            state.files
+                            state
+                                .files
                                 .get(id)
                                 .byte_span_to_range(received.span)
                                 .unwrap()
@@ -529,7 +547,8 @@ impl Asm {
                         ));
                     }
                     ParseError::EOF => {
-                        let pos = state.files
+                        let pos = state
+                            .files
                             .get(id)
                             .byte_index_to_position(state.files.get(id).source.len() - 1)
                             .unwrap();

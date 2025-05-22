@@ -22,7 +22,10 @@ where
     }
 }
 
-impl<T> Index<usize> for Arena<T> where T: PartialEq {
+impl<T> Index<usize> for Arena<T>
+where
+    T: PartialEq,
+{
     type Output = T;
 
     fn index(&self, index: usize) -> &T {
@@ -30,7 +33,10 @@ impl<T> Index<usize> for Arena<T> where T: PartialEq {
     }
 }
 
-impl<T> IndexMut<usize> for Arena<T> where T: PartialEq {
+impl<T> IndexMut<usize> for Arena<T>
+where
+    T: PartialEq,
+{
     fn index_mut(&mut self, index: usize) -> &mut T {
         &mut self.data[index]
     }
@@ -47,7 +53,7 @@ mod tests {
         let b = arena.alloc(2);
         let c = arena.alloc(3);
         let d = arena.alloc(4);
-        
+
         assert_eq!(arena.data[a], 1);
         assert_eq!(arena.data[b], 2);
         assert_eq!(arena.data[c], 3);
