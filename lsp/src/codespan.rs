@@ -122,21 +122,15 @@ impl Files {
         tokens.is_empty() || tokens[0].span.end >= offset // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
     }
 
-    pub fn index(&mut self, id: FileId) -> Result<()> {
+    pub fn index(&mut self, id: FileId) -> Result<Vec<ParseError>> {
         match parser::Tokenizer::new(self.source(id), &INSTRUCTIONS).parse() {
             Ok(tokens) => {
                 self.files[id.get()].tokens = tokens;
 
-                match parser::Parser::new(&self.files[id.get()].tokens).parse() {
-                    Ok(ast) => {
-                        self.files[id.get()].ast = ast;
-                    }
-                    Err(err) => {
-                        return Err(IndexError::ParseError(err));
-                    }
-                }
+                let (ast, errors) = parser::Parser::new(&self.files[id.get()].tokens).parse();
+                self.files[id.get()].ast = ast;
 
-                Ok(())
+                Ok(errors)
             }
             Err(err) => Err(IndexError::TokenizerError(err)),
         }
