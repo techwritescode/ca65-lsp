@@ -10,22 +10,14 @@ use crate::error::file_error_to_lsp;
 use crate::symbol_cache::{
     symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
 };
-use analysis::{Scope, ScopeAnalyzer, ScopeKind};
+use analysis::{Scope, ScopeAnalyzer, ScopeKind, Symbol};
 use parser::ParseError;
 use std::collections::HashMap;
 use std::process::Output;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tower_lsp_server::lsp_types::{
-    CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionItem,
-    CompletionOptions, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
-    DidChangeWorkspaceFoldersParams, DocumentSymbolParams, DocumentSymbolResponse,
-    FileOperationRegistrationOptions, HoverContents, HoverProviderCapability, InitializedParams,
-    MarkupContent, MarkupKind, MessageType, OneOf, Range, SymbolInformation,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities,
-};
+use tower_lsp_server::lsp_types::{CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionItem, CompletionItemCapability, CompletionOptions, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity, DidChangeWorkspaceFoldersParams, DocumentSymbolParams, DocumentSymbolResponse, FileOperationRegistrationOptions, HoverContents, HoverProviderCapability, InitializedParams, MarkupContent, MarkupKind, MessageType, OneOf, Range, SymbolInformation, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities};
 use tower_lsp_server::{
     jsonrpc::Result,
     lsp_types::{
@@ -67,8 +59,8 @@ impl Asm {
             })),
             configuration: Arc::new(configuration),
             completion_providers: vec![
-                Arc::from(InstructionCompletionProvider {}),
                 Arc::from(SymbolCompletionProvider {}),
+                Arc::from(InstructionCompletionProvider {}),
                 Arc::from(Ca65KeywordCompletionProvider {}),
                 Arc::from(MacpackCompletionProvider {}),
                 Arc::from(FeatureCompletionProvider {}),
@@ -138,6 +130,7 @@ impl LanguageServer for Asm {
                 )),
                 definition_provider: Some(OneOf::Left(true)),
                 completion_provider: Some(CompletionOptions {
+                    trigger_characters: Some(vec![".".to_string()]),
                     ..Default::default()
                 }),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
@@ -361,21 +354,7 @@ impl LanguageServer for Asm {
             .sources
             .get(&params.text_document_position.text_document.uri)
         {
-            let pos = params.text_document_position.position.into();
-
-            let prefix = if let Some(scopes) = state.scopes.get(&state.files.get_uri(*id)) {
-                let file = state.files.get(*id);
-                let index = file.position_to_byte_index(pos).or(Ok(0))?;
-
-                let scopes = ScopeAnalyzer::search(scopes.clone(), index);
-                scopes.join("::")
-            } else {
-                "".to_string()
-            };
-
-            let mut completion_items: Vec<CompletionItem> = vec![
-                CompletionItem::new_simple(prefix, "".into()),
-            ];
+            let mut completion_items: Vec<CompletionItem> = vec![];
             for provider in self.completion_providers.iter() {
                 completion_items.extend(provider.completions_for(
                     &state,
@@ -494,26 +473,29 @@ impl Asm {
         let mut state = self.state.lock().await;
         let uri = state.files.get_uri(id);
 
-        symbol_cache_reset(id);
         let mut diagnostics = vec![];
 
         match state.files.index(id) {
             Ok(()) => {
-                let scopes = ScopeAnalyzer::new(state.files.ast(id).clone()).analyze();
+                symbol_cache_reset(id);
+                let mut analyzer = ScopeAnalyzer::new(state.files.ast(id).clone());
+                let (scopes, symtab) = analyzer.analyze();
                 state.scopes.insert(uri, scopes);
-                let symbols = analysis::DefAnalyzer::new(state.files.ast(id).clone()).parse();
+                // let symbols = analysis::DefAnalyzer::new(state.files.ast(id).clone()).parse();
 
-                for (symbol, scope) in symbols.iter() {
+                for (symbol, scope) in symtab.iter() {
                     symbol_cache_insert(
                         id,
-                        scope.span,
+                        scope.get_span(),
                         symbol.clone(),
-                        scope.description.clone(),
-                        match &scope.kind {
-                            ScopeKind::Macro => SymbolType::Macro,
-                            ScopeKind::Label => SymbolType::Label,
-                            ScopeKind::Constant => SymbolType::Constant,
-                            ScopeKind::Parameter => SymbolType::Constant,
+                        scope.get_name(),
+                        scope.get_description(),
+                        match &scope {
+                            Symbol::Macro {..} => SymbolType::Macro,
+                            Symbol::Label {..} => SymbolType::Label,
+                            Symbol::Constant {..} => SymbolType::Constant,
+                            Symbol::Parameter {..} => SymbolType::Constant,
+                            Symbol::Scope { .. } => SymbolType::Scope,
                         },
                     );
                 }
