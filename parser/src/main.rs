@@ -44,10 +44,13 @@ fn print_error(file: &codespan::File, error: TokenizerError) {
 fn print_parse_error(file: &codespan::File, error: ParseError) {
     match error {
         ParseError::EOF => println!("Unexpected end of file"),
-        ParseError::Expected { expected, received} => {
-            println!("Expected {:?} but received {:?}", expected, received.token_type);
+        ParseError::Expected { expected, received } => {
+            println!(
+                "Expected {:?} but received {:?}",
+                expected, received.token_type
+            );
             print_error_offset(file, received.span.start);
-        },
+        }
         ParseError::UnexpectedToken(token) => {
             println!("Unexpected token {:?}", token);
             print_error_offset(file, token.span.start);

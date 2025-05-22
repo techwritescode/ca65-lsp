@@ -1,7 +1,7 @@
 use crate::instructions::Instructions;
 use crate::stream::Stream;
-use std::fmt::{Display, Formatter};
 use codespan::Span;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq)]
 #[repr(u32)]
@@ -258,12 +258,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn hex_number(&mut self) {
-        while !self.input.at_end()
-            && self
-                .input
-                .peek()
-                .is_some_and(|c| c.is_ascii_hexdigit())
-        {
+        while !self.input.at_end() && self.input.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
             self.input.advance();
         }
     }

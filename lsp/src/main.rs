@@ -1,15 +1,15 @@
 mod asm_server;
 mod codespan;
+mod completion;
 mod configuration;
+mod definition;
 mod diagnostics;
+mod documentation;
+mod error;
 mod instructions;
 mod logger;
-mod symbol_cache;
-mod completion;
-mod definition;
-mod error;
 mod path;
-mod documentation;
+mod symbol_cache;
 
 use asm_server::Asm;
 use tower_lsp_server::{LspService, Server};
@@ -23,12 +23,8 @@ async fn main() -> anyhow::Result<()> {
     instructions::init_instruction_map();
     documentation::init();
 
-    let (service, socket) = LspService::new(|client| {
-        Asm::new(client)
-    });
-    Server::new(stdin, stdout, socket)
-        .serve(service)
-        .await;
+    let (service, socket) = LspService::new(|client| Asm::new(client));
+    Server::new(stdin, stdout, socket).serve(service).await;
 
     Ok(())
 }

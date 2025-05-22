@@ -1,12 +1,14 @@
 use crate::asm_server::State;
 use crate::codespan::FileId;
-use crate::documentation::{CA65_KEYWORD_COMPLETION_ITEMS, FEATURE_COMPLETION_ITEMS, INSTRUCTION_COMPLETION_ITEMS, MACPACK_COMPLETION_ITEMS};
+use crate::documentation::{
+    CA65_KEYWORD_COMPLETION_ITEMS, FEATURE_COMPLETION_ITEMS, INSTRUCTION_COMPLETION_ITEMS,
+    MACPACK_COMPLETION_ITEMS,
+};
 use crate::symbol_cache::{symbol_cache_get, SymbolType};
+use analysis::ScopeAnalyzer;
 use codespan::Position;
 use parser::TokenType;
 use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails};
-use analysis::ScopeAnalyzer;
-
 
 pub trait CompletionProvider {
     fn completions_for(&self, state: &State, id: FileId, position: Position)
@@ -23,7 +25,10 @@ impl CompletionProvider for InstructionCompletionProvider {
         position: Position,
     ) -> Vec<CompletionItem> {
         if state.files.show_instructions(id, position) {
-            INSTRUCTION_COMPLETION_ITEMS.get().expect("Could not get INSTRUCTION_COMPLETION_ITEMS").clone()
+            INSTRUCTION_COMPLETION_ITEMS
+                .get()
+                .expect("Could not get INSTRUCTION_COMPLETION_ITEMS")
+                .clone()
         } else {
             Vec::new()
         }
@@ -40,11 +45,23 @@ impl CompletionProvider for SymbolCompletionProvider {
         position: Position,
     ) -> Vec<CompletionItem> {
         let show_instructions = state.files.show_instructions(id, position); // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
-        let scopes = state.scopes.get(&state.files.get_uri(id)).unwrap_or(&vec![]).clone();
-        let byte_position = state.files.get(id).position_to_byte_index(position).unwrap_or(0);
+        let scopes = state
+            .scopes
+            .get(&state.files.get_uri(id))
+            .unwrap_or(&vec![])
+            .clone();
+        let byte_position = state
+            .files
+            .get(id)
+            .position_to_byte_index(position)
+            .unwrap_or(0);
         let scope = ScopeAnalyzer::search(&scopes, byte_position);
 
-        let word_at_position = state.files.get(id).get_word_at_position(position).unwrap_or("");
+        let word_at_position = state
+            .files
+            .get(id)
+            .get_word_at_position(position)
+            .unwrap_or("");
         let has_namespace = word_at_position.contains(":");
 
         symbol_cache_get()
@@ -71,9 +88,13 @@ impl CompletionProvider for SymbolCompletionProvider {
 
                     Some(CompletionItem {
                         label: format!("{name}{postfix}"),
-                        filter_text: if has_namespace { Some(symbol.fqn.clone()) } else {Some(symbol.label.clone())},
+                        filter_text: if has_namespace {
+                            Some(symbol.fqn.clone())
+                        } else {
+                            Some(symbol.label.clone())
+                        },
                         detail: Some(symbol.comment.to_owned()),
-                        label_details: Some(CompletionItemLabelDetails{
+                        label_details: Some(CompletionItemLabelDetails {
                             detail: None,
                             description: state.files.get_uri_relative(symbol.file_id, id),
                         }),
@@ -100,7 +121,10 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
         _id: FileId,
         _position: Position,
     ) -> Vec<CompletionItem> {
-        CA65_KEYWORD_COMPLETION_ITEMS.get().expect("Could not get ca65 completion items in completion provider").clone()
+        CA65_KEYWORD_COMPLETION_ITEMS
+            .get()
+            .expect("Could not get ca65 completion items in completion provider")
+            .clone()
     }
 }
 
@@ -111,15 +135,20 @@ impl CompletionProvider for MacpackCompletionProvider {
         &self,
         state: &State,
         id: FileId,
-        position: Position
+        position: Position,
     ) -> Vec<CompletionItem> {
-        if state.files.line_tokens(id, position)
+        if state
+            .files
+            .line_tokens(id, position)
             .iter()
             .filter(|tok| tok.token_type != TokenType::EOL)
             .nth_back(1)
-            .is_some_and(|tok| tok.lexeme == ".macpack"
-        ) {
-            MACPACK_COMPLETION_ITEMS.get().expect("Could not get MACPACK_COMPLETION_ITEMS in completion provider").clone()
+            .is_some_and(|tok| tok.lexeme == ".macpack")
+        {
+            MACPACK_COMPLETION_ITEMS
+                .get()
+                .expect("Could not get MACPACK_COMPLETION_ITEMS in completion provider")
+                .clone()
         } else {
             Vec::new()
         }
@@ -132,15 +161,20 @@ impl CompletionProvider for FeatureCompletionProvider {
         &self,
         state: &State,
         id: FileId,
-        position: Position
+        position: Position,
     ) -> Vec<CompletionItem> {
-        if state.files.line_tokens(id, position)
+        if state
+            .files
+            .line_tokens(id, position)
             .iter()
             .filter(|tok| tok.token_type != TokenType::EOL)
             .nth_back(1)
-            .is_some_and(|tok| tok.lexeme == ".feature"
-        ) {
-            FEATURE_COMPLETION_ITEMS.get().expect("Could not get FEATURE_COMPLETION_ITEMS in completion provider").clone()
+            .is_some_and(|tok| tok.lexeme == ".feature")
+        {
+            FEATURE_COMPLETION_ITEMS
+                .get()
+                .expect("Could not get FEATURE_COMPLETION_ITEMS in completion provider")
+                .clone()
         } else {
             Vec::new()
         }

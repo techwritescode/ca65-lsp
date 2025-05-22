@@ -14,7 +14,6 @@ impl Stream {
         self.position
     }
 
-
     pub fn peek(&self) -> Option<char> {
         if self.position >= self.input.len() {
             None
