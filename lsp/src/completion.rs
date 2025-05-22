@@ -5,6 +5,8 @@ use crate::symbol_cache::{symbol_cache_get, SymbolType};
 use codespan::Position;
 use parser::TokenType;
 use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails};
+use analysis::ScopeAnalyzer;
+
 
 pub trait CompletionProvider {
     fn completions_for(&self, state: &State, id: FileId, position: Position)
@@ -38,6 +40,12 @@ impl CompletionProvider for SymbolCompletionProvider {
         position: Position,
     ) -> Vec<CompletionItem> {
         let show_instructions = state.files.show_instructions(id, position); // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
+        let scopes = state.scopes.get(&state.files.get_uri(id)).unwrap_or(&vec![]).clone();
+        let byte_position = state.files.get(id).position_to_byte_index(position).unwrap_or(0);
+        let scope = ScopeAnalyzer::search(&scopes, byte_position);
+
+        let word_at_position = state.files.get(id).get_word_at_position(position).unwrap_or("");
+        let has_namespace = word_at_position.contains(":");
 
         symbol_cache_get()
             .iter()
@@ -49,8 +57,21 @@ impl CompletionProvider for SymbolCompletionProvider {
                 } else if !show_instructions && matches!(symbol.sym_type, SymbolType::Macro) {
                     None
                 } else {
+                    let name = if has_namespace {
+                        symbol.fqn.clone()
+                    } else {
+                        ScopeAnalyzer::remove_denominator(&scope, symbol.fqn.clone())
+                    };
+
+                    let postfix = if matches!(symbol.sym_type, SymbolType::Scope) {
+                        "::"
+                    } else {
+                        ""
+                    };
+
                     Some(CompletionItem {
-                        label: symbol.label.to_owned(),
+                        label: format!("{name}{postfix}"),
+                        filter_text: if has_namespace { Some(symbol.fqn.clone()) } else {Some(symbol.label.clone())},
                         detail: Some(symbol.comment.to_owned()),
                         label_details: Some(CompletionItemLabelDetails{
                             detail: None,
@@ -60,6 +81,7 @@ impl CompletionProvider for SymbolCompletionProvider {
                             SymbolType::Label => CompletionItemKind::FUNCTION,
                             SymbolType::Constant => CompletionItemKind::CONSTANT,
                             SymbolType::Macro => CompletionItemKind::SNIPPET,
+                            SymbolType::Scope => CompletionItemKind::MODULE,
                         }),
                         ..Default::default()
                     })

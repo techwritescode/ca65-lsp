@@ -10,11 +10,13 @@ pub enum SymbolType {
     Label,
     Constant,
     Macro,
+    Scope,
 }
 
 #[derive(Clone, Debug)]
 pub struct Symbol {
     pub file_id: FileId,
+    pub fqn: String,
     pub label: String,
     pub span: Span,
     pub comment: String,
@@ -57,6 +59,7 @@ pub fn symbol_cache_reset(file_id: FileId) {
 pub fn symbol_cache_insert(
     file_id: FileId,
     span: Span,
+    fqn: String,
     label: String,
     comment: String,
     sym_type: SymbolType,
@@ -74,6 +77,7 @@ pub fn symbol_cache_insert(
         .lock()
         .expect("Symbol cache mutex poisoned");
     cache.push(Symbol {
+        fqn,
         label,
         span,
         file_id,

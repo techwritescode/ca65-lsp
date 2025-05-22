@@ -94,6 +94,7 @@ fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation
             .keys_to_doc
             .iter()
             .map(|(keyword, keyword_info)| CompletionItem {
+                filter_text: Some(format!("{keyword_prepend_text}{keyword}")),
                 label: format!("{keyword_prepend_text}{keyword}"),
                 kind: Some(CompletionItemKind::KEYWORD),
                 documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
@@ -114,6 +115,7 @@ fn get_completion_item_vec_from_indexed_documentation(doc: &IndexedDocumentation
             .iter()
             .map(|(alias, key)| (alias, doc.keys_to_doc.get(key).expect("Alias in IndexedDocumentation did not point to a key")))
             .map(|(alias, keyword_info)| CompletionItem {
+                filter_text: Some(format!("{keyword_prepend_text}{alias}")),
                 label: format!("{keyword_prepend_text}{alias}"),
                 kind: Some(CompletionItemKind::KEYWORD),
                 documentation: Some(Documentation::MarkupContent(MarkupContent {
@@ -136,6 +138,7 @@ fn get_completion_item_vec_from_string_string_hashmap(doc: &HashMap<String, Stri
     doc
         .iter()
         .map(|(keyword, documentation_text)| CompletionItem {
+            filter_text: Some(keyword.clone()),
             label: keyword.clone(),
             kind: Some(CompletionItemKind::MODULE),
             documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
