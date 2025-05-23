@@ -24,8 +24,8 @@ TBD
   require 'lspconfig'.ca65.setup{}
   ```
 - Helix
-  - if it doesn't already exist, create a [`languages.toml` file](https://docs.helix-editor.com/languages.html#languagestoml-files). I put mine in my [config directory](https://docs.helix-editor.com/configuration.html) which for me (on Windows 11) is `~/AppData/Roaming/helix/`
-  - add the following to it:
+  - If it doesn't already exist, create a [`languages.toml` file](https://docs.helix-editor.com/languages.html#languagestoml-files). I put mine in my [config directory](https://docs.helix-editor.com/configuration.html) which for me (on Windows 11) is `~/AppData/Roaming/helix/`
+  - Add the following to it:
     ```toml
     # languages.toml
     [language-server.ca65-lsp]
@@ -42,7 +42,7 @@ TBD
     name = "ca65"
     source = { git = "https://github.com/simonhochrein/tree-sitter-ca65", rev = "9e73befb5c3c6852f905964c22740c9605b03af8" }
     ```
-  - to get syntax highlighting working
-    - navigate to `<your helix install directory>/runtime/queries/`
-    - create a directory called `ca65`
-    - copy the files `highlights.scm` and `outline.scm` from the `simonhochrein/tree-sitter-ca65` repo, under `queries/ca65/` into the `ca65` directory you just created
+  - To get syntax highlighting working
+    - Navigate to `<your helix install directory>/runtime/queries/`
+    - Create a directory called `ca65`
+    - Copy the files `highlights.scm` and `outline.scm` from the `simonhochrein/tree-sitter-ca65` repo, under `queries/ca65/` into the `ca65` directory you just created
