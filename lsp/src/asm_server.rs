@@ -187,7 +187,7 @@ impl LanguageServer for Asm {
                 "watchers": [
                     {
                         "globPattern": "**/nes.toml",
-                        "kind": 7, // 0b0000111 for Create, Write, and Delete
+                        "kind": 7, // 0b00000111 for Create, Write, and Delete
                     }
                 ]
             })),
