@@ -11,9 +11,9 @@ use crate::documentation::{
 use crate::error::file_error_to_lsp;
 use crate::symbol_cache::{symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType};
 use analysis::{Scope, ScopeAnalyzer, Symbol};
+use codespan::Span;
 use parser::ParseError;
 use std::collections::HashMap;
-use std::future::Future;
 use std::path::Path;
 use std::process::Output;
 use std::str::FromStr;
@@ -24,9 +24,10 @@ use tower_lsp_server::lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
     DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams, DocumentSymbolParams,
     DocumentSymbolResponse, FileOperationRegistrationOptions, HoverContents,
-    HoverProviderCapability, InitializedParams, MarkupContent, MarkupKind, MessageType, OneOf,
-    Range, Registration, SymbolInformation, WorkspaceFileOperationsServerCapabilities,
-    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+    HoverProviderCapability, InitializedParams, LocationLink, MarkupContent, MarkupKind,
+    MessageType, OneOf, Range, Registration, SymbolInformation,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    WorkspaceServerCapabilities,
 };
 use tower_lsp_server::{
     jsonrpc::Result,
@@ -246,17 +247,17 @@ impl LanguageServer for Asm {
             .sources
             .get(&params.text_document_position_params.text_document.uri)
         {
-            let definitions = self
+            let (definitions, span) = self
                 .definition
                 .get_definition_position(
-                    &state.files,
+                    &state,
                     *id,
                     params.text_document_position_params.position.into(),
                 )
                 .map_err(file_error_to_lsp)?
-                .unwrap_or(Vec::new());
+                .unwrap_or((Vec::new(), Span::new(0, 0)));
 
-            return Ok(Some(GotoDefinitionResponse::Array(
+            return Ok(Some(GotoDefinitionResponse::Link(
                 definitions
                     .iter()
                     .map(|definition| {
@@ -266,7 +267,19 @@ impl LanguageServer for Asm {
                             .byte_span_to_range(definition.span)
                             .unwrap()
                             .into();
-                        Location::new(state.files.get_uri(definition.file_id), range)
+                        let source_range = state
+                            .files
+                            .get(*id)
+                            .byte_span_to_range(span)
+                            .unwrap()
+                            .into();
+
+                        LocationLink {
+                            origin_selection_range: Some(source_range),
+                            target_uri: state.files.get_uri(definition.file_id),
+                            target_range: range,
+                            target_selection_range: range,
+                        }
                     })
                     .collect(),
             )));
@@ -347,13 +360,13 @@ impl LanguageServer for Asm {
             let definitions = self
                 .definition
                 .get_definition_position(
-                    &state.files,
+                    &state,
                     *id,
                     params.text_document_position_params.position.into(),
                 )
                 .map_err(file_error_to_lsp)?;
 
-            return if let Some(definitions) = definitions {
+            return if let Some((definitions, _span)) = definitions {
                 let documentation = definitions
                     .first()
                     .map(|symbol| format!("```ca65\n{}\n```", symbol.comment.clone()))

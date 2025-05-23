@@ -86,7 +86,7 @@ pub fn symbol_cache_insert(
     });
 }
 
-pub fn symbol_cache_fetch(label: String) -> Vec<Symbol> {
+pub fn symbol_cache_fetch(fqn: String) -> Vec<Symbol> {
     let cache = SYMBOL_CACHE
         .get()
         .expect("Symbol cache not initialized")
@@ -96,7 +96,7 @@ pub fn symbol_cache_fetch(label: String) -> Vec<Symbol> {
     cache
         .iter()
         .filter_map(|sym| {
-            if sym.label == label {
+            if sym.fqn == fqn {
                 return Some(sym.clone());
             }
             None

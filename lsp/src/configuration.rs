@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use tower_lsp_server::lsp_types;
-use tower_lsp_server::lsp_types::{Diagnostic, Position, Uri};
+use tower_lsp_server::lsp_types::{Diagnostic, Position};
 
 #[derive(serde::Deserialize, Default, Debug)]
 pub struct Toolchain {
