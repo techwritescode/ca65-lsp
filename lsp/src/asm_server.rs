@@ -11,7 +11,7 @@ use crate::documentation::{
 use crate::error::file_error_to_lsp;
 use crate::symbol_cache::{symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType};
 use analysis::{Scope, ScopeAnalyzer, Symbol};
-use codespan::Span;
+use codespan::{File, Span};
 use parser::ParseError;
 use std::collections::HashMap;
 use std::path::Path;
@@ -23,11 +23,11 @@ use tower_lsp_server::lsp_types::{
     CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionItem,
     CompletionOptions, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
     DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams, DocumentSymbolParams,
-    DocumentSymbolResponse, FileOperationRegistrationOptions, HoverContents,
-    HoverProviderCapability, InitializedParams, LocationLink, MarkupContent, MarkupKind,
-    MessageType, OneOf, Range, Registration, SymbolInformation,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities,
+    DocumentSymbolResponse, FileOperationRegistrationOptions, FoldingRange, FoldingRangeParams,
+    FoldingRangeProviderCapability, HoverContents, HoverProviderCapability, InitializedParams,
+    LocationLink, MarkupContent, MarkupKind, MessageType, OneOf, Range, Registration,
+    SymbolInformation, WorkspaceFileOperationsServerCapabilities,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use tower_lsp_server::{
     jsonrpc::Result,
@@ -101,6 +101,103 @@ impl Asm {
 
         Ok(())
     }
+
+    async fn parse_labels(&self, id: FileId) {
+        let mut state = self.state.lock().await;
+        let uri = state.files.get_uri(id);
+
+        let mut diagnostics = vec![];
+
+        match state.files.index(id) {
+            Ok(parse_errors) => {
+                symbol_cache_reset(id);
+                let mut analyzer = ScopeAnalyzer::new(state.files.ast(id).clone());
+                let (scopes, symtab) = analyzer.analyze();
+                state.scopes.insert(uri, scopes);
+                // let symbols = analysis::DefAnalyzer::new(state.files.ast(id).clone()).parse();
+
+                for (symbol, scope) in symtab.iter() {
+                    symbol_cache_insert(
+                        id,
+                        scope.get_span(),
+                        symbol.clone(),
+                        scope.get_name(),
+                        scope.get_description(),
+                        match &scope {
+                            Symbol::Macro { .. } => SymbolType::Macro,
+                            Symbol::Label { .. } => SymbolType::Label,
+                            Symbol::Constant { .. } => SymbolType::Constant,
+                            Symbol::Parameter { .. } => SymbolType::Constant,
+                            Symbol::Scope { .. } => SymbolType::Scope,
+                        },
+                    );
+                }
+
+                for err in parse_errors.iter() {
+                    match err {
+                        ParseError::UnexpectedToken(token) => {
+                            diagnostics.push(Diagnostic::new_simple(
+                                state
+                                    .files
+                                    .get(id)
+                                    .byte_span_to_range(token.span)
+                                    .unwrap()
+                                    .into(),
+                                format!("Unexpected Token {:?}", token.token_type),
+                            ));
+                        }
+                        ParseError::Expected { expected, received } => {
+                            diagnostics.push(Diagnostic::new_simple(
+                                state
+                                    .files
+                                    .get(id)
+                                    .byte_span_to_range(received.span)
+                                    .unwrap()
+                                    .into(),
+                                format!(
+                                    "Expected {:?} but received {:?}",
+                                    expected, received.token_type
+                                ),
+                            ));
+                        }
+                        ParseError::EOF => {
+                            let pos = state
+                                .files
+                                .get(id)
+                                .byte_index_to_position(state.files.get(id).source.len() - 1)
+                                .unwrap();
+                            diagnostics.push(Diagnostic::new_simple(
+                                Range::new(pos.into(), pos.into()),
+                                "Unexpected EOF".to_string(),
+                            ));
+                        }
+                    }
+                }
+            }
+            Err(err) => match err {
+                IndexError::TokenizerError(err) => {
+                    let pos = state
+                        .files
+                        .get(id)
+                        .byte_index_to_position(err.offset)
+                        .unwrap();
+                    diagnostics.push(Diagnostic::new_simple(
+                        Range::new(pos.into(), pos.into()),
+                        "Unexpected character".to_string(),
+                    ));
+                }
+                _ => {}
+            },
+        }
+
+        self.client
+            .publish_diagnostics(
+                Uri::from_str(state.files.get(id).name.as_str()).unwrap(),
+                diagnostics,
+                None,
+            )
+            .await;
+    }
 }
 
 #[allow(dead_code)]
@@ -173,6 +270,7 @@ impl LanguageServer for Asm {
                         change_notifications: Some(OneOf::Left(true)),
                     }),
                 }),
+                folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 ..ServerCapabilities::default()
@@ -505,6 +603,27 @@ impl LanguageServer for Asm {
                 .expect("load_config failed");
         }
     }
+
+    async fn folding_range(&self, params: FoldingRangeParams) -> Result<Option<Vec<FoldingRange>>> {
+        let state = self.state.lock().await;
+
+        if let Some(id) = state.sources.get(&params.text_document.uri) {
+            let uri = state.files.get_uri(*id);
+            if let Some(scopes) = state.scopes.get(&uri) {
+                let file = state.files.get(*id);
+                Ok(Some(
+                    scopes
+                        .iter()
+                        .flat_map(|scope| scope_to_folding_range(file, scope))
+                        .collect(),
+                ))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 fn get_or_insert_source(state: &mut State, document: &TextDocumentItem) -> FileId {
@@ -544,101 +663,23 @@ fn reload_source(
     }
 }
 
-impl Asm {
-    async fn parse_labels(&self, id: FileId) {
-        let mut state = self.state.lock().await;
-        let uri = state.files.get_uri(id);
+fn scope_to_folding_range(file: &File, scope: &Scope) -> Vec<FoldingRange> {
+    let range = file.byte_span_to_range(scope.span).unwrap();
+    let mut results = vec![FoldingRange {
+        start_line: range.start.line as u32,
+        start_character: None,
+        end_line: (range.end.line - 1) as u32,
+        end_character: None,
+        kind: None,
+        collapsed_text: None,
+    }];
 
-        let mut diagnostics = vec![];
+    results.extend(
+        scope
+            .children
+            .iter()
+            .flat_map(|scope| scope_to_folding_range(file, scope)),
+    );
 
-        match state.files.index(id) {
-            Ok(parse_errors) => {
-                symbol_cache_reset(id);
-                let mut analyzer = ScopeAnalyzer::new(state.files.ast(id).clone());
-                let (scopes, symtab) = analyzer.analyze();
-                state.scopes.insert(uri, scopes);
-                // let symbols = analysis::DefAnalyzer::new(state.files.ast(id).clone()).parse();
-
-                for (symbol, scope) in symtab.iter() {
-                    symbol_cache_insert(
-                        id,
-                        scope.get_span(),
-                        symbol.clone(),
-                        scope.get_name(),
-                        scope.get_description(),
-                        match &scope {
-                            Symbol::Macro { .. } => SymbolType::Macro,
-                            Symbol::Label { .. } => SymbolType::Label,
-                            Symbol::Constant { .. } => SymbolType::Constant,
-                            Symbol::Parameter { .. } => SymbolType::Constant,
-                            Symbol::Scope { .. } => SymbolType::Scope,
-                        },
-                    );
-                }
-
-                for err in parse_errors.iter() {
-                    match err {
-                        ParseError::UnexpectedToken(token) => {
-                            diagnostics.push(Diagnostic::new_simple(
-                                state
-                                    .files
-                                    .get(id)
-                                    .byte_span_to_range(token.span)
-                                    .unwrap()
-                                    .into(),
-                                format!("Unexpected Token {:?}", token.token_type),
-                            ));
-                        }
-                        ParseError::Expected { expected, received } => {
-                            diagnostics.push(Diagnostic::new_simple(
-                                state
-                                    .files
-                                    .get(id)
-                                    .byte_span_to_range(received.span)
-                                    .unwrap()
-                                    .into(),
-                                format!(
-                                    "Expected {:?} but received {:?}",
-                                    expected, received.token_type
-                                ),
-                            ));
-                        }
-                        ParseError::EOF => {
-                            let pos = state
-                                .files
-                                .get(id)
-                                .byte_index_to_position(state.files.get(id).source.len() - 1)
-                                .unwrap();
-                            diagnostics.push(Diagnostic::new_simple(
-                                Range::new(pos.into(), pos.into()),
-                                "Unexpected EOF".to_string(),
-                            ));
-                        }
-                    }
-                }
-            }
-            Err(err) => match err {
-                IndexError::TokenizerError(err) => {
-                    let pos = state
-                        .files
-                        .get(id)
-                        .byte_index_to_position(err.offset)
-                        .unwrap();
-                    diagnostics.push(Diagnostic::new_simple(
-                        Range::new(pos.into(), pos.into()),
-                        "Unexpected character".to_string(),
-                    ));
-                }
-                _ => {}
-            },
-        }
-
-        self.client
-            .publish_diagnostics(
-                Uri::from_str(state.files.get(id).name.as_str()).unwrap(),
-                diagnostics,
-                None,
-            )
-            .await;
-    }
+    results
 }
