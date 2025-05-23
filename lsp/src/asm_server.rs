@@ -187,7 +187,7 @@ impl LanguageServer for Asm {
                 "watchers": [
                     {
                         "globPattern": "**/nes.toml",
-                        "kind": 7,
+                        "kind": 7, // 0b00000111 for Create, Write, and Delete
                     }
                 ]
             })),
@@ -539,7 +539,7 @@ impl Asm {
         let mut diagnostics = vec![];
 
         match state.files.index(id) {
-            Ok(()) => {
+            Ok(parse_errors) => {
                 symbol_cache_reset(id);
                 let mut analyzer = ScopeAnalyzer::new(state.files.ast(id).clone());
                 let (scopes, symtab) = analyzer.analyze();
@@ -562,6 +562,47 @@ impl Asm {
                         },
                     );
                 }
+
+                for err in parse_errors.iter() {
+                    match err {
+                        ParseError::UnexpectedToken(token) => {
+                            diagnostics.push(Diagnostic::new_simple(
+                                state
+                                    .files
+                                    .get(id)
+                                    .byte_span_to_range(token.span)
+                                    .unwrap()
+                                    .into(),
+                                format!("Unexpected Token {:?}", token.token_type),
+                            ));
+                        }
+                        ParseError::Expected { expected, received } => {
+                            diagnostics.push(Diagnostic::new_simple(
+                                state
+                                    .files
+                                    .get(id)
+                                    .byte_span_to_range(received.span)
+                                    .unwrap()
+                                    .into(),
+                                format!(
+                                    "Expected {:?} but received {:?}",
+                                    expected, received.token_type
+                                ),
+                            ));
+                        }
+                        ParseError::EOF => {
+                            let pos = state
+                                .files
+                                .get(id)
+                                .byte_index_to_position(state.files.get(id).source.len() - 1)
+                                .unwrap();
+                            diagnostics.push(Diagnostic::new_simple(
+                                Range::new(pos.into(), pos.into()),
+                                "Unexpected EOF".to_string(),
+                            ));
+                        }
+                    }
+                }
             }
             Err(err) => match err {
                 IndexError::TokenizerError(err) => {
@@ -575,44 +616,7 @@ impl Asm {
                         "Unexpected character".to_string(),
                     ));
                 }
-                IndexError::ParseError(err) => match err {
-                    ParseError::UnexpectedToken(token) => {
-                        diagnostics.push(Diagnostic::new_simple(
-                            state
-                                .files
-                                .get(id)
-                                .byte_span_to_range(token.span)
-                                .unwrap()
-                                .into(),
-                            format!("Unexpected Token {:?}", token.token_type),
-                        ));
-                    }
-                    ParseError::Expected { expected, received } => {
-                        diagnostics.push(Diagnostic::new_simple(
-                            state
-                                .files
-                                .get(id)
-                                .byte_span_to_range(received.span)
-                                .unwrap()
-                                .into(),
-                            format!(
-                                "Expected {:?} but received {:?}",
-                                expected, received.token_type
-                            ),
-                        ));
-                    }
-                    ParseError::EOF => {
-                        let pos = state
-                            .files
-                            .get(id)
-                            .byte_index_to_position(state.files.get(id).source.len() - 1)
-                            .unwrap();
-                        diagnostics.push(Diagnostic::new_simple(
-                            Range::new(pos.into(), pos.into()),
-                            "Unexpected EOF".to_string(),
-                        ));
-                    }
-                },
+                _ => {}
             },
         }
 
