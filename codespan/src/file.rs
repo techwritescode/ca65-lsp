@@ -153,6 +153,13 @@ impl File {
 
         Ok(line.get(range.0..range.1).unwrap())
     }
+
+    pub fn get_word_span_at_position(&self, position: Position) -> Result<(&str, Span)> {
+        let span = self.line_span(position.line)?;
+        let line = self.source_slice(span)?;
+        let range = find_word_at_pos(line, position.character);
+        Ok((line.get(range.0..range.1).unwrap(), Span::new(span.start+range.0, span.start+range.1)))
+    }
 }
 
 pub fn find_word_at_pos(line: &str, col: usize) -> (usize, usize) {
