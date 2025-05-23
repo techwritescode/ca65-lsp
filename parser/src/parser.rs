@@ -118,6 +118,7 @@ pub enum ExpressionKind {
     Term(TokenType, Box<Expression>, Box<Expression>),
     Bank(Box<Expression>),
     SizeOf(Box<Expression>),
+    Identifier(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1007,7 +1008,7 @@ impl<'a> Parser<'a> {
         let end = self.mark_end();
 
         Ok(Expression {
-            kind: ExpressionKind::Literal(token_string.to_string()),
+            kind: ExpressionKind::Identifier(token_string.to_string()),
             span: Span::new(start, end),
         })
     }
