@@ -69,6 +69,12 @@ impl Token {
     }
 }
 
+impl Display for Token {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.lexeme.clone())
+    }
+}
+
 #[derive(Debug)]
 pub enum TokenizerErrorKind {
     UnexpectedToken,
