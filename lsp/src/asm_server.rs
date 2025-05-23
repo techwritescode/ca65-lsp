@@ -9,8 +9,10 @@ use crate::documentation::{
     CA65_DOCUMENTATION, FEATURE_DOCUMENTATION, INSTRUCTION_DOCUMENTATION, MACPACK_DOCUMENTATION,
 };
 use crate::error::file_error_to_lsp;
-use crate::symbol_cache::{symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType};
-use analysis::{Scope, ScopeAnalyzer, Symbol};
+use crate::symbol_cache::{
+    symbol_cache_fetch, symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
+};
+use analysis::{Scope, ScopeAnalyzer, Symbol, SymbolResolver};
 use codespan::{File, Span};
 use parser::ParseError;
 use std::collections::HashMap;
@@ -133,6 +135,8 @@ impl Asm {
                     );
                 }
 
+                diagnostics.extend(self.resolve_identifier_access(&state, id));
+
                 for err in parse_errors.iter() {
                     match err {
                         ParseError::UnexpectedToken(token) => {
@@ -197,6 +201,55 @@ impl Asm {
                 None,
             )
             .await;
+    }
+
+    pub fn resolve_identifier_access(&self, state: &State, id: FileId) -> Vec<Diagnostic> {
+        let mut diagnostics = vec![];
+        let file = state.files.get(id);
+        let identifiers = SymbolResolver::find_identifiers(state.files.ast(id).clone());
+
+        for identifier_access in identifiers {
+            let range = file
+                .byte_span_to_range(identifier_access.span)
+                .unwrap()
+                .into();
+
+            if identifier_access.name.starts_with("::") {
+                if symbol_cache_fetch(identifier_access.name.clone()).is_empty() {
+                    diagnostics.push(Diagnostic {
+                        range,
+                        severity: Some(DiagnosticSeverity::ERROR),
+                        message: format!("Unknown symbol: {}", identifier_access.name),
+                        ..Default::default()
+                    });
+                }
+                continue;
+            }
+
+            let mut resolved_fqn = None;
+
+            for i in (0..=identifier_access.scope.len()).rev() {
+                let scope = &identifier_access.scope[0..i];
+                let fqn = [&["".to_owned()], scope, &[identifier_access.name.clone()]]
+                    .concat()
+                    .join("::")
+                    .to_string();
+                if !symbol_cache_fetch(fqn.clone()).is_empty() {
+                    resolved_fqn = Some(fqn);
+                    break;
+                }
+            }
+            if resolved_fqn.is_none() {
+                diagnostics.push(Diagnostic {
+                    range,
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    message: format!("Unknown symbol: {}", identifier_access.name),
+                    ..Default::default()
+                });
+            }
+        }
+
+        diagnostics
     }
 }
 
