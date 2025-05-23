@@ -42,4 +42,7 @@ TBD
     name = "ca65"
     source = { git = "https://github.com/simonhochrein/tree-sitter-ca65", rev = "9e73befb5c3c6852f905964c22740c9605b03af8" }
     ```
-  - TODO: I believe in order to get syntax highlighting to work you need to implement [queries](https://docs.helix-editor.com/guides/adding_languages.html#queries)
+  - to get syntax highlighting working
+    - navigate to `<your helix install directory>/runtime/queries/`
+    - create a directory called `ca65`
+    - copy the files `highlights.scm` and `outline.scm` from the `simonhochrein/tree-sitter-ca65` repo, under `queries/ca65/` into the `ca65` directory you just created
