@@ -179,6 +179,12 @@ impl ScopeAnalyzer {
 
                 None
             }
+            StatementKind::Label(name) => {
+                self.symtab
+                    .insert(self.format_name(&name), Symbol::Label { name });
+
+                None
+            }
             _ => None,
         }
     }
