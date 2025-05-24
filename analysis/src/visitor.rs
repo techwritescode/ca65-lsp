@@ -32,7 +32,9 @@ pub trait ASTVisitor {
             StatementKind::Scope(name, statements) => {
                 self.visit_scope(name, statements, statement.span)
             }
-            StatementKind::IncludeBinary(path) => self.visit_include_binary(path, statement.span),
+            StatementKind::IncludeBinary(path, offset, end) => {
+                self.visit_include_binary(path, offset, end, statement.span)
+            }
             StatementKind::MacroDefinition(name, parameters, statements) => {
                 self.visit_macro_definition(name, parameters, statements, statement.span)
             }
@@ -58,7 +60,9 @@ pub trait ASTVisitor {
                 self.visit_if(if_statement, statements, statement.span)
             }
             StatementKind::UnnamedLabel => self.visit_unnamed_label(statement.span),
-            StatementKind::Define(ident, expr) => self.visit_define(ident, expr, statement.span),
+            StatementKind::Define(ident, params, expr) => {
+                self.visit_define(ident, params, expr, statement.span)
+            }
         }
     }
 
@@ -99,7 +103,14 @@ pub trait ASTVisitor {
             self.visit_statement(statement);
         }
     }
-    fn visit_include_binary(&mut self, _path: &Token, _span: Span) {}
+    fn visit_include_binary(
+        &mut self,
+        _path: &Token,
+        _offset: &Option<Token>,
+        _end: &Option<Token>,
+        _span: Span,
+    ) {
+    }
     fn visit_macro_definition(
         &mut self,
         _name: &Token,
@@ -145,7 +156,13 @@ pub trait ASTVisitor {
         }
     }
     fn visit_unnamed_label(&mut self, _span: Span) {}
-    fn visit_define(&mut self, _ident: &Token, expr: &Expression, _span: Span) {
+    fn visit_define(
+        &mut self,
+        _ident: &Token,
+        params: &Option<Vec<Token>>,
+        expr: &Expression,
+        _span: Span,
+    ) {
         self.visit_expression(expr);
     }
 
@@ -155,6 +172,7 @@ pub trait ASTVisitor {
             ExpressionKind::Unary(token, expr) => self.visit_unary(token, expr, expression.span),
             ExpressionKind::Literal(string) => self.visit_literal(string, expression.span),
             ExpressionKind::Group(group) => self.visit_group(group, expression.span),
+            ExpressionKind::MemoryAccess(expr) => self.visit_memory_access(expr, expression.span),
             ExpressionKind::UnaryPositive(expr) => self.visit_unary_positive(expr, expression.span),
             ExpressionKind::Math(tok, expr1, expr2) => {
                 self.visit_math(tok, expr1, expr2, expression.span)
@@ -174,6 +192,7 @@ pub trait ASTVisitor {
             }
             ExpressionKind::Bank(expr) => self.visit_bank(expr, expression.span),
             ExpressionKind::SizeOf(expr) => self.visit_sizeof(expr, expression.span),
+            ExpressionKind::WordOp(tok, expr) => self.visit_word_op(tok, expr, expression.span),
             ExpressionKind::Match(expr1, expr2) => self.visit_match(expr1, expr2, expression.span),
             ExpressionKind::Def(tok) => self.visit_def(tok, expression.span),
             ExpressionKind::Identifier(ident) => self.visit_identifier(ident, expression.span),
@@ -185,6 +204,9 @@ pub trait ASTVisitor {
                 self.visit_extract(tok, expr1, expr2, expression.span)
             }
             ExpressionKind::TokenList(toks) => self.visit_token_list(toks, expression.span),
+            ExpressionKind::Call(callee, arguments) => {
+                self.visit_call(callee, arguments, expression.span)
+            }
         }
     }
 
@@ -197,6 +219,9 @@ pub trait ASTVisitor {
     fn visit_literal(&mut self, _string: &str, _span: Span) {}
     fn visit_group(&mut self, group: &Expression, _span: Span) {
         self.visit_expression(group);
+    }
+    fn visit_memory_access(&mut self, expr: &Expression, _span: Span) {
+        self.visit_expression(expr);
     }
     fn visit_unary_positive(&mut self, expr: &Expression, _span: Span) {
         self.visit_expression(expr);
@@ -262,6 +287,9 @@ pub trait ASTVisitor {
     fn visit_sizeof(&mut self, expr: &Expression, _span: Span) {
         self.visit_expression(expr);
     }
+    fn visit_word_op(&mut self, _tok: &Token, expr: &Expression, _span: Span) {
+        self.visit_expression(expr);
+    }
     fn visit_match(&mut self, _expr1: &Expression, _expr2: &Expression, _span: Span) {}
     fn visit_def(&mut self, _tok: &Token, _span: Span) {}
     fn visit_identifier(&mut self, _ident: &str, _span: Span) {}
@@ -276,4 +304,9 @@ pub trait ASTVisitor {
     ) {
     }
     fn visit_token_list(&mut self, _toks: &[Token], _span: Span) {}
+    fn visit_call(&mut self, _callee: &str, arguments: &[Expression], _span: Span) {
+        for expression in arguments {
+            self.visit_expression(expression);
+        }
+    }
 }
