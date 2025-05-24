@@ -45,7 +45,7 @@ TBD
   - To get syntax highlighting working
     - Navigate to `<your helix install directory>/runtime/queries/`
     - Create a directory called `ca65`
-    - Copy `highlights.scm` from the `simonhochrein/tree-sitter-ca65` repo, under `queries/ca65/` into the `ca65` directory you just created
+    - Copy `highlights.scm` from the `simonhochrein/tree-sitter-ca65` repo, under `queries/ca65/`, into the `ca65` directory you just created
     - You may need to run
       ```bash
       hx --grammar fetch && hx --grammar build
