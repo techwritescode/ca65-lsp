@@ -6,9 +6,11 @@ mod definition;
 mod diagnostics;
 mod documentation;
 mod error;
+mod index_engine;
 mod instructions;
 mod logger;
 mod path;
+mod state;
 mod symbol_cache;
 
 use asm_server::Asm;

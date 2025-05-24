@@ -1,5 +1,5 @@
-use crate::asm_server::State;
 use crate::codespan::FileId;
+use crate::state::State;
 use crate::symbol_cache::{symbol_cache_fetch, Symbol};
 use analysis::ScopeAnalyzer;
 use codespan::{FileError, Position, Span};

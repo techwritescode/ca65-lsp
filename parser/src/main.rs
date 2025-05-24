@@ -3,37 +3,28 @@ use std::fs::File;
 use std::io::Read;
 
 fn main() {
-    // let mut args = std::env::args();
-    // let instructions = Instructions::load();
-    // 
+    let mut args = std::env::args();
+    let instructions = Instructions::load();
+    
     // if args.len() < 2 {
     //     eprintln!("Usage: parser <file>");
     //     std::process::exit(1);
     // }
-    // 
-    // let mut file = File::open(args.nth(1).unwrap()).expect("Failed to open file");
-    // let mut buf = String::new();
-    // file.read_to_string(&mut buf).expect("Failed to read file");
-    // let cs_file = codespan::File::new("test", buf);
-    // 
-    // let mut tokenizer = Tokenizer::new(&cs_file.source, &instructions);
-    // match tokenizer.parse() {
-    //     Ok(tokens) => {
-    //         let mut parser = parser::Parser::new(&tokens);
-    //         let ast = parser.parse();
-    //         match ast {
-    //             Ok(ast) => {
-    //                 println!("{:#?}", ast);
-    //             }
-    //             Err(e) => {
-    //                 print_parse_error(&cs_file, e);
-    //             }
-    //         }
-    //     }
-    //     Err(e) => {
-    //         print_error(&cs_file, e);
-    //     }
-    // }
+    
+    let buf = std::fs::read_to_string("test.s").unwrap();
+    let cs_file = codespan::File::new("test", buf);
+    
+    let mut tokenizer = Tokenizer::new(&cs_file.source, &instructions);
+    match tokenizer.parse() {
+        Ok(tokens) => {
+            let mut parser = parser::Parser::new(&tokens);
+            let ast = parser.parse();
+            println!("{:#?}", ast);
+        }
+        Err(e) => {
+            print_error(&cs_file, e);
+        }
+    }
 }
 
 fn print_error(file: &codespan::File, error: TokenizerError) {
