@@ -71,7 +71,6 @@ impl IndexEngine {
                 )
                 .await;
             let uri = Uri::from_str(format!("file://{}", file.to_str().unwrap()).as_str()).unwrap();
-            eprintln!("Parsing {uri:?}");
             let contents = std::fs::read_to_string(file).unwrap();
             let id = state.get_or_insert_source(uri, contents);
             diagnostics.insert(id, state.parse_labels(id).await);
