@@ -1,16 +1,13 @@
-use crate::codespan::FileId;
 use crate::state::State;
 use analysis::Symbol;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::Mutex;
-use tokio::time::sleep;
 use tower_lsp_server::lsp_types::request::WorkDoneProgressCreate;
-use tower_lsp_server::lsp_types::{Diagnostic, ProgressToken, Uri, WorkDoneProgressCreateParams};
+use tower_lsp_server::lsp_types::{ProgressToken, Uri, WorkDoneProgressCreateParams};
 use tower_lsp_server::Client;
 use uuid::Uuid;
 

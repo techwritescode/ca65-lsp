@@ -1,11 +1,16 @@
-use std::collections::HashMap;
-use std::str::FromStr;
-use tower_lsp_server::Client;
-use tower_lsp_server::lsp_types::{Diagnostic, DiagnosticSeverity, Range, TextDocumentContentChangeEvent, TextDocumentItem, Uri, VersionedTextDocumentIdentifier};
+use crate::codespan::{FileId, Files, IndexError};
+use crate::symbol_cache::{
+    symbol_cache_fetch, symbol_cache_insert, symbol_cache_reset, SymbolType,
+};
 use analysis::{Scope, ScopeAnalyzer, Symbol, SymbolResolver};
 use parser::ParseError;
-use crate::codespan::{FileId, Files, IndexError};
-use crate::symbol_cache::{symbol_cache_fetch, symbol_cache_insert, symbol_cache_reset, SymbolType};
+use std::collections::HashMap;
+use std::str::FromStr;
+use tower_lsp_server::lsp_types::{
+    Diagnostic, DiagnosticSeverity, Range, TextDocumentContentChangeEvent, Uri,
+    VersionedTextDocumentIdentifier,
+};
+use tower_lsp_server::Client;
 
 pub struct State {
     pub sources: HashMap<Uri, FileId>,
@@ -53,7 +58,6 @@ impl State {
         }
     }
 
-
     pub async fn parse_labels(&mut self, id: FileId) -> Vec<Diagnostic> {
         let uri = self.files.get_uri(id);
 
@@ -88,8 +92,7 @@ impl State {
                     match err {
                         ParseError::UnexpectedToken(token) => {
                             diagnostics.push(Diagnostic::new_simple(
-                                self
-                                    .files
+                                self.files
                                     .get(id)
                                     .byte_span_to_range(token.span)
                                     .unwrap()
@@ -99,8 +102,7 @@ impl State {
                         }
                         ParseError::Expected { expected, received } => {
                             diagnostics.push(Diagnostic::new_simple(
-                                self
-                                    .files
+                                self.files
                                     .get(id)
                                     .byte_span_to_range(received.span)
                                     .unwrap()
@@ -140,7 +142,7 @@ impl State {
                 _ => {}
             },
         }
-        // 
+        //
         // self.client
         //     .publish_diagnostics(
         //         Uri::from_str(self.files.get(id).name.as_str()).unwrap(),
@@ -148,15 +150,15 @@ impl State {
         //         None,
         //     )
         //     .await;
-        
+
         diagnostics
     }
-    
+
     // TODO: store a diagnostics array for the different stages and concatenate them together
     pub async fn lint(&mut self, id: FileId) -> Vec<Diagnostic> {
         self.resolve_identifier_access(&self, id)
     }
-    
+
     pub async fn publish_diagnostics(&mut self, id: FileId, diagnostics: Vec<Diagnostic>) {
         self.client
             .publish_diagnostics(
