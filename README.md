@@ -46,3 +46,7 @@ TBD
     - Navigate to `<your helix install directory>/runtime/queries/`
     - Create a directory called `ca65`
     - Copy the files `highlights.scm` and `outline.scm` from the `simonhochrein/tree-sitter-ca65` repo, under `queries/ca65/` into the `ca65` directory you just created
+    - You may have to run
+      ```bash
+      hx --grammar fetch && hx --grammar build
+      ```
