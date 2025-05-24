@@ -1,8 +1,5 @@
 use codespan::Span;
-use parser::{
-    ConstantAssign, Expression, ExpressionKind, IfKind, Instruction, MacroInvocation, Statement,
-    StatementKind, Token, TokenType,
-};
+use parser::{ConstantAssign, Expression, ExpressionKind, IfKind, Instruction, MacroInvocation, MacroParameter, Statement, StatementKind, StructMember, Token, TokenType};
 
 pub trait ASTVisitor {
     fn visit_statement(&mut self, statement: &Statement) {
@@ -17,6 +14,9 @@ pub trait ASTVisitor {
                 self.visit_procedure(name, statements, statement.span)
             }
             StatementKind::Enum(name, variants) => self.visit_enum(name, variants, statement.span),
+            StatementKind::Struct(name, members) => {
+                self.visit_struct(name, members, statement.span)
+            }
             StatementKind::Macro => self.visit_macro(statement.span),
             StatementKind::SetCPU(cpu) => self.visit_set_cpu(cpu, statement.span),
             StatementKind::Segment(segment) => self.visit_segment(segment, statement.span),
@@ -46,9 +46,16 @@ pub trait ASTVisitor {
                 identifiers,
                 zero_page,
             } => self.visit_export(identifiers, zero_page, statement.span),
+            StatementKind::Import {
+                identifiers,
+                zero_page,
+            } => self.visit_import(identifiers, zero_page, statement.span),
             StatementKind::Ascii(string) => self.visit_ascii(string, statement.span),
-            StatementKind::If(if_statement) => self.visit_if(if_statement, statement.span),
+            StatementKind::If(if_statement, statements) => {
+                self.visit_if(if_statement, statements, statement.span)
+            }
             StatementKind::UnnamedLabel => self.visit_unnamed_label(statement.span),
+            StatementKind::Define(ident, expr) => self.visit_define(ident, expr, statement.span),
         }
     }
 
@@ -68,6 +75,7 @@ pub trait ASTVisitor {
         }
     }
     fn visit_enum(&mut self, _name: &Option<Token>, _variants: &[Expression], _span: Span) {}
+    fn visit_struct(&mut self, _name: &Token, _members: &[StructMember], _span: Span) {}
     fn visit_macro(&mut self, _span: Span) {}
     fn visit_set_cpu(&mut self, _cpu: &str, _span: Span) {}
     fn visit_segment(&mut self, _segment: &str, _span: Span) {}
@@ -76,7 +84,9 @@ pub trait ASTVisitor {
     }
     fn visit_macro_invocation(&mut self, macro_invocation: &MacroInvocation, _span: Span) {
         for param in macro_invocation.parameters.iter() {
-            self.visit_expression(param);
+            if let MacroParameter::Expression(param) = param {
+                self.visit_expression(param);
+            }
         }
     }
     fn visit_macro_pack(&mut self, _pack: &str, _span: Span) {}
@@ -107,29 +117,34 @@ pub trait ASTVisitor {
     fn visit_repeat(
         &mut self,
         max: &Expression,
-        incr: &Option<Expression>,
+        _incr: &Option<Token>,
         statements: &[Statement],
         _span: Span,
     ) {
         self.visit_expression(max);
-        if let Some(incr) = incr {
-            self.visit_expression(incr);
-        }
         for statement in statements {
             self.visit_statement(statement);
         }
     }
     fn visit_global(&mut self, _identifiers: &[Token], _zero_page: &bool, _span: Span) {}
-    fn visit_export(&mut self, _identifiers: &[Token], _zero_page: &bool, _span: Span) {}
+    fn visit_export(&mut self, identifiers: &[Token], _zero_page: &bool, _span: Span) {}
+    fn visit_import(&mut self, _identifiers: &[Token], _zero_page: &bool, _span: Span) {}
     fn visit_ascii(&mut self, _string: &Token, _span: Span) {}
-    fn visit_if(&mut self, if_statement: &IfKind, _span: Span) {
+    fn visit_if(&mut self, if_statement: &IfKind, statements: &[Statement], _span: Span) {
         match if_statement {
             IfKind::WithExpression(expression) => self.visit_expression(expression),
             IfKind::NoParams => {}
             IfKind::WithTokens(_tokens) => {}
         }
+
+        for statement in statements {
+            self.visit_statement(statement);
+        }
     }
     fn visit_unnamed_label(&mut self, _span: Span) {}
+    fn visit_define(&mut self, _ident: &Token, expr: &Expression, _span: Span) {
+        self.visit_expression(expr);
+    }
 
     fn visit_expression(&mut self, expression: &Expression) {
         match &expression.kind {
@@ -156,10 +171,13 @@ pub trait ASTVisitor {
             }
             ExpressionKind::Bank(expr) => self.visit_bank(expr, expression.span),
             ExpressionKind::SizeOf(expr) => self.visit_sizeof(expr, expression.span),
+            ExpressionKind::Match(expr1, expr2) => self.visit_match(expr1, expr2, expression.span),
+            ExpressionKind::Def(tok) => self.visit_def(tok, expression.span),
             ExpressionKind::Identifier(ident) => self.visit_identifier(ident, expression.span),
-            ExpressionKind::UnnamedLabelReference(reference) => {
-                self.visit_unnamed_label_reference(reference, expression.span)
-            }
+            ExpressionKind::UnnamedLabelReference(reference) => self.visit_unnamed_label_reference(reference, expression.span),
+            ExpressionKind::String(str) => self.visit_string(str, expression.span),
+            ExpressionKind::Extract(tok, expr1, expr2) => self.visit_extract(tok, expr1, expr2, expression.span),
+            ExpressionKind::TokenList(toks) => self.visit_token_list(toks, expression.span),
         }
     }
 
@@ -237,6 +255,11 @@ pub trait ASTVisitor {
     fn visit_sizeof(&mut self, expr: &Expression, _span: Span) {
         self.visit_expression(expr);
     }
+    fn visit_match(&mut self, expr1: &Expression, expr2: &Expression, _span: Span) {}
+    fn visit_def(&mut self, tok: &Token, _span: Span) {}
     fn visit_identifier(&mut self, _ident: &str, _span: Span) {}
     fn visit_unnamed_label_reference(&mut self, _reference: &i8, _span: Span) {}
+    fn visit_string(&mut self, _str: &str, _span: Span) {}
+    fn visit_extract(&mut self, tok: &Token, expr1: &Expression, expr2: &Expression, _span: Span) {}
+    fn visit_token_list(&mut self, toks: &[Token], _span: Span) {}
 }

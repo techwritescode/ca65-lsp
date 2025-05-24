@@ -119,12 +119,23 @@ pub enum ExpressionKind {
     Bank(Box<Expression>),
     SizeOf(Box<Expression>),
     Identifier(String),
+    Match(Box<Expression>, Box<Expression>),
+    Def(Token),
+    String(String),
+    Extract(Token, Box<Expression>, Box<Expression>),
+    TokenList(Vec<Token>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expression {
     pub kind: ExpressionKind,
     pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MacroParameter {
+    Opcode(Token),
+    Expression(Expression),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -138,6 +149,13 @@ pub enum IfKind {
     WithExpression(Expression),
     WithTokens(Vec<Token>),
     NoParams,
+}
+
+pub struct IfStatement {
+    pub kind: IfKind,
+    pub if_body: Vec<Statement>,
+    pub else_body: Option<Vec<Statement>>,
+    pub else_ifs: Option<Vec<(Expression, Vec<Statement>)>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -162,7 +180,7 @@ pub enum StatementKind {
     MacroDefinition(Token, Vec<Token>, Vec<Statement>),
     Data(Vec<Expression>),
     Org(String),
-    Repeat(Expression, Option<Expression>, Vec<Statement>),
+    Repeat(Expression, Option<Token>, Vec<Statement>),
     Global {
         identifiers: Vec<Token>,
         zero_page: bool,
@@ -172,7 +190,19 @@ pub enum StatementKind {
         zero_page: bool,
     },
     Ascii(Token),
-    If(IfKind),
+    If(IfKind, Vec<Statement>),
+    Struct(Token, Vec<StructMember>),
+    Import {
+        identifiers: Vec<Token>,
+        zero_page: bool,
+    },
+    Define(Token, Expression),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum StructMember {
+    Struct(Statement),
+    Field(Token), // TODO: Add data type
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -194,7 +224,7 @@ pub struct ControlCommand {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MacroInvocation {
     pub name: Token,
-    pub parameters: Vec<Expression>,
+    pub parameters: Vec<MacroParameter>,
 }
 
 pub struct Parser<'a> {
@@ -288,6 +318,23 @@ impl<'a> Parser<'a> {
                         span: Span::new(start, end),
                     }))
                 }
+                ".import" | ".importzp" => {
+                    let zp = macro_matcher == ".importzp";
+                    let mut idents = vec![];
+                    idents.push(self.consume_token(TokenType::Identifier)?);
+                    while match_token!(self.tokens, TokenType::Comma) {
+                        idents.push(self.consume_token(TokenType::Identifier)?);
+                    }
+                    let end = self.mark_end();
+                    self.consume_newline()?;
+                    Ok(Some(Statement {
+                        kind: StatementKind::Import {
+                            identifiers: idents,
+                            zero_page: zp,
+                        },
+                        span: Span::new(start, end),
+                    }))
+                }
                 ".macpack" => {
                     self.consume_token(TokenType::Identifier)?;
                     let pack = self.last().lexeme;
@@ -373,7 +420,7 @@ impl<'a> Parser<'a> {
                     self.consume_token(TokenType::Identifier)?;
                     let ident = self.last();
                     self.consume_newline()?;
-                    let commands: Vec<Statement> = self.parse_statement_block(".endproc")?;
+                    let commands: Vec<Statement> = self.parse_statement_block(&[".endproc"])?;
                     let end = self.mark_end();
                     return Ok(Some(Statement {
                         kind: StatementKind::Procedure(ident, commands),
@@ -387,7 +434,7 @@ impl<'a> Parser<'a> {
                         None
                     };
                     self.consume_newline()?;
-                    let commands = self.parse_statement_block(".endscope")?;
+                    let commands = self.parse_statement_block(&[".endscope"])?;
                     let end = self.mark_end();
                     return Ok(Some(Statement {
                         kind: StatementKind::Scope(ident, commands),
@@ -397,13 +444,13 @@ impl<'a> Parser<'a> {
                 ".repeat" => {
                     let max = self.parse_expression()?;
                     let iter = if match_token!(self.tokens, TokenType::Comma) {
-                        let ident = self.parse_expression()?;
+                        let ident = self.consume_token(TokenType::Identifier)?;
                         Some(ident)
                     } else {
                         None
                     };
                     self.consume_newline()?;
-                    let commands = self.parse_statement_block(".endrepeat")?;
+                    let commands = self.parse_statement_block(&[".endrepeat", ".endrep"])?;
                     let end = self.mark_end();
                     return Ok(Some(Statement {
                         kind: StatementKind::Repeat(max, iter, commands),
@@ -453,12 +500,14 @@ impl<'a> Parser<'a> {
                         span: Span::new(start, end),
                     }))
                 }
+                ".struct" => Ok(Some(self.parse_struct()?)),
+                ".define" => Ok(Some(self.parse_define()?)),
                 ".if" | ".ifconst" | ".ifblank" | ".ifnblank" | ".ifdef" | ".ifndef" | ".ifref"
                 | ".ifnref" | ".ifp02" | ".ifp4510" | ".ifp816" | ".ifpC02" => {
                     Ok(Some(self.parse_if()?))
                 }
                 // Ignored for now
-                ".index" | ".mem" | ".align" | ".addr" => {
+                ".index" | ".mem" | ".align" | ".addr" | ".charmap" | ".assert" => {
                     self.parse_parameters()?;
                     Ok(None)
                 }
@@ -485,6 +534,7 @@ impl<'a> Parser<'a> {
         self.consume_newline()?;
 
         let mut commands: Vec<Statement> = vec![];
+
         while !self.tokens.at_end() {
             if check_token!(self.tokens, TokenType::Macro) {
                 let tok_lexeme = self.peek()?.lexeme;
@@ -502,7 +552,7 @@ impl<'a> Parser<'a> {
                         self.tokens.advance();
                         let end = self.mark_end();
                         return Ok(Statement {
-                            kind: StatementKind::If(if_kind),
+                            kind: StatementKind::If(if_kind, commands),
                             span: Span::new(start, end),
                         });
                     }
@@ -534,7 +584,7 @@ impl<'a> Parser<'a> {
         }
         self.consume_newline()?;
 
-        let commands = self.parse_statement_block(".endmacro")?;
+        let commands = self.parse_statement_block(&[".endmacro"])?;
         let end = self.mark_end();
         Ok(Statement {
             kind: StatementKind::MacroDefinition(ident, parameters, commands),
@@ -577,6 +627,65 @@ impl<'a> Parser<'a> {
         Err(ParseError::Expected {
             received: self.peek()?,
             expected: TokenType::Macro,
+        })
+    }
+
+    fn parse_struct(&mut self) -> Result<Statement> {
+        let start = self.mark_start();
+        let ident = self.consume_token(TokenType::Identifier)?;
+
+        self.consume_newline()?;
+
+        let mut members: Vec<StructMember> = Vec::new();
+        while !self.tokens.at_end() {
+            if check_token!(self.tokens, TokenType::Macro) {
+                let macro_lexeme = self.peek()?.lexeme;
+                match macro_lexeme.as_str() {
+                    ".endstruct" => {
+                        self.tokens.advance();
+                        let end = self.mark_end();
+                        return Ok(Statement {
+                            kind: StatementKind::Struct(ident, members),
+                            span: Span::new(start, end),
+                        });
+                    }
+                    ".struct" => {
+                        self.tokens.advance();
+                        members.push(StructMember::Struct(self.parse_struct()?));
+                    }
+                    _ => {
+                        return Err(ParseError::Expected {
+                            received: self.peek()?,
+                            expected: TokenType::Macro,
+                        })
+                    }
+                }
+            } else {
+                let ident = self.consume_token(TokenType::Identifier)?;
+                let data_type = self.consume_token(TokenType::Macro)?;
+                eprintln!("{:?} {:?}", ident, data_type);
+                members.push(StructMember::Field(ident));
+                self.consume_newline()?;
+            }
+        }
+
+        // never encountered ".endenum"
+        Err(ParseError::Expected {
+            received: self.peek()?,
+            expected: TokenType::Macro,
+        })
+    }
+
+    fn parse_define(&mut self) -> Result<Statement> {
+        let start = self.mark_start();
+        let ident = self.consume_token(TokenType::Identifier)?;
+        let value = self.parse_expression()?;
+        let end = self.mark_end();
+        self.consume_newline()?;
+
+        Ok(Statement {
+            kind: StatementKind::Define(ident, value),
+            span: Span::new(start, end),
         })
     }
 
@@ -673,7 +782,7 @@ impl<'a> Parser<'a> {
     fn parse_macro_invocation(&mut self) -> Result<Statement> {
         let start = self.mark_start();
         let name = self.tokens.previous()?;
-        let parameters = self.parse_parameters()?;
+        let parameters = self.parse_macro_parameters()?;
         let end = self.mark_end();
         Ok(Statement {
             kind: StatementKind::MacroInvocation(MacroInvocation { name, parameters }),
@@ -714,8 +823,9 @@ impl<'a> Parser<'a> {
     fn parse_expr2(&mut self) -> Result<Expression> {
         let mut root = self.parse_bool_expr()?;
         while match_token!(self.tokens, TokenType::And | TokenType::Xor) {
-            let right = self.parse_expr2()?;
-            match self.tokens.previous()?.token_type {
+            let tok = self.tokens.previous()?;
+            let right = self.parse_bool_expr()?;
+            match tok.token_type {
                 TokenType::And => {
                     root = Expression {
                         kind: ExpressionKind::And(
@@ -897,6 +1007,34 @@ impl<'a> Parser<'a> {
                 span: Span::new(start, end),
             });
         }
+        if match_token!(self.tokens, TokenType::Match) {
+            self.consume_token(TokenType::LeftParen)?;
+            let expr1 = self.parse_token_list(TokenType::Comma)?;
+            self.consume_token(TokenType::Comma)?;
+            let expr2 = self.parse_token_list(TokenType::RightParen)?;
+            self.consume_token(TokenType::RightParen)?;
+            let end = self.mark_end();
+
+            return Ok(Expression {
+                kind: ExpressionKind::Match(Box::new(expr1), Box::new(expr2)),
+                span: Span::new(start, end),
+            });
+        }
+        if match_token!(self.tokens, TokenType::Extract) {
+            return self.parse_extract();
+        }
+        if match_token!(self.tokens, TokenType::Def) {
+            self.consume_token(TokenType::LeftParen)?;
+            self.tokens.advance();
+            let tok = self.last();
+            self.consume_token(TokenType::RightParen)?;
+            let end = self.mark_end();
+
+            return Ok(Expression {
+                kind: ExpressionKind::Def(tok),
+                span: Span::new(start, end),
+            });
+        }
         if match_token!(self.tokens, TokenType::Caret) {
             let right = self.parse_factor()?;
             let end = self.mark_end();
@@ -910,6 +1048,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_primary(&mut self) -> Result<Expression> {
+        let start = self.mark_start();
         if match_token!(self.tokens, TokenType::LeftBrace) {
             // let start = self.mark_start();
             let ident = self.parse_identifier()?;
@@ -917,9 +1056,15 @@ impl<'a> Parser<'a> {
             // let end = self.mark_end();
             return Ok(ident);
         }
+        if match_token!(self.tokens, TokenType::Multiply) {
+            let end = self.mark_end();
+            return Ok(Expression {
+                kind: ExpressionKind::Identifier("*".to_owned()),
+                span: Span::new(start, end),
+            });
+        }
         if match_token!(self.tokens, TokenType::Number) {
             let num = self.last().lexeme;
-            let start = self.mark_start();
             let end = self.mark_end();
             return Ok(Expression {
                 kind: ExpressionKind::Literal(num),
@@ -930,6 +1075,14 @@ impl<'a> Parser<'a> {
             || check_token!(self.tokens, TokenType::Identifier)
         {
             return self.parse_identifier();
+        }
+        if match_token!(self.tokens, TokenType::String) {
+            let string = self.last().lexeme;
+            let end = self.mark_end();
+            return Ok(Expression {
+                kind: ExpressionKind::String(string),
+                span: Span::new(start, end),
+            });
         }
         if check_token!(self.tokens, TokenType::UnnamedLabelReference) {
             return self.parse_unnamed_label_reference();
@@ -947,6 +1100,25 @@ impl<'a> Parser<'a> {
         Err(ParseError::UnexpectedToken(self.peek()?))
     }
 
+    fn parse_macro_parameters(&mut self) -> Result<Vec<MacroParameter>> {
+        let mut parameters = vec![];
+        if !check_token!(self.tokens, TokenType::EOL) {
+            if matches!(self.tokens.peek(), Some(Token{token_type: TokenType::Instruction,..})) {
+                parameters.push(MacroParameter::Opcode(self.tokens.advance().unwrap()));
+            } else {
+                parameters.push(MacroParameter::Expression(self.parse_expression()?));
+            }
+            while !self.tokens.at_end() && !check_token!(self.tokens, TokenType::EOL) {
+                self.consume_token(TokenType::Comma)?;
+                if matches!(self.tokens.peek(), Some(Token{token_type: TokenType::Instruction,..})) {
+                    parameters.push(MacroParameter::Opcode(self.tokens.advance().unwrap()));
+                } else {
+                    parameters.push(MacroParameter::Expression(self.parse_expression()?));
+                }
+            }
+        }
+        Ok(parameters)
+    }
     fn parse_parameters(&mut self) -> Result<Vec<Expression>> {
         let mut parameters = vec![];
         if !check_token!(self.tokens, TokenType::EOL) {
@@ -970,7 +1142,9 @@ impl<'a> Parser<'a> {
 
     fn consume_newline(&mut self) -> Result<()> {
         if check_token!(self.tokens, TokenType::EOL) {
-            self.tokens.advance();
+            while check_token!(self.tokens, TokenType::EOL) {
+                self.tokens.advance();
+            }
             Ok(())
         } else if self.tokens.at_end() {
             // Do nothing
@@ -1007,10 +1181,17 @@ impl<'a> Parser<'a> {
         }
         let end = self.mark_end();
 
-        Ok(Expression {
-            kind: ExpressionKind::Identifier(token_string.to_string()),
-            span: Span::new(start, end),
-        })
+        if matches!(token_string.as_str(), "y" | "x") {
+            Ok(Expression {
+                kind: ExpressionKind::Literal(token_string),
+                span: Span::new(start, end),
+            })
+        } else {
+            Ok(Expression {
+                kind: ExpressionKind::Identifier(token_string.to_string()),
+                span: Span::new(start, end),
+            })
+        }
     }
 
     fn parse_unnamed_label_reference(&mut self) -> Result<Expression> {
@@ -1034,12 +1215,12 @@ impl<'a> Parser<'a> {
     }
 
     #[inline]
-    fn parse_statement_block(&mut self, macro_end: &str) -> Result<Vec<Statement>> {
+    fn parse_statement_block(&mut self, macro_end: &[&str]) -> Result<Vec<Statement>> {
         let mut commands: Vec<Statement> = vec![];
         while !self.tokens.at_end() {
             if check_token!(self.tokens, TokenType::Macro) {
                 let m = self.peek()?.lexeme;
-                if m == macro_end {
+                if macro_end.contains(&m.as_str()) {
                     self.tokens.advance();
                     return Ok(commands);
                 }
@@ -1052,6 +1233,41 @@ impl<'a> Parser<'a> {
         Err(ParseError::Expected {
             received: self.peek()?,
             expected: TokenType::Macro,
+        })
+    }
+
+    fn parse_token_list(&mut self, terminator: TokenType) -> Result<Expression> {
+        let start = self.mark_start();
+        let mut tokens = vec![];
+        while !self.tokens.at_end() && self.tokens.peek().unwrap().token_type != terminator {
+            let tok = self.tokens.advance().unwrap();
+            if matches!(tok.token_type, TokenType::Extract) {
+                self.parse_extract()?; // TODO: add into token list
+            } else {
+                tokens.push(tok);
+            }
+        }
+        let end = self.mark_end();
+
+        Ok(Expression {
+            kind: ExpressionKind::TokenList(tokens),
+            span: Span::new(start, end),
+        })
+    }
+
+    fn parse_extract(&mut self) -> Result<Expression> {
+        let variant = self.last();
+        let start = self.mark_start();
+        self.consume_token(TokenType::LeftParen)?;
+        let left = self.parse_token_list(TokenType::Comma)?;
+        self.consume_token(TokenType::Comma)?;
+        let right = self.parse_token_list(TokenType::RightParen)?;
+        self.consume_token(TokenType::RightParen)?;
+        let end = self.mark_end();
+
+        Ok(Expression {
+            kind: ExpressionKind::Extract(variant, Box::new(left), Box::new(right)),
+            span: Span::new(start, end),
         })
     }
 

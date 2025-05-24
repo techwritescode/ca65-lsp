@@ -1,5 +1,6 @@
+use crate::visitor::ASTVisitor;
 use codespan::Span;
-use parser::{Statement, StatementKind, Token};
+use parser::{Ast, ConstantAssign, Expression, Statement, StatementKind, StructMember, Token};
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -88,8 +89,8 @@ impl Scope {
 }
 
 pub struct ScopeAnalyzer {
-    pub statements: Vec<Statement>,
-    pub stack: Vec<String>,
+    pub ast: Vec<Statement>,
+    pub stack: Vec<Scope>,
     pub symtab: HashMap<String, Symbol>,
 }
 
@@ -108,85 +109,20 @@ impl ScopeAnalyzer {
 }
 
 impl ScopeAnalyzer {
-    pub fn new(statements: Vec<Statement>) -> Self {
+    pub fn new(ast: Ast) -> Self {
         Self {
-            statements,
+            ast,
             stack: Vec::new(),
             symtab: HashMap::new(),
         }
     }
 
     pub fn analyze(&mut self) -> (Vec<Scope>, HashMap<String, Symbol>) {
-        let statements = self.statements.clone();
-        let scopes: Vec<Scope> = statements
-            .iter()
-            .cloned()
-            .flat_map(|statement| self.parse_statement(statement))
-            .collect();
-
-        (scopes, self.symtab.clone())
-    }
-
-    fn parse_statement(&mut self, statement: Statement) -> Option<Scope> {
-        match statement.kind {
-            StatementKind::Scope(Some(name), statements) => {
-                let lexeme = name.lexeme.clone();
-                self.symtab
-                    .insert(self.format_name(&name), Symbol::Scope { name });
-                self.stack.push(lexeme.clone());
-                let scopes = statements
-                    .iter()
-                    .cloned()
-                    .flat_map(|stmt| self.parse_statement(stmt))
-                    .collect();
-                self.stack.pop();
-
-                Some(Scope {
-                    name: lexeme,
-                    children: scopes,
-                    span: statement.span,
-                })
-            }
-            StatementKind::ConstantAssign(ca) => {
-                self.symtab.insert(
-                    self.format_name(&ca.name),
-                    Symbol::Constant { name: ca.name },
-                );
-                None
-            }
-            StatementKind::Procedure(name, statements) => {
-                let lexeme = name.lexeme.clone();
-                self.symtab
-                    .insert(self.format_name(&name), Symbol::Label { name });
-
-                self.stack.push(lexeme.clone());
-                let scopes = statements
-                    .iter()
-                    .cloned()
-                    .flat_map(|stmt| self.parse_statement(stmt))
-                    .collect();
-                self.stack.pop();
-
-                Some(Scope {
-                    name: lexeme,
-                    children: scopes,
-                    span: statement.span,
-                })
-            }
-            StatementKind::MacroDefinition(name, parameters, _) => {
-                self.symtab
-                    .insert(self.format_name(&name), Symbol::Macro { name, parameters });
-
-                None
-            }
-            StatementKind::Label(name) => {
-                self.symtab
-                    .insert(self.format_name(&name), Symbol::Label { name });
-
-                None
-            }
-            _ => None,
+        for statement in self.ast.clone().iter() {
+            self.visit_statement(statement);
         }
+
+        (self.stack.clone(), self.symtab.clone())
     }
 
     pub fn search(scopes: &[Scope], index: usize) -> Vec<String> {
@@ -201,9 +137,145 @@ impl ScopeAnalyzer {
 
     #[inline]
     fn format_name(&self, name: &Token) -> String {
-        [&["".to_owned()], &self.stack[..], &[name.lexeme.clone()]]
+        let stack: Vec<String> = self.stack[..].iter().map(|s| s.name.clone()).collect();
+        [&["".to_owned()], &stack[..], &[name.lexeme.clone()]]
             .concat()
             .join("::")
             .to_string()
+    }
+
+    fn push_scope(&mut self, name: String, span: Span) {
+        self.stack.push(Scope {
+            name: name.clone(),
+            children: vec![],
+            span,
+        });
+    }
+    fn pop_scope(&mut self) {
+        if let Some(node) = self.stack.pop() {
+            if let Some(parent) = self.stack.last_mut() {
+                parent.children.push(node);
+            }
+        }
+    }
+
+    fn insert_symbol(&mut self, name: &Token, symbol: Symbol) {
+        self.symtab.insert(self.format_name(name), symbol);
+    }
+}
+
+impl ASTVisitor for ScopeAnalyzer {
+    fn visit_scope(&mut self, name: &Option<Token>, statements: &[Statement], span: Span) {
+        if let Some(name) = name {
+            let lexeme = name.lexeme.clone();
+            self.insert_symbol(name, Symbol::Scope { name: name.clone() });
+
+            self.push_scope(lexeme.clone(), span);
+
+            for statement in statements {
+                self.visit_statement(statement);
+            }
+
+            self.pop_scope();
+        }
+    }
+    fn visit_constant_assign(&mut self, statement: &ConstantAssign, _span: Span) {
+        self.insert_symbol(
+            &statement.name,
+            Symbol::Constant {
+                name: statement.name.clone(),
+            },
+        );
+        self.visit_expression(&statement.value);
+    }
+    fn visit_procedure(&mut self, name: &Token, statements: &[Statement], span: Span) {
+        let lexeme = name.lexeme.clone();
+        self.insert_symbol(name, Symbol::Scope { name: name.clone() });
+
+        self.push_scope(lexeme.clone(), span);
+
+        for statement in statements {
+            self.visit_statement(statement);
+        }
+
+        self.pop_scope()
+    }
+    fn visit_macro_definition(
+        &mut self,
+        name: &Token,
+        parameters: &[Token],
+        statements: &[Statement],
+        span: Span,
+    ) {
+        let lexeme = name.lexeme.clone();
+        self.insert_symbol(name, Symbol::Scope { name: name.clone() });
+
+        self.push_scope(lexeme.clone(), span);
+
+        for parameter in parameters.iter() {
+            self.insert_symbol(
+                parameter,
+                Symbol::Scope {
+                    name: parameter.clone(),
+                },
+            );
+        }
+
+        for statement in statements {
+            self.visit_statement(statement);
+        }
+
+        self.pop_scope()
+    }
+    fn visit_label(&mut self, name: &Token, span: Span) {
+        self.insert_symbol(name, Symbol::Label { name: name.clone() });
+    }
+    fn visit_struct(&mut self, name: &Token, members: &[StructMember], span: Span) {
+        let lexeme = name.lexeme.clone();
+        self.insert_symbol(name, Symbol::Scope { name: name.clone() });
+
+        self.push_scope(lexeme.clone(), span);
+
+        for member in members.iter() {
+            match member {
+                StructMember::Field(field) => {
+                    self.insert_symbol(
+                        field,
+                        Symbol::Constant {
+                            name: field.clone(),
+                        },
+                    );
+                }
+                StructMember::Struct(strct) => {
+                    self.visit_statement(strct); // TODO: this should cause a syntax error if anything except struct.
+                }
+            }
+        }
+
+        self.pop_scope()
+    }
+
+    fn visit_repeat(
+        &mut self,
+        max: &Expression,
+        incr: &Option<Token>,
+        statements: &[Statement],
+        span: Span,
+    ) {
+        self.push_scope("__repeat".to_owned(), span);
+        if let Some(incr) = incr {
+            eprintln!("Repeat {:?}", self.format_name(incr));
+            self.insert_symbol(incr, Symbol::Constant { name: incr.clone() });
+        }
+        for statement in statements {
+            self.visit_statement(statement);
+        }
+        self.pop_scope()
+    }
+    
+    fn visit_import(&mut self, identifiers: &[Token], zero_page: &bool, span: Span) {
+        for identifier in identifiers {
+            self.insert_symbol(identifier, Symbol::Constant { name: identifier.clone() });
+        }
     }
 }

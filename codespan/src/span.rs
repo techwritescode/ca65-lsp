@@ -6,6 +6,10 @@ pub struct Span {
     pub end: usize,
 }
 
+impl Span {
+    pub const NONE: Span = Span{start: 0, end: 0};
+}
+
 impl Display for Span {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Span({},{})", self.start, self.end)

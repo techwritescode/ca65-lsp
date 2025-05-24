@@ -48,7 +48,10 @@ pub enum TokenType {
     RightBrace,
     Bank,
     SizeOf,
+    Match,
+    Def,
     UnnamedLabelReference,
+    Extract,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -146,6 +149,10 @@ impl<'a> Tokenizer<'a> {
                     ".xor" => self.make_token(TokenType::Xor),
                     ".bank" => self.make_token(TokenType::Bank),
                     ".sizeof" => self.make_token(TokenType::SizeOf),
+                    ".match" => self.make_token(TokenType::Match),
+                    ".def" | ".defined" => self.make_token(TokenType::Def),
+                    ".and" => self.make_token(TokenType::And),
+                    ".left"|".mid"|".right" => self.make_token(TokenType::Extract),
                     _ => self.make_token(TokenType::Macro),
                 }))
             }
