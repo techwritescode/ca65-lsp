@@ -45,7 +45,7 @@ impl ASTVisitor for SymbolResolver {
         &mut self,
         name: &Token,
         _parameters: &[Token],
-        statements: &[Statement],
+        _statements: &[Statement],
         _span: Span,
     ) {
         self.scope_stack.push(name.to_string());
@@ -54,14 +54,14 @@ impl ASTVisitor for SymbolResolver {
 
         self.scope_stack.pop();
     }
-    fn visit_struct(&mut self, name: &Token, members: &[StructMember], _span: Span) {
+    fn visit_struct(&mut self, name: &Token, _members: &[StructMember], _span: Span) {
         self.scope_stack.push(name.lexeme.clone());
 
         self.scope_stack.pop();
     }
     fn visit_repeat(
         &mut self,
-        max: &Expression,
+        _max: &Expression,
         _incr: &Option<Token>,
         statements: &[Statement],
         _span: Span,
@@ -91,8 +91,8 @@ impl ASTVisitor for SymbolResolver {
             scope,
         });
     }
-    
-    fn visit_export(&mut self, identifiers: &[Token], zero_page: &bool, span: Span) {
+
+    fn visit_export(&mut self, identifiers: &[Token], _zero_page: &bool, _span: Span) {
         let scope = self.scope_stack[..].to_vec();
         for identifier in identifiers {
             self.identifiers.push(IdentifierAccess {

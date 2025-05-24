@@ -58,7 +58,7 @@ impl Configuration {
                     }
                 }
             }
-            Err(e) => {
+            Err(_) => {
                 Ok(Configuration::default())
             }
         }

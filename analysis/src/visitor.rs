@@ -1,5 +1,8 @@
 use codespan::Span;
-use parser::{ConstantAssign, Expression, ExpressionKind, IfKind, Instruction, MacroInvocation, MacroParameter, Statement, StatementKind, StructMember, Token, TokenType};
+use parser::{
+    ConstantAssign, Expression, ExpressionKind, IfKind, Instruction, MacroInvocation,
+    MacroParameter, Statement, StatementKind, StructMember, Token, TokenType,
+};
 
 pub trait ASTVisitor {
     fn visit_statement(&mut self, statement: &Statement) {
@@ -127,7 +130,7 @@ pub trait ASTVisitor {
         }
     }
     fn visit_global(&mut self, _identifiers: &[Token], _zero_page: &bool, _span: Span) {}
-    fn visit_export(&mut self, identifiers: &[Token], _zero_page: &bool, _span: Span) {}
+    fn visit_export(&mut self, _identifiers: &[Token], _zero_page: &bool, _span: Span) {}
     fn visit_import(&mut self, _identifiers: &[Token], _zero_page: &bool, _span: Span) {}
     fn visit_ascii(&mut self, _string: &Token, _span: Span) {}
     fn visit_if(&mut self, if_statement: &IfKind, statements: &[Statement], _span: Span) {
@@ -174,9 +177,13 @@ pub trait ASTVisitor {
             ExpressionKind::Match(expr1, expr2) => self.visit_match(expr1, expr2, expression.span),
             ExpressionKind::Def(tok) => self.visit_def(tok, expression.span),
             ExpressionKind::Identifier(ident) => self.visit_identifier(ident, expression.span),
-            ExpressionKind::UnnamedLabelReference(reference) => self.visit_unnamed_label_reference(reference, expression.span),
+            ExpressionKind::UnnamedLabelReference(reference) => {
+                self.visit_unnamed_label_reference(reference, expression.span)
+            }
             ExpressionKind::String(str) => self.visit_string(str, expression.span),
-            ExpressionKind::Extract(tok, expr1, expr2) => self.visit_extract(tok, expr1, expr2, expression.span),
+            ExpressionKind::Extract(tok, expr1, expr2) => {
+                self.visit_extract(tok, expr1, expr2, expression.span)
+            }
             ExpressionKind::TokenList(toks) => self.visit_token_list(toks, expression.span),
         }
     }
@@ -255,11 +262,18 @@ pub trait ASTVisitor {
     fn visit_sizeof(&mut self, expr: &Expression, _span: Span) {
         self.visit_expression(expr);
     }
-    fn visit_match(&mut self, expr1: &Expression, expr2: &Expression, _span: Span) {}
-    fn visit_def(&mut self, tok: &Token, _span: Span) {}
+    fn visit_match(&mut self, _expr1: &Expression, _expr2: &Expression, _span: Span) {}
+    fn visit_def(&mut self, _tok: &Token, _span: Span) {}
     fn visit_identifier(&mut self, _ident: &str, _span: Span) {}
     fn visit_unnamed_label_reference(&mut self, _reference: &i8, _span: Span) {}
     fn visit_string(&mut self, _str: &str, _span: Span) {}
-    fn visit_extract(&mut self, tok: &Token, expr1: &Expression, expr2: &Expression, _span: Span) {}
-    fn visit_token_list(&mut self, toks: &[Token], _span: Span) {}
+    fn visit_extract(
+        &mut self,
+        _tok: &Token,
+        _expr1: &Expression,
+        _expr2: &Expression,
+        _span: Span,
+    ) {
+    }
+    fn visit_token_list(&mut self, _toks: &[Token], _span: Span) {}
 }

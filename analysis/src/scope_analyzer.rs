@@ -1,6 +1,6 @@
 use crate::visitor::ASTVisitor;
 use codespan::Span;
-use parser::{Ast, ConstantAssign, Expression, Statement, StatementKind, StructMember, Token};
+use parser::{Ast, ConstantAssign, Expression, Statement, StructMember, Token};
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -227,7 +227,7 @@ impl ASTVisitor for ScopeAnalyzer {
 
         self.pop_scope()
     }
-    fn visit_label(&mut self, name: &Token, span: Span) {
+    fn visit_label(&mut self, name: &Token, _span: Span) {
         self.insert_symbol(name, Symbol::Label { name: name.clone() });
     }
     fn visit_struct(&mut self, name: &Token, members: &[StructMember], span: Span) {
@@ -257,7 +257,7 @@ impl ASTVisitor for ScopeAnalyzer {
 
     fn visit_repeat(
         &mut self,
-        max: &Expression,
+        _max: &Expression,
         incr: &Option<Token>,
         statements: &[Statement],
         span: Span,
@@ -272,10 +272,15 @@ impl ASTVisitor for ScopeAnalyzer {
         }
         self.pop_scope()
     }
-    
-    fn visit_import(&mut self, identifiers: &[Token], zero_page: &bool, span: Span) {
+
+    fn visit_import(&mut self, identifiers: &[Token], _zero_page: &bool, _span: Span) {
         for identifier in identifiers {
-            self.insert_symbol(identifier, Symbol::Constant { name: identifier.clone() });
+            self.insert_symbol(
+                identifier,
+                Symbol::Constant {
+                    name: identifier.clone(),
+                },
+            );
         }
     }
 }
