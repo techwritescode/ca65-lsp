@@ -37,6 +37,7 @@ impl IndexedDocumentation {
 }
 
 pub static CA65_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
+pub static CA65_DOT_OPERATOR_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
 pub static INSTRUCTION_DOCUMENTATION: OnceLock<IndexedDocumentation> = OnceLock::new();
 pub static MACPACK_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
 pub static FEATURE_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
@@ -53,6 +54,13 @@ fn parse_json_to_hashmaps() {
     )) {
         if CA65_DOCUMENTATION.set(doc).is_err() {
             eprintln!("CA65_KEYWORDS_MAP not able to be initialized");
+        }
+    }
+    if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!(
+        "../../data/ca65-dot-operators-doc.json"
+    )) {
+        if CA65_DOT_OPERATOR_DOCUMENTATION.set(doc).is_err() {
+            eprintln!("CA65_DOT_OPERATORS_DOCUMENTATION not able to be initialized");
         }
     }
     if let Ok(doc) = serde_json::from_str::<IndexedDocumentation>(include_str!(
@@ -79,6 +87,7 @@ fn parse_json_to_hashmaps() {
 }
 
 pub static CA65_KEYWORD_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
+pub static CA65_DOT_OPERATOR_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
 pub static INSTRUCTION_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
 pub static MACPACK_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
 pub static FEATURE_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
@@ -96,6 +105,15 @@ fn parse_json_to_completion_items() {
     CA65_KEYWORD_COMPLETION_ITEMS
         .set(ca65_keyword_completion_items)
         .expect("Could not set CA65_KEYWORD_COMPLETION_ITEMS");
+
+    let ca65_dot_operator_documentation = CA65_DOT_OPERATOR_DOCUMENTATION
+        .get()
+        .expect("Could not get CA65_DOT_OPERATOR_DOCUMENTATION in init_completion_item_vecs()");
+    let ca65_dot_operator_completion_items =
+        get_completion_item_vec_from_string_string_hashmap(ca65_dot_operator_documentation);
+    CA65_DOT_OPERATOR_COMPLETION_ITEMS
+        .set(ca65_dot_operator_completion_items)
+        .expect("Could not set CA65_DOT_OPERATOR_COMPLETION_ITEMS");
 
     let instruction_documentation = INSTRUCTION_DOCUMENTATION
         .get()
