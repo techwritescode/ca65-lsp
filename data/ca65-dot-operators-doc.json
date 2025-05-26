@@ -1,0 +1,13 @@
+{
+  ".bitnot": "Unary bitwise not (~)",
+  ".shl": "Shift-left operator (<<)",
+  ".shr": "Shift-right operator (>>)",
+  ".mod": "Modulo operator (%)",
+  ".bitand": "Bitwise and (&)",
+  ".bitor": "Bitwise or (|)",
+  ".bitxor": "Binary bitwise xor (^)",
+  ".and": "Boolean and (&&)",
+  ".or": "Boolean or (||)",
+  ".xor": "Boolean xor",
+  ".not": "Boolean not (!)",
+}
