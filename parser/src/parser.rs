@@ -322,7 +322,7 @@ impl<'a> Parser<'a> {
                     }))
                 }
                 ".import" | ".importzp" => {
-                    let zp = macro_matcher == ".importzp";
+                    let is_zp = macro_matcher == ".importzp";
                     let mut idents = vec![];
                     idents.push(self.consume_token(TokenType::Identifier)?);
                     while match_token!(self.tokens, TokenType::Comma) {
@@ -333,7 +333,7 @@ impl<'a> Parser<'a> {
                     Ok(Some(Statement {
                         kind: StatementKind::Import {
                             identifiers: idents,
-                            zero_page: zp,
+                            zero_page: is_zp,
                         },
                         span: Span::new(start, end),
                     }))
@@ -518,7 +518,7 @@ impl<'a> Parser<'a> {
                     Ok(Some(self.parse_if()?))
                 }
                 ".smart" => {
-                    if match_token!(self.tokens, TokenType::Plus|TokenType::Minus) {}
+                    if match_token!(self.tokens, TokenType::Plus | TokenType::Minus) {}
                     Ok(None)
                 }
                 // Ignored for now
@@ -847,7 +847,10 @@ impl<'a> Parser<'a> {
 
     fn parse_expr2(&mut self) -> Result<Expression> {
         let mut root = self.parse_bool_expr()?;
-        while match_token!(self.tokens, TokenType::And | TokenType::Xor | TokenType::Caret) {
+        while match_token!(
+            self.tokens,
+            TokenType::And | TokenType::Xor | TokenType::Caret
+        ) {
             let tok = self.tokens.previous()?;
             let right = self.parse_bool_expr()?;
             match tok.token_type {
@@ -860,7 +863,7 @@ impl<'a> Parser<'a> {
                         span: Span::new(root.span.start, right.span.end),
                     };
                 }
-                TokenType::Xor|TokenType::Caret => {
+                TokenType::Xor | TokenType::Caret => {
                     root = Expression {
                         kind: ExpressionKind::Xor(
                             Box::from(root.clone()),
