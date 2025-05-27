@@ -146,6 +146,8 @@ impl<'a> Tokenizer<'a> {
                     ".bitor" => self.make_token(TokenType::BitwiseOr),
                     ".bitand" => self.make_token(TokenType::BitwiseAnd),
                     ".bitxor" => self.make_token(TokenType::BitwiseXor),
+                    ".or" => self.make_token(TokenType::Or),
+                    ".and" => self.make_token(TokenType::And),
                     ".mod" => self.make_token(TokenType::Mod),
                     ".shr" => self.make_token(TokenType::ShiftRight),
                     ".shl" => self.make_token(TokenType::ShiftLeft),
