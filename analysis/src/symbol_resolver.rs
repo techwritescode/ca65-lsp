@@ -1,12 +1,12 @@
 use crate::visitor::ASTVisitor;
 use codespan::Span;
-use parser::{Ast, Statement, Token};
+use parser::{Ast, Expression, Statement, StructMember, Token};
 
 #[derive(Debug)]
 pub struct IdentifierAccess {
     pub name: String,
     pub span: Span,
-    pub scope: Vec<String>
+    pub scope: Vec<String>,
 }
 
 pub struct SymbolResolver {
@@ -32,14 +32,47 @@ impl ASTVisitor for SymbolResolver {
         if let Some(name) = name {
             self.scope_stack.push(name.to_string());
         }
-        
+
         for statement in statements {
             self.visit_statement(statement);
         }
-        
+
         if name.is_some() {
             self.scope_stack.pop();
         }
+    }
+    fn visit_macro_definition(
+        &mut self,
+        name: &Token,
+        _parameters: &[Token],
+        _statements: &[Statement],
+        _span: Span,
+    ) {
+        self.scope_stack.push(name.to_string());
+
+        // Skip type checking in macros for now. Might be good to add local label completion at some point, but ultimately we don't know the context the macro is invoked in yet
+
+        self.scope_stack.pop();
+    }
+    fn visit_struct(&mut self, name: &Token, _members: &[StructMember], _span: Span) {
+        self.scope_stack.push(name.lexeme.clone());
+
+        self.scope_stack.pop();
+    }
+    fn visit_repeat(
+        &mut self,
+        _max: &Expression,
+        _incr: &Option<Token>,
+        statements: &[Statement],
+        _span: Span,
+    ) {
+        self.scope_stack.push("__repeat".to_owned());
+
+        for statement in statements {
+            self.visit_statement(statement);
+        }
+
+        self.scope_stack.pop();
     }
     fn visit_procedure(&mut self, name: &Token, statements: &[Statement], _span: Span) {
         self.scope_stack.push(name.to_string());
@@ -52,10 +85,21 @@ impl ASTVisitor for SymbolResolver {
     }
     fn visit_identifier(&mut self, ident: &str, span: Span) {
         let scope = self.scope_stack[..].to_vec();
-        self.identifiers.push(IdentifierAccess{
+        self.identifiers.push(IdentifierAccess {
             name: ident.to_owned(),
             span,
             scope,
         });
+    }
+
+    fn visit_export(&mut self, identifiers: &[Token], _zero_page: &bool, _span: Span) {
+        let scope = self.scope_stack[..].to_vec();
+        for identifier in identifiers {
+            self.identifiers.push(IdentifierAccess {
+                name: identifier.to_string(),
+                span: identifier.span,
+                scope: scope.clone(),
+            })
+        }
     }
 }

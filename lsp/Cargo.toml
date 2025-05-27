@@ -18,3 +18,5 @@ parser = { path = "../parser" }
 analysis = { path = "../analysis" }
 codespan = { path = "../codespan", features = ["lsp"] }
 lazy_static = "1.5.0"
+walkdir = "2.5.0"
+uuid = { version = "1.17.0", features = ["v4"] }

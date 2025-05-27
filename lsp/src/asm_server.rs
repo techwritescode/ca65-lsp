@@ -1,4 +1,4 @@
-use crate::codespan::{FileId, Files, IndexError};
+use crate::codespan::{FileId, Files};
 use crate::completion::{
     Ca65KeywordCompletionProvider, CompletionProvider, FeatureCompletionProvider,
     InstructionCompletionProvider, MacpackCompletionProvider, SymbolCompletionProvider,
@@ -9,12 +9,11 @@ use crate::documentation::{
     CA65_DOCUMENTATION, FEATURE_DOCUMENTATION, INSTRUCTION_DOCUMENTATION, MACPACK_DOCUMENTATION,
 };
 use crate::error::file_error_to_lsp;
-use crate::symbol_cache::{
-    symbol_cache_fetch, symbol_cache_get, symbol_cache_insert, symbol_cache_reset, SymbolType,
-};
-use analysis::{Scope, ScopeAnalyzer, Symbol, SymbolResolver};
+use crate::index_engine::IndexEngine;
+use crate::state::State;
+use crate::symbol_cache::symbol_cache_get;
+use analysis::Scope;
 use codespan::{File, Span};
-use parser::ParseError;
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::Output;
@@ -27,8 +26,8 @@ use tower_lsp_server::lsp_types::{
     DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams, DocumentSymbolParams,
     DocumentSymbolResponse, FileOperationRegistrationOptions, FoldingRange, FoldingRangeParams,
     FoldingRangeProviderCapability, HoverContents, HoverProviderCapability, InitializedParams,
-    LocationLink, MarkupContent, MarkupKind, MessageType, OneOf, Range, Registration,
-    SymbolInformation, WorkspaceFileOperationsServerCapabilities,
+    InlayHint, InlayHintLabel, InlayHintParams, LocationLink, MarkupContent, MarkupKind,
+    MessageType, OneOf, Registration, SymbolInformation, WorkspaceFileOperationsServerCapabilities,
     WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use tower_lsp_server::{
@@ -36,39 +35,33 @@ use tower_lsp_server::{
     lsp_types::{
         DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
         GotoDefinitionResponse, Hover, HoverParams, InitializeParams, InitializeResult, Location,
-        MarkedString, ServerCapabilities, TextDocumentContentChangeEvent, TextDocumentItem,
-        TextDocumentSyncCapability, TextDocumentSyncKind, Uri, VersionedTextDocumentIdentifier,
+        MarkedString, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Uri,
     },
     Client, LanguageServer,
 };
 
-pub struct State {
-    pub sources: HashMap<Uri, FileId>,
-    pub scopes: HashMap<Uri, Vec<Scope>>,
-    pub files: Files,
-    pub workspace_folder: Option<Uri>,
-}
-
 #[allow(dead_code)]
-#[derive(Clone)]
 pub struct Asm {
     client: Client,
     state: Arc<Mutex<State>>,
     configuration: Arc<Mutex<Configuration>>,
     completion_providers: Vec<Arc<dyn CompletionProvider + Send + Sync>>,
     definition: Definition,
+    index_engine: Arc<Mutex<IndexEngine>>,
 }
 
 impl Asm {
     pub fn new(client: Client) -> Self {
+        let state = Arc::new(Mutex::new(State {
+            sources: HashMap::new(),
+            scopes: Default::default(),
+            files: Files::new(),
+            workspace_folder: None,
+            client: client.clone(),
+        }));
         Asm {
             client,
-            state: Arc::new(Mutex::new(State {
-                sources: HashMap::new(),
-                scopes: Default::default(),
-                files: Files::new(),
-                workspace_folder: None,
-            })),
+            state: state.clone(),
             configuration: Arc::new(Mutex::new(Configuration::default())),
             completion_providers: vec![
                 Arc::from(SymbolCompletionProvider {}),
@@ -78,11 +71,20 @@ impl Asm {
                 Arc::from(FeatureCompletionProvider {}),
             ],
             definition: Definition {},
+            index_engine: Arc::new(Mutex::new(IndexEngine {
+                state: state.clone(),
+            })),
         }
     }
 
     async fn index(&self, file_id: &FileId) {
-        self.parse_labels(*file_id).await;
+        let mut state = self.state.lock().await;
+        let diagnostics = [
+            state.parse_labels(*file_id).await,
+            state.lint(*file_id).await,
+        ]
+        .concat();
+        state.publish_diagnostics(*file_id, diagnostics).await;
     }
 
     async fn load_config(&self, path: &Path) -> Result<()> {
@@ -102,154 +104,6 @@ impl Asm {
         }
 
         Ok(())
-    }
-
-    async fn parse_labels(&self, id: FileId) {
-        let mut state = self.state.lock().await;
-        let uri = state.files.get_uri(id);
-
-        let mut diagnostics = vec![];
-
-        match state.files.index(id) {
-            Ok(parse_errors) => {
-                symbol_cache_reset(id);
-                let mut analyzer = ScopeAnalyzer::new(state.files.ast(id).clone());
-                let (scopes, symtab) = analyzer.analyze();
-                state.scopes.insert(uri, scopes);
-                // let symbols = analysis::DefAnalyzer::new(state.files.ast(id).clone()).parse();
-
-                for (symbol, scope) in symtab.iter() {
-                    symbol_cache_insert(
-                        id,
-                        scope.get_span(),
-                        symbol.clone(),
-                        scope.get_name(),
-                        scope.get_description(),
-                        match &scope {
-                            Symbol::Macro { .. } => SymbolType::Macro,
-                            Symbol::Label { .. } => SymbolType::Label,
-                            Symbol::Constant { .. } => SymbolType::Constant,
-                            Symbol::Parameter { .. } => SymbolType::Constant,
-                            Symbol::Scope { .. } => SymbolType::Scope,
-                        },
-                    );
-                }
-
-                diagnostics.extend(self.resolve_identifier_access(&state, id));
-
-                for err in parse_errors.iter() {
-                    match err {
-                        ParseError::UnexpectedToken(token) => {
-                            diagnostics.push(Diagnostic::new_simple(
-                                state
-                                    .files
-                                    .get(id)
-                                    .byte_span_to_range(token.span)
-                                    .unwrap()
-                                    .into(),
-                                format!("Unexpected Token {:?}", token.token_type),
-                            ));
-                        }
-                        ParseError::Expected { expected, received } => {
-                            diagnostics.push(Diagnostic::new_simple(
-                                state
-                                    .files
-                                    .get(id)
-                                    .byte_span_to_range(received.span)
-                                    .unwrap()
-                                    .into(),
-                                format!(
-                                    "Expected {:?} but received {:?}",
-                                    expected, received.token_type
-                                ),
-                            ));
-                        }
-                        ParseError::EOF => {
-                            let pos = state
-                                .files
-                                .get(id)
-                                .byte_index_to_position(state.files.get(id).source.len() - 1)
-                                .unwrap();
-                            diagnostics.push(Diagnostic::new_simple(
-                                Range::new(pos.into(), pos.into()),
-                                "Unexpected EOF".to_string(),
-                            ));
-                        }
-                    }
-                }
-            }
-            Err(err) => match err {
-                IndexError::TokenizerError(err) => {
-                    let pos = state
-                        .files
-                        .get(id)
-                        .byte_index_to_position(err.offset)
-                        .unwrap();
-                    diagnostics.push(Diagnostic::new_simple(
-                        Range::new(pos.into(), pos.into()),
-                        "Unexpected character".to_string(),
-                    ));
-                }
-                _ => {}
-            },
-        }
-
-        self.client
-            .publish_diagnostics(
-                Uri::from_str(state.files.get(id).name.as_str()).unwrap(),
-                diagnostics,
-                None,
-            )
-            .await;
-    }
-
-    pub fn resolve_identifier_access(&self, state: &State, id: FileId) -> Vec<Diagnostic> {
-        let mut diagnostics = vec![];
-        let file = state.files.get(id);
-        let identifiers = SymbolResolver::find_identifiers(state.files.ast(id).clone());
-
-        for identifier_access in identifiers {
-            let range = file
-                .byte_span_to_range(identifier_access.span)
-                .unwrap()
-                .into();
-
-            if identifier_access.name.starts_with("::") {
-                if symbol_cache_fetch(identifier_access.name.clone()).is_empty() {
-                    diagnostics.push(Diagnostic {
-                        range,
-                        severity: Some(DiagnosticSeverity::ERROR),
-                        message: format!("Unknown symbol: {}", identifier_access.name),
-                        ..Default::default()
-                    });
-                }
-                continue;
-            }
-
-            let mut resolved_fqn = None;
-
-            for i in (0..=identifier_access.scope.len()).rev() {
-                let scope = &identifier_access.scope[0..i];
-                let fqn = [&["".to_owned()], scope, &[identifier_access.name.clone()]]
-                    .concat()
-                    .join("::")
-                    .to_string();
-                if !symbol_cache_fetch(fqn.clone()).is_empty() {
-                    resolved_fqn = Some(fqn);
-                    break;
-                }
-            }
-            if resolved_fqn.is_none() {
-                diagnostics.push(Diagnostic {
-                    range,
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    message: format!("Unknown symbol: {}", identifier_access.name),
-                    ..Default::default()
-                });
-            }
-        }
-
-        diagnostics
     }
 }
 
@@ -323,6 +177,7 @@ impl LanguageServer for Asm {
                         change_notifications: Some(OneOf::Left(true)),
                     }),
                 }),
+                inlay_hint_provider: Some(OneOf::Left(true)),
                 folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
@@ -345,6 +200,11 @@ impl LanguageServer for Asm {
             })),
         };
 
+        self.client
+            .register_capability(vec![registration])
+            .await
+            .unwrap();
+
         let folder = self.state.lock().await.workspace_folder.clone();
         if let Some(workspace_folder) = folder {
             let config_path = Path::new(workspace_folder.path().as_str()).join("nes.toml");
@@ -353,12 +213,15 @@ impl LanguageServer for Asm {
                     .await
                     .expect("Failed to read config");
             }
-        }
 
-        self.client
-            .register_capability(vec![registration])
+            tokio::spawn(IndexEngine::crawl_fs(
+                self.index_engine.clone(),
+                workspace_folder,
+                self.client.clone(),
+            ))
             .await
             .unwrap();
+        }
         // _ = self
         //     .client
         //     .progress(ProgressToken::String("load".to_string()), "Loading")
@@ -374,7 +237,7 @@ impl LanguageServer for Asm {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let mut state = self.state.lock().await;
-        let id = get_or_insert_source(&mut state, &params.text_document);
+        let id = state.get_or_insert_source(params.text_document.uri, params.text_document.text);
         drop(state);
 
         self.index(&id).await;
@@ -382,7 +245,7 @@ impl LanguageServer for Asm {
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let mut state = self.state.lock().await;
-        let id = reload_source(&mut state, &params.text_document, params.content_changes);
+        let id = state.reload_source(&params.text_document, params.content_changes);
         drop(state);
 
         self.index(&id).await;
@@ -677,42 +540,25 @@ impl LanguageServer for Asm {
             Ok(None)
         }
     }
-}
+    async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
+        let state = self.state.lock().await;
 
-fn get_or_insert_source(state: &mut State, document: &TextDocumentItem) -> FileId {
-    if let Some(id) = state.sources.get(&document.uri) {
-        *id
-    } else {
-        let id = state.files.add(document.uri.clone(), document.text.clone());
-        state.sources.insert(document.uri.clone(), id);
-        id
-    }
-}
-
-fn reload_source(
-    state: &mut State,
-    document: &VersionedTextDocumentIdentifier,
-    changes: Vec<TextDocumentContentChangeEvent>,
-) -> FileId {
-    if let Some(id) = state.sources.get(&document.uri) {
-        let mut source = state.files.source(*id).to_owned();
-        for change in changes {
-            if let (None, None) = (change.range, change.range_length) {
-                source = change.text;
-            } else if let Some(range) = change.range {
-                let span = state
-                    .files
-                    .get(*id)
-                    .range_to_byte_span(&range.into())
-                    .unwrap_or_default();
-                source.replace_range(span, &change.text);
+        if let Some(id) = state.sources.get(&params.text_document.uri) {
+            let uri = state.files.get_uri(*id);
+            if let Some(scopes) = state.scopes.get(&uri) {
+                let file = state.files.get(*id);
+                Ok(Some(
+                    scopes
+                        .iter()
+                        .flat_map(|scope| scope_to_inlay_hint(file, scope))
+                        .collect(),
+                ))
+            } else {
+                Ok(None)
             }
+        } else {
+            Ok(None)
         }
-        state.files.update(*id, source);
-        *id
-    } else {
-        // tracing::error!("attempted to reload source that does not exist");
-        panic!();
     }
 }
 
@@ -732,6 +578,29 @@ fn scope_to_folding_range(file: &File, scope: &Scope) -> Vec<FoldingRange> {
             .children
             .iter()
             .flat_map(|scope| scope_to_folding_range(file, scope)),
+    );
+
+    results
+}
+
+fn scope_to_inlay_hint(file: &File, scope: &Scope) -> Vec<InlayHint> {
+    let range = file.byte_span_to_range(scope.span).unwrap();
+    let mut results = vec![InlayHint {
+        position: range.end.into(),
+        label: InlayHintLabel::String(scope.name.clone()),
+        kind: None,
+        text_edits: None,
+        tooltip: None,
+        padding_left: Some(true),
+        padding_right: None,
+        data: None,
+    }];
+
+    results.extend(
+        scope
+            .children
+            .iter()
+            .flat_map(|scope| scope_to_inlay_hint(file, scope)),
     );
 
     results

@@ -1,4 +1,4 @@
-use crate::asm_server::State;
+use crate::state::State;
 use crate::codespan::FileId;
 use crate::documentation::{
     CA65_KEYWORD_COMPLETION_ITEMS, FEATURE_COMPLETION_ITEMS, INSTRUCTION_COMPLETION_ITEMS,

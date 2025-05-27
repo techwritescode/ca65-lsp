@@ -48,7 +48,13 @@ pub enum TokenType {
     RightBrace,
     Bank,
     SizeOf,
+    Match,
+    Def,
     UnnamedLabelReference,
+    Extract,
+    WordOp,
+    LeftBracket,
+    RightBracket,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -146,17 +152,25 @@ impl<'a> Tokenizer<'a> {
                     ".xor" => self.make_token(TokenType::Xor),
                     ".bank" => self.make_token(TokenType::Bank),
                     ".sizeof" => self.make_token(TokenType::SizeOf),
+                    ".loword" | ".hiword" => self.make_token(TokenType::WordOp),
+                    ".match" => self.make_token(TokenType::Match),
+                    ".def" | ".defined" => self.make_token(TokenType::Def),
+                    ".and" => self.make_token(TokenType::And),
+                    ".not" => self.make_token(TokenType::Not),
+                    ".left" | ".mid" | ".right" => self.make_token(TokenType::Extract),
                     _ => self.make_token(TokenType::Macro),
                 }))
             }
-            Some('"') => {
-                self.string();
+            Some('"'|'\'') => {
+                self.string(c.unwrap());
                 Ok(Some(self.make_token(TokenType::String)))
             }
             Some('(') => Ok(Some(self.make_token(TokenType::LeftParen))),
             Some(')') => Ok(Some(self.make_token(TokenType::RightParen))),
             Some('{') => Ok(Some(self.make_token(TokenType::LeftBrace))),
             Some('}') => Ok(Some(self.make_token(TokenType::RightBrace))),
+            Some('[') => Ok(Some(self.make_token(TokenType::LeftBracket))),
+            Some(']') => Ok(Some(self.make_token(TokenType::RightBracket))),
             Some('a'..='z' | 'A'..='Z' | '_') => {
                 self.identifier();
                 Ok(Some(
@@ -306,9 +320,9 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    fn string(&mut self) -> String {
+    fn string(&mut self, variant: char) -> String {
         self.input.advance();
-        while !self.input.at_end() && self.input.advance() != Some('"') {}
+        while !self.input.at_end() && self.input.advance() != Some(variant) {}
 
         let string = String::from_utf8(self.input[self.start..self.input.pos()].to_vec()).unwrap();
 
