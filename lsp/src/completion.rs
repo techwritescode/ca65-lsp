@@ -1,8 +1,7 @@
 use crate::state::State;
 use crate::codespan::FileId;
 use crate::documentation::{
-    CA65_KEYWORD_COMPLETION_ITEMS, FEATURE_COMPLETION_ITEMS, INSTRUCTION_COMPLETION_ITEMS,
-    MACPACK_COMPLETION_ITEMS,
+    CA65_DOT_OPERATOR_COMPLETION_ITEMS, CA65_KEYWORD_COMPLETION_ITEMS, FEATURE_COMPLETION_ITEMS, INSTRUCTION_COMPLETION_ITEMS, MACPACK_COMPLETION_ITEMS
 };
 use crate::symbol_cache::{symbol_cache_get, SymbolType};
 use analysis::ScopeAnalyzer;
@@ -112,6 +111,21 @@ impl CompletionProvider for SymbolCompletionProvider {
     }
 }
 
+pub struct Ca65DotOperatorCompletionProvider;
+impl CompletionProvider for Ca65DotOperatorCompletionProvider {
+    fn completions_for(
+        &self,
+        _state: &State,
+        _id: FileId,
+        _position: Position
+    ) -> Vec<CompletionItem> {
+        CA65_DOT_OPERATOR_COMPLETION_ITEMS
+            .get()
+            .expect("Could not get ca65 dot operator completion items in completion provider")
+            .clone()
+    }
+}
+
 pub struct Ca65KeywordCompletionProvider;
 
 impl CompletionProvider for Ca65KeywordCompletionProvider {
@@ -180,3 +194,4 @@ impl CompletionProvider for FeatureCompletionProvider {
         }
     }
 }
+
