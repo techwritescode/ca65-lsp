@@ -112,7 +112,11 @@ impl ScopeAnalyzer {
     pub fn new(ast: Ast) -> Self {
         Self {
             ast,
-            stack: Vec::new(),
+            stack: vec!(Scope {
+                name: "Root".to_string(),
+                span: Span::new(0, 0),
+                children: vec![],
+            }),
             symtab: HashMap::new(),
         }
     }
@@ -121,8 +125,9 @@ impl ScopeAnalyzer {
         for statement in self.ast.clone().iter() {
             self.visit_statement(statement);
         }
-
-        (self.stack.clone(), self.symtab.clone())
+        
+        // Get children of root node
+        (self.stack[0].children.clone(), self.symtab.clone())
     }
 
     pub fn search(scopes: &[Scope], index: usize) -> Vec<String> {
@@ -137,7 +142,7 @@ impl ScopeAnalyzer {
 
     #[inline]
     fn format_name(&self, name: &Token) -> String {
-        let stack: Vec<String> = self.stack[..].iter().map(|s| s.name.clone()).collect();
+        let stack: Vec<String> = self.stack[1..].iter().map(|s| s.name.clone()).collect();
         [&["".to_owned()], &stack[..], &[name.lexeme.clone()]]
             .concat()
             .join("::")

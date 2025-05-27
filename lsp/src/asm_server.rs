@@ -26,9 +26,9 @@ use tower_lsp_server::lsp_types::{
     DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams, DocumentSymbolParams,
     DocumentSymbolResponse, FileOperationRegistrationOptions, FoldingRange, FoldingRangeParams,
     FoldingRangeProviderCapability, HoverContents, HoverProviderCapability, InitializedParams,
-    LocationLink, MarkupContent, MarkupKind, MessageType, OneOf, Registration, SymbolInformation,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities,
+    InlayHint, InlayHintLabel, InlayHintParams, LocationLink, MarkupContent, MarkupKind,
+    MessageType, OneOf, Registration, SymbolInformation, WorkspaceFileOperationsServerCapabilities,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use tower_lsp_server::{
     jsonrpc::Result,
@@ -81,8 +81,9 @@ impl Asm {
         let mut state = self.state.lock().await;
         let diagnostics = [
             state.parse_labels(*file_id).await,
-            state.lint(*file_id).await
-        ].concat();
+            state.lint(*file_id).await,
+        ]
+        .concat();
         state.publish_diagnostics(*file_id, diagnostics).await;
     }
 
@@ -176,6 +177,7 @@ impl LanguageServer for Asm {
                         change_notifications: Some(OneOf::Left(true)),
                     }),
                 }),
+                inlay_hint_provider: Some(OneOf::Left(true)),
                 folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
@@ -538,6 +540,26 @@ impl LanguageServer for Asm {
             Ok(None)
         }
     }
+    async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
+        let state = self.state.lock().await;
+
+        if let Some(id) = state.sources.get(&params.text_document.uri) {
+            let uri = state.files.get_uri(*id);
+            if let Some(scopes) = state.scopes.get(&uri) {
+                let file = state.files.get(*id);
+                Ok(Some(
+                    scopes
+                        .iter()
+                        .flat_map(|scope| scope_to_inlay_hint(file, scope))
+                        .collect(),
+                ))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 fn scope_to_folding_range(file: &File, scope: &Scope) -> Vec<FoldingRange> {
@@ -556,6 +578,29 @@ fn scope_to_folding_range(file: &File, scope: &Scope) -> Vec<FoldingRange> {
             .children
             .iter()
             .flat_map(|scope| scope_to_folding_range(file, scope)),
+    );
+
+    results
+}
+
+fn scope_to_inlay_hint(file: &File, scope: &Scope) -> Vec<InlayHint> {
+    let range = file.byte_span_to_range(scope.span).unwrap();
+    let mut results = vec![InlayHint {
+        position: range.end.into(),
+        label: InlayHintLabel::String(scope.name.clone()),
+        kind: None,
+        text_edits: None,
+        tooltip: None,
+        padding_left: Some(true),
+        padding_right: None,
+        data: None,
+    }];
+
+    results.extend(
+        scope
+            .children
+            .iter()
+            .flat_map(|scope| scope_to_inlay_hint(file, scope)),
     );
 
     results

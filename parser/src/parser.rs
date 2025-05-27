@@ -1267,7 +1267,6 @@ impl<'a> Parser<'a> {
             })
         } else if match_token!(self.tokens, TokenType::LeftParen) {
             let params = self.parse_parameters()?;
-            eprintln!("Call: {token_string} {params:?}");
             self.consume_token(TokenType::RightParen)?;
             let end = self.mark_end();
             Ok(Expression {
