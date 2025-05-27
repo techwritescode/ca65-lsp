@@ -9,5 +9,5 @@
   ".and": "Boolean and (&&)",
   ".or": "Boolean or (||)",
   ".xor": "Boolean xor",
-  ".not": "Boolean not (!)",
+  ".not": "Boolean not (!)"
 }
