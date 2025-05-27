@@ -83,6 +83,7 @@ impl IndexEngine {
             state.publish_diagnostics(*id, diags).await;
         }
 
+        state.client.inlay_hint_refresh().await.unwrap();
         progress.finish().await;
     }
 }
