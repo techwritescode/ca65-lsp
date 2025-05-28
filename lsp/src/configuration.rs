@@ -7,14 +7,28 @@ use tower_lsp_server::lsp_types;
 use tower_lsp_server::lsp_types::{Diagnostic, Position};
 
 #[derive(serde::Deserialize, Default, Debug)]
-pub struct Toolchain {
+pub struct ToolchainConfig {
     pub cc65: Option<String>,
+}
+
+#[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum LSPConfigMachine {
+    Nes,
+    Snes,
+    C64,
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct LSPConfig {
+    pub machine: LSPConfigMachine,
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
 pub struct Configuration {
     #[serde(default)]
-    pub toolchain: Toolchain,
+    pub toolchain: ToolchainConfig,
+    pub lsp: Option<LSPConfig>,
 }
 
 impl Configuration {
@@ -27,7 +41,8 @@ impl Configuration {
             toml::from_str(buf.as_str()).unwrap()
         } else {
             Configuration {
-                toolchain: Toolchain::default(),
+                toolchain: ToolchainConfig::default(),
+                lsp: None,
             }
         }
     }
@@ -45,26 +60,29 @@ impl Configuration {
         match File::open(path) {
             Ok(mut file) => {
                 let mut contents = String::new();
-                file.read_to_string(&mut contents).expect("failed to read config file");
+                file.read_to_string(&mut contents)
+                    .expect("failed to read config file");
                 match toml::from_str::<Configuration>(&contents) {
                     Ok(config) => {
                         eprintln!("Loaded configuration {config:?}");
                         Ok(config)
                     }
                     Err(error) => {
-                        let range = Self::toml_range_to_lsp_range(contents, error.span().unwrap()).unwrap();
+                        let range =
+                            Self::toml_range_to_lsp_range(contents, error.span().unwrap()).unwrap();
                         eprintln!("Failed to parse config file: {error:?}");
                         Err(Diagnostic::new_simple(range, error.to_string()))
                     }
                 }
             }
-            Err(_) => {
-                Ok(Configuration::default())
-            }
+            Err(_) => Ok(Configuration::default()),
         }
     }
 
-    fn toml_range_to_lsp_range(config: String, range: std::ops::Range<usize>) -> Option<lsp_types::Range> {
+    fn toml_range_to_lsp_range(
+        config: String,
+        range: std::ops::Range<usize>,
+    ) -> Option<lsp_types::Range> {
         let mut start_pos = None;
         let mut end_pos = None;
 
@@ -79,7 +97,7 @@ impl Configuration {
                 end_pos = Some(Position::new(line, (idx - line_start) as u32));
                 break;
             }
-            
+
             if c == '\n' {
                 line += 1;
                 line_start = idx + 1;
