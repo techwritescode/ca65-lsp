@@ -196,7 +196,7 @@ impl LanguageServer for Asm {
             register_options: Some(serde_json::json!({
                 "watchers": [
                     {
-                        "globPattern": "**/nes.toml",
+                        "globPattern": "**/ca65.toml",
                         "kind": 7, // 0b00000111 for Create, Write, and Delete
                     }
                 ]
@@ -210,7 +210,7 @@ impl LanguageServer for Asm {
 
         let folder = self.state.lock().await.workspace_folder.clone();
         if let Some(workspace_folder) = folder {
-            let config_path = Path::new(workspace_folder.path().as_str()).join("nes.toml");
+            let config_path = Path::new(workspace_folder.path().as_str()).join("ca65.toml");
             if config_path.exists() {
                 self.load_config(&config_path)
                     .await
