@@ -1,6 +1,14 @@
 use crate::codespan::{FileId, Files};
 use crate::completion::{
-    Ca65KeywordCompletionProvider, Ca65DotOperatorCompletionProvider, CompletionProvider, FeatureCompletionProvider, InstructionCompletionProvider, MacpackCompletionProvider, SymbolCompletionProvider, }; use crate::configuration::Configuration; use crate::definition::Definition; use crate::documentation::{ CA65_DOCUMENTATION, CA65_DOT_OPERATOR_DOCUMENTATION, FEATURE_DOCUMENTATION, INSTRUCTION_DOCUMENTATION, MACPACK_DOCUMENTATION,
+    Ca65DotOperatorCompletionProvider, Ca65KeywordCompletionProvider, CompletionProvider,
+    FeatureCompletionProvider, InstructionCompletionProvider, MacpackCompletionProvider,
+    SymbolCompletionProvider,
+};
+use crate::configuration::Configuration;
+use crate::definition::Definition;
+use crate::documentation::{
+    CA65_DOCUMENTATION, CA65_DOT_OPERATOR_DOCUMENTATION, FEATURE_DOCUMENTATION,
+    INSTRUCTION_DOCUMENTATION, MACPACK_DOCUMENTATION,
 };
 use crate::error::file_error_to_lsp;
 use crate::index_engine::IndexEngine;
@@ -335,6 +343,17 @@ impl LanguageServer for Asm {
                         kind: MarkupKind::Markdown,
                         value: documentation,
                     }),
+                }));
+            }
+
+            if let Some(documentation) = CA65_DOT_OPERATOR_DOCUMENTATION
+                .get()
+                .unwrap()
+                .get(&word.to_lowercase())
+            {
+                return Ok(Some(Hover {
+                    range: None,
+                    contents: HoverContents::Scalar(MarkedString::String(documentation.clone())),
                 }));
             }
 
