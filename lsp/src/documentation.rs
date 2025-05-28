@@ -110,7 +110,7 @@ fn parse_json_to_completion_items() {
         .get()
         .expect("Could not get CA65_DOT_OPERATOR_DOCUMENTATION in init_completion_item_vecs()");
     let ca65_dot_operator_completion_items =
-        get_completion_item_vec_from_string_string_hashmap(ca65_dot_operator_documentation);
+        get_completion_item_vec_from_string_string_hashmap(ca65_dot_operator_documentation, ".");
     CA65_DOT_OPERATOR_COMPLETION_ITEMS
         .set(ca65_dot_operator_completion_items)
         .expect("Could not set CA65_DOT_OPERATOR_COMPLETION_ITEMS");
@@ -131,7 +131,7 @@ fn parse_json_to_completion_items() {
         .get()
         .expect("Could not get MACPACK_DOCUMENTATION in init_completion_item_vecs()");
     let macpack_completion_items =
-        get_completion_item_vec_from_string_string_hashmap(macpack_documentation);
+        get_completion_item_vec_from_string_string_hashmap(macpack_documentation, "");
     MACPACK_COMPLETION_ITEMS
         .set(macpack_completion_items)
         .expect("Could not set MACACK_COMPLETION_ITEMS");
@@ -140,7 +140,7 @@ fn parse_json_to_completion_items() {
         .get()
         .expect("Could not get FEATURES_DOCUMENTATION in init_completion_item_vecs()");
     let features_completion_items =
-        get_completion_item_vec_from_string_string_hashmap(features_documentation);
+        get_completion_item_vec_from_string_string_hashmap(features_documentation, "");
     FEATURE_COMPLETION_ITEMS
         .set(features_completion_items)
         .expect("Could not set FEATURE_COMPLETION_ITEMS");
@@ -205,11 +205,12 @@ fn get_completion_item_vec_from_indexed_documentation(
 
 fn get_completion_item_vec_from_string_string_hashmap(
     doc: &HashMap<String, String>,
+    keyword_prepend_text: &str,
 ) -> Vec<CompletionItem> {
     doc.iter()
         .map(|(keyword, documentation_text)| CompletionItem {
             filter_text: Some(keyword.clone()),
-            label: keyword.clone(),
+            label: format!("{keyword_prepend_text}{keyword}"),
             kind: Some(CompletionItemKind::MODULE),
             documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
