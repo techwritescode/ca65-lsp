@@ -232,6 +232,16 @@ impl ASTVisitor for ScopeAnalyzer {
 
         self.pop_scope()
     }
+    fn visit_define(&mut self, ident: &Token, params: &Option<Vec<Token>>, expr: &Expression, span: Span) {
+        if let Some(params) = params {
+            self.push_scope(ident.lexeme.clone(), span);
+            for param in params.iter() {
+                self.insert_symbol(param, Symbol::Constant { name: param.clone() });
+            }
+            self.pop_scope();
+        }
+        self.visit_expression(expr);
+    }
     fn visit_label(&mut self, name: &Token, _span: Span) {
         self.insert_symbol(name, Symbol::Label { name: name.clone() });
     }
