@@ -1,4 +1,4 @@
 /target
 asm.log
-nes.toml
+ca65.toml
 test*.s
