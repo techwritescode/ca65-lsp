@@ -54,6 +54,19 @@ impl ASTVisitor for SymbolResolver {
 
         self.scope_stack.pop();
     }
+    fn visit_define(
+        &mut self,
+        ident: &Token,
+        params: &Option<Vec<Token>>,
+        expr: &Expression,
+        _span: Span,
+    ) {
+        if params.is_some() {
+            self.scope_stack.push(ident.to_string());
+            self.visit_expression(expr);
+            self.scope_stack.pop();
+        }
+    }
     fn visit_struct(&mut self, name: &Token, _members: &[StructMember], _span: Span) {
         self.scope_stack.push(name.lexeme.clone());
 
