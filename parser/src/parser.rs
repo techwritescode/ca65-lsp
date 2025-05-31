@@ -1259,7 +1259,8 @@ impl<'a> Parser<'a> {
         }
         let end = self.mark_end();
 
-        if matches!(token_string.to_lowercase().as_str(), "y" | "x" | "a") {
+        // TODO: Available registers should rely on target processor
+        if matches!(token_string.to_lowercase().as_str(), "y" | "x" | "a" | "s") {
             // Reserved registers
             Ok(Expression {
                 kind: ExpressionKind::Literal(token_string),
