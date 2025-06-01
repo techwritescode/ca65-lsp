@@ -159,8 +159,6 @@ impl<'a> Tokenizer<'a> {
                     ".loword" | ".hiword" => self.make_token(TokenType::WordOp),
                     ".match" => self.make_token(TokenType::Match),
                     ".def" | ".defined" => self.make_token(TokenType::Def),
-                    ".and" => self.make_token(TokenType::And),
-                    ".not" => self.make_token(TokenType::Not),
                     ".left" | ".mid" | ".right" => self.make_token(TokenType::Extract),
                     _ => self.make_token(TokenType::Macro),
                 }))
