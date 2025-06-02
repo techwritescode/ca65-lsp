@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use std::{collections::HashMap, sync::OnceLock};
 use tower_lsp_server::lsp_types::{
-    self, CompletionItem, CompletionItemKind, Documentation, InsertTextFormat, MarkupContent,
-    MarkupKind,
+    self, CompletionItem, CompletionItemKind, DocumentChangeOperation, Documentation,
+    InsertTextFormat, MarkupContent, MarkupKind,
 };
 
 #[derive(Deserialize)]
@@ -17,8 +17,30 @@ pub struct MultiKeySingleDoc {
     keys_to_doc: HashMap<Keyword, KeywordInfo>,
     keys_with_shared_doc: HashMap<Keyword, Keyword>,
 }
-impl MultiKeySingleDoc {
-    pub fn get_doc_for_word(&self, word: &str) -> Option<String> {
+type SingleKeySingleDoc = HashMap<Keyword, String>;
+
+pub enum KeyedDocumentation {
+    MultiKeySingleDoc(MultiKeySingleDoc),
+    SingleKeySingleDoc(SingleKeySingleDoc),
+}
+
+#[derive(Hash, Eq, PartialEq)]
+pub enum DocumentationKind {
+    Ca65Keyword,
+    Ca65DotOperator,
+    Instruction,
+    Feature,
+    Macpack,
+}
+pub static DOCUMENTATION_COLLECTION: OnceLock<HashMap<DocumentationKind, KeyedDocumentation>> =
+    OnceLock::new();
+
+pub trait DocumentationProvider {
+    fn get_doc_for_word(&self, word: &str) -> Option<String>;
+}
+
+impl DocumentationProvider for MultiKeySingleDoc {
+    fn get_doc_for_word(&self, word: &str) -> Option<String> {
         if let Some(keyword_info) = self.keys_to_doc.get(word) {
             Some(keyword_info.documentation.clone())
         } else if let Some(alias) = self.keys_with_shared_doc.get(word) {
@@ -34,21 +56,16 @@ impl MultiKeySingleDoc {
         }
     }
 }
-type SingleKeySingleDoc = HashMap<String, String>;
 
-pub enum KeyedDocumentation {
-    MultiKeySingleDoc(MultiKeySingleDoc),
-    SingleKeySingleDoc(SingleKeySingleDoc),
+impl DocumentationProvider for SingleKeySingleDoc {
+    fn get_doc_for_word(&self, word: &str) -> Option<String> {
+        if let Some(doc) = self.get(word) {
+            Some(doc.clone())
+        } else {
+            None
+        }
+    }
 }
-
-pub struct DocumentationCollection {
-    ca65_keywords: KeyedDocumentation,
-    ca65_dot_operators: KeyedDocumentation,
-    instructions: KeyedDocumentation,
-    macpack: KeyedDocumentation,
-    feature: KeyedDocumentation,
-}
-pub static DOCUMENTATION_COLLECTION: OnceLock<DocumentationCollection> = OnceLock::new();
 
 // pub static CA65_DOCUMENTATION: OnceLock<MultiKeySingleDoc> = OnceLock::new();
 // pub static CA65_DOT_OPERATOR_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
@@ -57,12 +74,23 @@ pub static DOCUMENTATION_COLLECTION: OnceLock<DocumentationCollection> = OnceLoc
 // pub static FEATURE_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
 
 pub fn init() {
-    parse_json_to_hashmaps();
+    init_docs();
     parse_json_to_completion_items();
 }
 
 #[inline]
-fn parse_json_to_hashmaps() {
+fn init_docs() {
+    let doc_paths: HashMap<DocumentationKind, String> = HashMap::from([
+        (
+            DocumentationKind::Ca65Keyword,
+            "../../data/ca65-keyword-doc.json".to_string(),
+        ),
+        (
+            DocumentationKind::Ca65DotOperator,
+            "../../data/ca65-dot-operators-doc.json".to_string(),
+        ),
+    ]);
+
     if let Ok(doc) =
         serde_json::from_str::<MultiKeySingleDoc>(include_str!("../../data/ca65-keyword-doc.json"))
     {
@@ -70,34 +98,34 @@ fn parse_json_to_hashmaps() {
             eprintln!("CA65_KEYWORDS_MAP not able to be initialized");
         }
     }
-    if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!(
-        "../../data/ca65-dot-operators-doc.json"
-    )) {
-        if CA65_DOT_OPERATOR_DOCUMENTATION.set(doc).is_err() {
-            eprintln!("CA65_DOT_OPERATORS_DOCUMENTATION not able to be initialized");
-        }
-    }
-    if let Ok(doc) = serde_json::from_str::<MultiKeySingleDoc>(include_str!(
-        "../../data/65xx-instruction-doc.json"
-    )) {
-        if INSTRUCTION_DOCUMENTATION.set(doc).is_err() {
-            eprintln!("INSTRUCTION_DOC not able to be initialized");
-        }
-    }
-    if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!(
-        "../../data/macpack-packages-doc.json"
-    )) {
-        if MACPACK_DOCUMENTATION.set(doc).is_err() {
-            eprintln!("MACPACK_DOC not able to be initialized");
-        }
-    }
-    if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!(
-        "../../data/features-doc.json"
-    )) {
-        if FEATURE_DOCUMENTATION.set(doc).is_err() {
-            eprintln!("FEATURES_DOCUMENTATION not able to be initialized");
-        }
-    }
+    // if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!(
+    //     "../../data/ca65-dot-operators-doc.json"
+    // )) {
+    //     if CA65_DOT_OPERATOR_DOCUMENTATION.set(doc).is_err() {
+    //         eprintln!("CA65_DOT_OPERATORS_DOCUMENTATION not able to be initialized");
+    //     }
+    // }
+    // if let Ok(doc) = serde_json::from_str::<MultiKeySingleDoc>(include_str!(
+    //     "../../data/65xx-instruction-doc.json"
+    // )) {
+    //     if INSTRUCTION_DOCUMENTATION.set(doc).is_err() {
+    //         eprintln!("INSTRUCTION_DOC not able to be initialized");
+    //     }
+    // }
+    // if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!(
+    //     "../../data/macpack-packages-doc.json"
+    // )) {
+    //     if MACPACK_DOCUMENTATION.set(doc).is_err() {
+    //         eprintln!("MACPACK_DOC not able to be initialized");
+    //     }
+    // }
+    // if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!(
+    //     "../../data/features-doc.json"
+    // )) {
+    //     if FEATURE_DOCUMENTATION.set(doc).is_err() {
+    //         eprintln!("FEATURES_DOCUMENTATION not able to be initialized");
+    //     }
+    // }
 }
 
 pub static CA65_KEYWORD_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
