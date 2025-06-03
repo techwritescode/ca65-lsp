@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::{collections::HashMap, sync::OnceLock};
+use std::{collections::HashMap, fs, sync::OnceLock};
 use tower_lsp_server::lsp_types::{
     self, CompletionItem, CompletionItemKind, DocumentChangeOperation, Documentation,
     InsertTextFormat, MarkupContent, MarkupKind,
@@ -32,7 +32,7 @@ pub enum DocumentationKind {
     Feature,
     Macpack,
 }
-pub static DOCUMENTATION_COLLECTION: OnceLock<HashMap<DocumentationKind, KeyedDocumentation>> =
+pub static DOCUMENTATION_COLLECTION: OnceLock<HashMap<DocumentationKind, MultiKeySingleDoc>> =
     OnceLock::new();
 
 pub trait DocumentationProvider {
@@ -80,24 +80,53 @@ pub fn init() {
 
 #[inline]
 fn init_docs() {
-    let doc_paths: HashMap<DocumentationKind, String> = HashMap::from([
-        (
-            DocumentationKind::Ca65Keyword,
-            "../../data/ca65-keyword-doc.json".to_string(),
-        ),
-        (
-            DocumentationKind::Ca65DotOperator,
-            "../../data/ca65-dot-operators-doc.json".to_string(),
-        ),
-    ]);
+    let docs: HashMap<DocumentationKind, MultiKeySingleDoc> =
+        HashMap::<DocumentationKind, &str>::from([
+            (
+                DocumentationKind::Ca65Keyword,
+                "../../data/ca65-keyword-doc.json",
+            ),
+            (
+                DocumentationKind::Ca65DotOperator,
+                "../../data/ca65-dot-operators-doc.json",
+            ),
+            (
+                DocumentationKind::Instruction,
+                "../../data/65xx-instruction-doc.json",
+            ),
+            (DocumentationKind::Feature, "../../data/features-doc.json"),
+            (
+                DocumentationKind::Macpack,
+                "../../data/macpack-packages-doc.json",
+            ),
+        ])
+        .iter()
+        .filter_map(|(kind, path)| {
+            if let Ok(file) = fs::read_to_string(path) {
+                if let Ok(doc) = serde_json::from_str::<MultiKeySingleDoc>(file.as_str()) {
+                    return Some((kind.into(), doc));
+                }
+            }
+            None
+        })
+        .collect();
 
-    if let Ok(doc) =
-        serde_json::from_str::<MultiKeySingleDoc>(include_str!("../../data/ca65-keyword-doc.json"))
-    {
-        if CA65_DOCUMENTATION.set(doc).is_err() {
-            eprintln!("CA65_KEYWORDS_MAP not able to be initialized");
-        }
-    }
+    let mut map: HashMap<DocumentationKind, MultiKeySingleDoc> = HashMap::new();
+    map.insert(
+        DocumentationKind::Ca65Keyword,
+        MultiKeySingleDoc {
+            keys_to_doc: HashMap::new(),
+            keys_with_shared_doc: HashMap::new(),
+        },
+    );
+
+    // if let Ok(doc) =
+    //     serde_json::from_str::<MultiKeySingleDoc>(include_str!("../../data/ca65-keyword-doc.json"))
+    // {
+    //     if CA65_DOCUMENTATION.set(doc).is_err() {
+    //         eprintln!("CA65_KEYWORDS_MAP not able to be initialized");
+    //     }
+    // }
     // if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!(
     //     "../../data/ca65-dot-operators-doc.json"
     // )) {
