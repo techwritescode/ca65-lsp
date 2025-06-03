@@ -1,6 +1,6 @@
 use crate::visitor::ASTVisitor;
 use codespan::Span;
-use parser::{Ast, Expression, Statement, StructMember, Token};
+use parser::{Ast, EnumMember, Expression, ImportExport, Segment, Statement, StructMember, Token};
 
 #[derive(Debug)]
 pub struct IdentifierAccess {
@@ -45,14 +45,25 @@ impl ASTVisitor for SymbolResolver {
         &mut self,
         name: &Token,
         _parameters: &[Token],
-        _statements: &[Statement],
+        statements: &[Statement],
         _span: Span,
     ) {
         self.scope_stack.push(name.to_string());
 
         // Skip type checking in macros for now. Might be good to add local label completion at some point, but ultimately we don't know the context the macro is invoked in yet
 
+        for statement in statements {
+            self.visit_statement(statement);
+        }
+
         self.scope_stack.pop();
+    }
+    fn visit_enum(&mut self, name: &Option<Token>, _variants: &[EnumMember], _span: Span) {
+        if let Some(name) = name {
+            self.scope_stack.push(name.to_string());
+
+            self.scope_stack.pop();
+        }
     }
     fn visit_define(
         &mut self,
@@ -87,7 +98,13 @@ impl ASTVisitor for SymbolResolver {
 
         self.scope_stack.pop();
     }
-    fn visit_procedure(&mut self, name: &Token, statements: &[Statement], _span: Span) {
+    fn visit_procedure(
+        &mut self,
+        name: &Token,
+        _far: &bool,
+        statements: &[Statement],
+        _span: Span,
+    ) {
         self.scope_stack.push(name.to_string());
 
         for statement in statements {
@@ -105,14 +122,16 @@ impl ASTVisitor for SymbolResolver {
         });
     }
 
-    fn visit_export(&mut self, identifiers: &[Token], _zero_page: &bool, _span: Span) {
+    fn visit_export(&mut self, exports: &[ImportExport], _zero_page: &bool, _span: Span) {
         let scope = self.scope_stack[..].to_vec();
-        for identifier in identifiers {
-            self.identifiers.push(IdentifierAccess {
-                name: identifier.to_string(),
-                span: identifier.span,
-                scope: scope.clone(),
-            })
+        for export in exports {
+            if export.value.is_none() {
+                self.identifiers.push(IdentifierAccess {
+                    name: export.name.to_string(),
+                    span: export.name.span,
+                    scope: scope.clone(),
+                })
+            }
         }
     }
 }

@@ -1,7 +1,8 @@
 use codespan::Span;
 use parser::{
-    ConstantAssign, Expression, ExpressionKind, IfKind, Instruction, MacroInvocation,
-    MacroParameter, Statement, StatementKind, StructMember, Token, TokenType,
+    ConstantAssign, EnumMember, Expression, ExpressionKind, IfKind, ImportExport, Instruction,
+    MacroInvocation, MacroParameter, Segment, Statement, StatementKind, StructMember, Token,
+    TokenType,
 };
 
 pub trait ASTVisitor {
@@ -13,8 +14,8 @@ pub trait ASTVisitor {
             StatementKind::Instruction(instruction) => {
                 self.visit_instruction(instruction, statement.span)
             }
-            StatementKind::Procedure(name, statements) => {
-                self.visit_procedure(name, statements, statement.span)
+            StatementKind::Procedure(name, far, statements) => {
+                self.visit_procedure(name, far, statements, statement.span)
             }
             StatementKind::Enum(name, variants) => self.visit_enum(name, variants, statement.span),
             StatementKind::Struct(name, members) => {
@@ -47,14 +48,12 @@ pub trait ASTVisitor {
                 identifiers,
                 zero_page,
             } => self.visit_global(identifiers, zero_page, statement.span),
-            StatementKind::Export {
-                identifiers,
-                zero_page,
-            } => self.visit_export(identifiers, zero_page, statement.span),
-            StatementKind::Import {
-                identifiers,
-                zero_page,
-            } => self.visit_import(identifiers, zero_page, statement.span),
+            StatementKind::Export { exports, zero_page } => {
+                self.visit_export(exports, zero_page, statement.span)
+            }
+            StatementKind::Import { imports, zero_page } => {
+                self.visit_import(imports, zero_page, statement.span)
+            }
             StatementKind::Ascii(string) => self.visit_ascii(string, statement.span),
             StatementKind::If(if_statement, statements) => {
                 self.visit_if(if_statement, statements, statement.span)
@@ -76,16 +75,22 @@ pub trait ASTVisitor {
             self.visit_expression(expression);
         }
     }
-    fn visit_procedure(&mut self, _name: &Token, statements: &[Statement], _span: Span) {
+    fn visit_procedure(
+        &mut self,
+        _name: &Token,
+        _far: &bool,
+        statements: &[Statement],
+        _span: Span,
+    ) {
         for statement in statements {
             self.visit_statement(statement);
         }
     }
-    fn visit_enum(&mut self, _name: &Option<Token>, _variants: &[Expression], _span: Span) {}
+    fn visit_enum(&mut self, _name: &Option<Token>, _variants: &[EnumMember], _span: Span) {}
     fn visit_struct(&mut self, _name: &Token, _members: &[StructMember], _span: Span) {}
     fn visit_macro(&mut self, _span: Span) {}
     fn visit_set_cpu(&mut self, _cpu: &str, _span: Span) {}
-    fn visit_segment(&mut self, _segment: &str, _span: Span) {}
+    fn visit_segment(&mut self, _segment: &Segment, _span: Span) {}
     fn visit_reserve(&mut self, expression: &Expression, _span: Span) {
         self.visit_expression(expression);
     }
@@ -141,8 +146,8 @@ pub trait ASTVisitor {
         }
     }
     fn visit_global(&mut self, _identifiers: &[Token], _zero_page: &bool, _span: Span) {}
-    fn visit_export(&mut self, _identifiers: &[Token], _zero_page: &bool, _span: Span) {}
-    fn visit_import(&mut self, _identifiers: &[Token], _zero_page: &bool, _span: Span) {}
+    fn visit_export(&mut self, _exports: &[ImportExport], _zero_page: &bool, _span: Span) {}
+    fn visit_import(&mut self, _imports: &[ImportExport], _zero_page: &bool, _span: Span) {}
     fn visit_ascii(&mut self, _string: &Token, _span: Span) {}
     fn visit_if(&mut self, if_statement: &IfKind, statements: &[Statement], _span: Span) {
         match if_statement {

@@ -63,7 +63,7 @@ impl DefAnalyzer {
                     },
                 )]
             }
-            StatementKind::Procedure(name, instructions) => {
+            StatementKind::Procedure(name, _far, instructions) => {
                 let mut symbols = vec![(
                     name.lexeme.clone(),
                     SymDef {

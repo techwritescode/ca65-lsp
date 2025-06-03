@@ -156,14 +156,16 @@ impl<'a> Tokenizer<'a> {
                     ".not" => self.make_token(TokenType::Not),
                     ".bank" => self.make_token(TokenType::Bank),
                     ".sizeof" => self.make_token(TokenType::SizeOf),
-                    ".loword" | ".hiword" => self.make_token(TokenType::WordOp),
+                    ".loword" | ".hiword" | ".bankbyte" | ".lobyte" | ".hibyte" => {
+                        self.make_token(TokenType::WordOp)
+                    }
                     ".match" => self.make_token(TokenType::Match),
                     ".def" | ".defined" => self.make_token(TokenType::Def),
                     ".left" | ".mid" | ".right" => self.make_token(TokenType::Extract),
                     _ => self.make_token(TokenType::Macro),
                 }))
             }
-            Some('"'|'\'') => {
+            Some('"' | '\'') => {
                 self.string(c.unwrap());
                 Ok(Some(self.make_token(TokenType::String)))
             }
@@ -323,8 +325,11 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn string(&mut self, variant: char) -> String {
-        self.input.advance();
-        while !self.input.at_end() && self.input.advance() != Some(variant) {}
+        while !self.input.at_end() {
+            if self.input.advance() == Some(variant) {
+                break;
+            }
+        }
 
         let string = String::from_utf8(self.input[self.start..self.input.pos()].to_vec()).unwrap();
 
