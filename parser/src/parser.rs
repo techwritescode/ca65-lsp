@@ -698,7 +698,13 @@ impl<'a> Parser<'a> {
                 }
             } else {
                 let ident = self.consume_token(TokenType::Identifier)?;
-                let _data_type = self.consume_token(TokenType::Macro)?; // TODO: add data type
+                let _data_type = self.consume_token(TokenType::Macro)?; // TODO: add data t ype
+                if check_token!(self.tokens, TokenType::Identifier) {
+                   self.consume_token(TokenType::Identifier)?;
+                }
+                if check_token!(self.tokens, TokenType::Number) {
+                   self.consume_token(TokenType::Number)?;
+                }
                 members.push(StructMember::Field(ident));
                 self.consume_newline()?;
             }
