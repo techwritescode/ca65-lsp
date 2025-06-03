@@ -6,10 +6,7 @@ use crate::completion::{
 };
 use crate::configuration::Configuration;
 use crate::definition::Definition;
-use crate::documentation::{
-    CA65_DOCUMENTATION, CA65_DOT_OPERATOR_DOCUMENTATION, FEATURE_DOCUMENTATION,
-    INSTRUCTION_DOCUMENTATION, MACPACK_DOCUMENTATION,
-};
+use crate::documentation::{DocumentationKind, DOCUMENTATION_COLLECTION};
 use crate::error::file_error_to_lsp;
 use crate::index_engine::IndexEngine;
 use crate::state::State;
@@ -318,8 +315,10 @@ impl LanguageServer for Asm {
                 .get_word_at_position(params.text_document_position_params.position.into())
                 .map_err(file_error_to_lsp)?;
 
-            if let Some(documentation) = INSTRUCTION_DOCUMENTATION
+            if let Some(documentation) = DOCUMENTATION_COLLECTION
                 .get()
+                .unwrap()
+                .get(&DocumentationKind::Instruction)
                 .unwrap()
                 .get_doc_for_word(&word.to_lowercase())
             {
@@ -332,8 +331,10 @@ impl LanguageServer for Asm {
                 }));
             }
 
-            if let Some(documentation) = CA65_DOCUMENTATION
+            if let Some(documentation) = DOCUMENTATION_COLLECTION
                 .get()
+                .unwrap()
+                .get(&DocumentationKind::Ca65Keyword)
                 .unwrap()
                 .get_doc_for_word(&word.to_lowercase())
             {
@@ -346,10 +347,12 @@ impl LanguageServer for Asm {
                 }));
             }
 
-            if let Some(documentation) = CA65_DOT_OPERATOR_DOCUMENTATION
+            if let Some(documentation) = DOCUMENTATION_COLLECTION
                 .get()
                 .unwrap()
-                .get(&word.to_lowercase())
+                .get(&DocumentationKind::Ca65DotOperator)
+                .unwrap()
+                .get_doc_for_word(&word.to_lowercase())
             {
                 return Ok(Some(Hover {
                     range: None,
@@ -357,10 +360,12 @@ impl LanguageServer for Asm {
                 }));
             }
 
-            if let Some(documentation) = FEATURE_DOCUMENTATION
+            if let Some(documentation) = DOCUMENTATION_COLLECTION
                 .get()
                 .unwrap()
-                .get(&word.to_lowercase())
+                .get(&DocumentationKind::Feature)
+                .unwrap()
+                .get_doc_for_word(&word.to_lowercase())
             {
                 return Ok(Some(Hover {
                     range: None,
@@ -371,10 +376,12 @@ impl LanguageServer for Asm {
                 }));
             }
 
-            if let Some(documentation) = MACPACK_DOCUMENTATION
+            if let Some(documentation) = DOCUMENTATION_COLLECTION
                 .get()
                 .unwrap()
-                .get(&word.to_lowercase())
+                .get(&DocumentationKind::Macpack)
+                .unwrap()
+                .get_doc_for_word(&word.to_lowercase())
             {
                 return Ok(Some(Hover {
                     range: None,
