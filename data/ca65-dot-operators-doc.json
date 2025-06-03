@@ -1,13 +1,49 @@
 {
-  ".bitnot": "Unary bitwise not (~)",
-  ".shl": "Shift-left operator (<<)",
-  ".shr": "Shift-right operator (>>)",
-  ".mod": "Modulo operator (%)",
-  ".bitand": "Bitwise and (&)",
-  ".bitor": "Bitwise or (|)",
-  ".bitxor": "Binary bitwise xor (^)",
-  ".and": "Boolean and (&&)",
-  ".or": "Boolean or (||)",
-  ".xor": "Boolean xor",
-  ".not": "Boolean not (!)"
+  "keys_to_doc": {
+    ".bitnot": {
+      "documentation": "Unary bitwise not (~)",
+      "snippet_type": "word_with_space"
+    },
+    ".shl": {
+      "documentation": "Shift-left operator (<<)",
+      "snippet_type": "word_with_space"
+    },
+    ".shr": {
+      "documentation": "Shift-right operator (>>)",
+      "snippet_type": "word_with_space"
+    },
+    ".mod": {
+      "documentation": "Modulo operator (%)",
+      "snippet_type": "word_with_space"
+    },
+    ".bitand": {
+      "documentation": "Bitwise and (&)",
+      "snippet_type": "word_with_space"
+    },
+    ".bitor": {
+      "documentation": "Bitwise or (|)",
+      "snippet_type": "word_with_space"
+    },
+    ".bitxor": {
+      "documentation": "Binary bitwise xor (^)",
+      "snippet_type": "word_with_space"
+    },
+    ".and": {
+      "documentation": "Boolean and (&&)",
+      "snippet_type": "word_with_space"
+    },
+    ".or": {
+      "documentation": "Boolean or (||)",
+      "snippet_type": "word_with_space"
+    },
+    ".xor": {
+      "documentation": "Boolean xor",
+      "snippet_type": "word_with_space"
+    },
+    ".not": {
+      "documentation": "Boolean not (!)",
+      "snippet_type": "word_with_space"
+    }"
+  },
+  "keys_with_shared_doc": {}
 }
