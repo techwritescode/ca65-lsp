@@ -1,6 +1,8 @@
 use crate::visitor::ASTVisitor;
 use codespan::Span;
-use parser::{Ast, ConstantAssign, Expression, Statement, StructMember, Token};
+use parser::{
+    Ast, ConstantAssign, EnumMember, Expression, ImportExport, Statement, StructMember, Token,
+};
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -112,11 +114,11 @@ impl ScopeAnalyzer {
     pub fn new(ast: Ast) -> Self {
         Self {
             ast,
-            stack: vec!(Scope {
+            stack: vec![Scope {
                 name: "Root".to_string(),
                 span: Span::new(0, 0),
                 children: vec![],
-            }),
+            }],
             symtab: HashMap::new(),
         }
     }
@@ -125,7 +127,7 @@ impl ScopeAnalyzer {
         for statement in self.ast.clone().iter() {
             self.visit_statement(statement);
         }
-        
+
         // Get children of root node
         (self.stack[0].children.clone(), self.symtab.clone())
     }
@@ -193,7 +195,7 @@ impl ASTVisitor for ScopeAnalyzer {
         );
         self.visit_expression(&statement.value);
     }
-    fn visit_procedure(&mut self, name: &Token, statements: &[Statement], span: Span) {
+    fn visit_procedure(&mut self, name: &Token, _far: &bool, statements: &[Statement], span: Span) {
         let lexeme = name.lexeme.clone();
         self.insert_symbol(name, Symbol::Scope { name: name.clone() });
 
@@ -269,6 +271,25 @@ impl ASTVisitor for ScopeAnalyzer {
 
         self.pop_scope()
     }
+    fn visit_enum(&mut self, name: &Option<Token>, members: &[EnumMember], span: Span) {
+        if let Some(name) = name {
+            let lexeme = name.to_string();
+            self.insert_symbol(name, Symbol::Scope { name: name.clone() });
+
+            self.push_scope(lexeme.clone(), span);
+
+            for member in members.iter() {
+                self.insert_symbol(
+                    &member.name,
+                    Symbol::Constant {
+                        name: member.name.clone(),
+                    },
+                );
+            }
+
+            self.pop_scope()
+        }
+    }
 
     fn visit_repeat(
         &mut self,
@@ -279,7 +300,6 @@ impl ASTVisitor for ScopeAnalyzer {
     ) {
         self.push_scope("__repeat".to_owned(), span);
         if let Some(incr) = incr {
-            eprintln!("Repeat {:?}", self.format_name(incr));
             self.insert_symbol(incr, Symbol::Constant { name: incr.clone() });
         }
         for statement in statements {
@@ -288,14 +308,27 @@ impl ASTVisitor for ScopeAnalyzer {
         self.pop_scope()
     }
 
-    fn visit_import(&mut self, identifiers: &[Token], _zero_page: &bool, _span: Span) {
-        for identifier in identifiers {
+    fn visit_import(&mut self, imports: &[ImportExport], _zero_page: &bool, _span: Span) {
+        for import in imports {
             self.insert_symbol(
-                identifier,
+                &import.name,
                 Symbol::Constant {
-                    name: identifier.clone(),
+                    name: import.name.clone(),
                 },
             );
+        }
+    }
+
+    fn visit_export(&mut self, imports: &[ImportExport], _zero_page: &bool, _span: Span) {
+        for import in imports {
+            if import.value.is_some() {
+                self.insert_symbol(
+                    &import.name,
+                    Symbol::Constant {
+                        name: import.name.clone(),
+                    },
+                );
+            }
         }
     }
 }

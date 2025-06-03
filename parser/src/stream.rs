@@ -1,4 +1,4 @@
-use std::ops::{Index, Range};
+use std::ops::{Index, Range, RangeInclusive};
 
 pub struct Stream {
     input: String,
@@ -58,6 +58,14 @@ impl Index<Range<usize>> for Stream {
     type Output = [u8];
 
     fn index(&self, index: Range<usize>) -> &Self::Output {
+        &self.input.as_bytes()[index]
+    }
+}
+
+impl Index<RangeInclusive<usize>> for Stream {
+    type Output = [u8];
+    
+    fn index(&self, index: RangeInclusive<usize>) -> &Self::Output {
         &self.input.as_bytes()[index]
     }
 }
