@@ -1,8 +1,6 @@
-use crate::state::State;
 use crate::codespan::FileId;
-use crate::documentation::{
-    CA65_DOT_OPERATOR_COMPLETION_ITEMS, CA65_KEYWORD_COMPLETION_ITEMS, FEATURE_COMPLETION_ITEMS, INSTRUCTION_COMPLETION_ITEMS, MACPACK_COMPLETION_ITEMS
-};
+use crate::documentation::{DocumentationKind, COMPLETION_ITEMS_COLLECTION};
+use crate::state::State;
 use crate::symbol_cache::{symbol_cache_get, SymbolType};
 use analysis::ScopeAnalyzer;
 use codespan::Position;
@@ -24,9 +22,11 @@ impl CompletionProvider for InstructionCompletionProvider {
         position: Position,
     ) -> Vec<CompletionItem> {
         if state.files.show_instructions(id, position) {
-            INSTRUCTION_COMPLETION_ITEMS
+            COMPLETION_ITEMS_COLLECTION
                 .get()
-                .expect("Could not get INSTRUCTION_COMPLETION_ITEMS")
+                .expect("Could not get completion items collection for instructions")
+                .get(&DocumentationKind::Instruction)
+                .expect("Could not get instruction completion items")
                 .clone()
         } else {
             Vec::new()
@@ -117,11 +117,13 @@ impl CompletionProvider for Ca65DotOperatorCompletionProvider {
         &self,
         _state: &State,
         _id: FileId,
-        _position: Position
+        _position: Position,
     ) -> Vec<CompletionItem> {
-        CA65_DOT_OPERATOR_COMPLETION_ITEMS
+        COMPLETION_ITEMS_COLLECTION
             .get()
-            .expect("Could not get ca65 dot operator completion items in completion provider")
+            .expect("Could not get completion items collection for ca65 dot operators")
+            .get(&DocumentationKind::Ca65DotOperator)
+            .expect("Could not get ca65 dot operator completion items")
             .clone()
     }
 }
@@ -135,9 +137,11 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
         _id: FileId,
         _position: Position,
     ) -> Vec<CompletionItem> {
-        CA65_KEYWORD_COMPLETION_ITEMS
+        COMPLETION_ITEMS_COLLECTION
             .get()
-            .expect("Could not get ca65 completion items in completion provider")
+            .expect("Could not get completion items collection for ca65 keywords")
+            .get(&DocumentationKind::Ca65Keyword)
+            .expect("Could not get ca65 keyword completion items")
             .clone()
     }
 }
@@ -159,9 +163,11 @@ impl CompletionProvider for MacpackCompletionProvider {
             .nth_back(1)
             .is_some_and(|tok| tok.lexeme == ".macpack")
         {
-            MACPACK_COMPLETION_ITEMS
+            COMPLETION_ITEMS_COLLECTION
                 .get()
-                .expect("Could not get MACPACK_COMPLETION_ITEMS in completion provider")
+                .expect("Could not get completion items collection for macpack packages")
+                .get(&DocumentationKind::Macpack)
+                .expect("Could not get macpack package completion items")
                 .clone()
         } else {
             Vec::new()
@@ -185,13 +191,14 @@ impl CompletionProvider for FeatureCompletionProvider {
             .nth_back(1)
             .is_some_and(|tok| tok.lexeme == ".feature")
         {
-            FEATURE_COMPLETION_ITEMS
+            COMPLETION_ITEMS_COLLECTION
                 .get()
-                .expect("Could not get FEATURE_COMPLETION_ITEMS in completion provider")
+                .expect("Could not get completion items collection for feature names")
+                .get(&DocumentationKind::Macpack)
+                .expect("Could not get feature name completion items")
                 .clone()
         } else {
             Vec::new()
         }
     }
 }
-
