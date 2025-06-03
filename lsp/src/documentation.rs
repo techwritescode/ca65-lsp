@@ -30,7 +30,7 @@ pub static DOCUMENTATION_COLLECTION: OnceLock<HashMap<DocumentationKind, MultiKe
     OnceLock::new();
 
 impl MultiKeySingleDoc {
-    fn get_doc_for_word(&self, word: &str) -> Option<String> {
+    pub fn get_doc_for_word(&self, word: &str) -> Option<String> {
         if let Some(keyword_info) = self.keys_to_doc.get(word) {
             Some(keyword_info.documentation.clone())
         } else if let Some(alias) = self.keys_with_shared_doc.get(word) {
