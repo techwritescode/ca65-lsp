@@ -29,6 +29,14 @@ macro_rules! check_token {
     };
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImportExport {
+    pub name: Token,
+    pub far: bool,
+    pub value: Option<Expression>,
+    pub span: Span,
+}
+
 #[derive(Debug, Clone)]
 pub enum ParseError {
     UnexpectedToken(Token),
@@ -65,11 +73,7 @@ impl<'a> TokenStream<'a> {
         if !self.at_end() {
             self.position += 1;
         }
-        if let Ok(token) = self.previous() {
-            Some(token)
-        } else {
-            None
-        }
+        self.previous().ok()
     }
 
     pub fn peek(&self) -> Option<Token> {
@@ -168,11 +172,11 @@ pub enum StatementKind {
     Label(Token),
     UnnamedLabel,
     Instruction(Instruction),
-    Procedure(Token, Vec<Statement>),
-    Enum(Option<Token>, Vec<Expression>),
+    Procedure(Token, bool, Vec<Statement>),
+    Enum(Option<Token>, Vec<EnumMember>),
     Macro,
     SetCPU(String),
-    Segment(String),
+    Segment(Segment),
     Reserve(Expression),
 
     MacroInvocation(MacroInvocation),
@@ -189,23 +193,35 @@ pub enum StatementKind {
         zero_page: bool,
     },
     Export {
-        identifiers: Vec<Token>,
+        exports: Vec<ImportExport>,
         zero_page: bool,
     },
     Ascii(Token),
     If(IfKind, Vec<Statement>),
     Struct(Token, Vec<StructMember>),
     Import {
-        identifiers: Vec<Token>,
+        imports: Vec<ImportExport>,
         zero_page: bool,
     },
     Define(Token, Option<Vec<Token>>, Expression),
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum Segment {
+    Literal(String),
+    Identifier(Token),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum StructMember {
     Struct(Statement),
     Field(Token), // TODO: Add data type
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnumMember {
+    pub name: Token,
+    pub value: Option<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -306,16 +322,12 @@ impl<'a> Parser<'a> {
                 }
                 ".export" | ".exportzp" => {
                     let zp = macro_matcher == ".exportzp";
-                    let mut idents = vec![];
-                    idents.push(self.consume_token(TokenType::Identifier)?);
-                    while match_token!(self.tokens, TokenType::Comma) {
-                        idents.push(self.consume_token(TokenType::Identifier)?);
-                    }
+                    let exports = self.parse_import_export_list()?;
                     let end = self.mark_end();
                     self.consume_newline()?;
                     Ok(Some(Statement {
                         kind: StatementKind::Export {
-                            identifiers: idents,
+                            exports,
                             zero_page: zp,
                         },
                         span: Span::new(start, end),
@@ -323,16 +335,12 @@ impl<'a> Parser<'a> {
                 }
                 ".import" | ".importzp" => {
                     let is_zp = macro_matcher == ".importzp";
-                    let mut idents = vec![];
-                    idents.push(self.consume_token(TokenType::Identifier)?);
-                    while match_token!(self.tokens, TokenType::Comma) {
-                        idents.push(self.consume_token(TokenType::Identifier)?);
-                    }
+                    let imports = self.parse_import_export_list()?;
                     let end = self.mark_end();
                     self.consume_newline()?;
                     Ok(Some(Statement {
                         kind: StatementKind::Import {
-                            identifiers: idents,
+                            imports,
                             zero_page: is_zp,
                         },
                         span: Span::new(start, end),
@@ -416,12 +424,12 @@ impl<'a> Parser<'a> {
                         return Err(ParseError::UnexpectedToken(self.peek()?));
                     }
                     // self.consume_token(TokenType::String)?;
-                    let segment = self.last().lexeme;
+                    let segment = self.last();
                     let end = self.mark_end();
                     self.consume_newline()?;
 
                     Ok(Some(Statement {
-                        kind: StatementKind::Segment(segment),
+                        kind: StatementKind::Segment(Segment::Identifier(segment)),
                         span: Span::new(start, end),
                     }))
                 }
@@ -430,11 +438,18 @@ impl<'a> Parser<'a> {
                 ".proc" => {
                     self.consume_token(TokenType::Identifier)?;
                     let ident = self.last();
+                    let far = if match_token!(self.tokens, TokenType::Colon) {
+                        self.consume_token(TokenType::Identifier)?;
+                        self.last().lexeme == "far"
+                    } else {
+                        false
+                    };
+
                     self.consume_newline()?;
                     let commands: Vec<Statement> = self.parse_statement_block(&[".endproc"])?;
                     let end = self.mark_end();
                     return Ok(Some(Statement {
-                        kind: StatementKind::Procedure(ident, commands),
+                        kind: StatementKind::Procedure(ident, far, commands),
                         span: Span::new(start, end),
                     }));
                 }
@@ -486,7 +501,7 @@ impl<'a> Parser<'a> {
                     let segment_name = macro_matcher[1..].to_string();
 
                     Ok(Some(Statement {
-                        kind: StatementKind::Segment(segment_name),
+                        kind: StatementKind::Segment(Segment::Literal(segment_name)),
                         span: Span::new(start, end),
                     }))
                 }
@@ -517,13 +532,13 @@ impl<'a> Parser<'a> {
                 | ".ifnref" | ".ifp02" | ".ifp4510" | ".ifp816" | ".ifpC02" => {
                     Ok(Some(self.parse_if()?))
                 }
-                ".smart" => {
+                ".smart" | ".autoimport" => {
                     if match_token!(self.tokens, TokenType::Plus | TokenType::Minus) {}
                     Ok(None)
                 }
                 // Ignored for now
                 ".local" | ".index" | ".mem" | ".align" | ".addr" | ".charmap" | ".assert"
-                | ".p816" | ".i8" | ".i16" | ".a8" | ".a16" => {
+                | ".p816" | ".i8" | ".i16" | ".a8" | ".a16" | ".error" => {
                     self.parse_parameters()?;
                     Ok(None)
                 }
@@ -621,7 +636,7 @@ impl<'a> Parser<'a> {
 
         self.consume_newline()?;
 
-        let mut members: Vec<Expression> = Vec::new();
+        let mut members: Vec<EnumMember> = Vec::new();
         while !self.tokens.at_end() {
             if check_token!(self.tokens, TokenType::Macro) {
                 let macro_lexeme = self.peek()?.lexeme;
@@ -634,8 +649,13 @@ impl<'a> Parser<'a> {
                     });
                 }
             }
-            let expr = self.parse_expression()?;
-            members.push(expr);
+            let name = self.consume_token(TokenType::Identifier)?;
+            let value = if match_token!(self.tokens, TokenType::Equal) {
+                Some(self.parse_expression()?)
+            } else {
+                None
+            };
+            members.push(EnumMember { name, value });
             self.consume_newline()?;
         }
 
@@ -896,7 +916,7 @@ impl<'a> Parser<'a> {
             let right = self.parse_simple_expression()?;
             root = Expression {
                 kind: ExpressionKind::Comparison(
-                    self.tokens.previous().unwrap().token_type,
+                    self.tokens.previous()?.token_type,
                     Box::from(root.clone()),
                     Box::from(right.clone()),
                 ),
@@ -947,7 +967,7 @@ impl<'a> Parser<'a> {
 
             root = Expression {
                 kind: ExpressionKind::Term(
-                    self.tokens.previous().unwrap().token_type,
+                    self.tokens.previous()?.token_type,
                     Box::from(root.clone()),
                     Box::from(right.clone()),
                 ),
@@ -1141,6 +1161,11 @@ impl<'a> Parser<'a> {
                 span: Span::new(start, end),
             });
         }
+        if match_token!(self.tokens, TokenType::LeftBrace) {
+            let expr = self.parse_expression()?;
+            self.consume_token(TokenType::RightBrace)?;
+            return Ok(expr);
+        }
         if match_token!(self.tokens, TokenType::LeftBracket) {
             let start = self.mark_start();
             let expr = self.parse_expression()?;
@@ -1156,7 +1181,7 @@ impl<'a> Parser<'a> {
             let macro_name = self.consume_token(TokenType::Macro)?.lexeme;
             let end = self.mark_end();
             return match macro_name.as_str() {
-                ".asize" => Ok(Expression {
+                ".asize" | ".isize" => Ok(Expression {
                     kind: ExpressionKind::Literal(macro_name),
                     span: Span::new(start, end),
                 }),
@@ -1259,8 +1284,11 @@ impl<'a> Parser<'a> {
         }
         let end = self.mark_end();
 
-        // TODO: Available registers should rely on target processor
-        if matches!(token_string.to_lowercase().as_str(), "y" | "x" | "a" | "s") {
+        if matches!(token_string.to_lowercase().as_str(), "z" | "a" | "f") && match_token!(self.tokens, TokenType::Colon) {
+            // TODO: Handle addressing modes?
+            self.parse_expression()
+        } else if matches!(token_string.to_lowercase().as_str(), "y" | "x" | "a" | "s") {
+            // TODO: Available registers should rely on target processor
             // Reserved registers
             Ok(Expression {
                 kind: ExpressionKind::Literal(token_string),
@@ -1355,6 +1383,45 @@ impl<'a> Parser<'a> {
 
         Ok(Expression {
             kind: ExpressionKind::Extract(variant, Box::new(left), Box::new(right)),
+            span: Span::new(start, end),
+        })
+    }
+
+    fn parse_import_export_list(&mut self) -> Result<Vec<ImportExport>> {
+        let mut exports = vec![];
+        exports.push(self.parse_import_export()?);
+        while match_token!(self.tokens, TokenType::Comma) {
+            exports.push(self.parse_import_export()?);
+        }
+
+        Ok(exports)
+    }
+
+    fn parse_import_export(&mut self) -> Result<ImportExport> {
+        let start = self.mark_start();
+        self.consume_token(TokenType::Identifier)?;
+        let name = self.last();
+
+        let far = if match_token!(self.tokens, TokenType::Colon) {
+            let ident = self.consume_token(TokenType::Identifier)?;
+            ident.lexeme == "far"
+        } else {
+            false
+        };
+
+        // Ignore value for now
+        let value = if match_token!(self.tokens, TokenType::Equal | TokenType::ConstAssign) {
+            Some(self.parse_expression()?)
+        } else {
+            None
+        };
+
+        let end = self.mark_end();
+
+        Ok(ImportExport {
+            name,
+            far,
+            value,
             span: Span::new(start, end),
         })
     }
