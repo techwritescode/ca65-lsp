@@ -158,7 +158,11 @@ impl File {
         let span = self.line_span(position.line)?;
         let line = self.source_slice(span)?;
         let range = find_word_at_pos(line, position.character);
-        Ok((line.get(range.0..range.1).unwrap(), Span::new(span.start+range.0, span.start+range.1)))
+
+        let word = line.get(range.0..range.1).unwrap();
+        let span = Span::new(span.start + range.0, span.start + range.1);
+
+        Ok((word, span))
     }
 }
 
@@ -183,5 +187,10 @@ pub fn find_word_at_pos(line: &str, col: usize) -> (usize, usize) {
         .map(|(i, _)| i)
         .unwrap_or(col);
 
-    (start, end)
+    // Quick hack to handle addressing modes
+    if line[start..end].starts_with("f:") {
+        (start + 2, end)
+    } else {
+        (start, end)
+    }
 }
