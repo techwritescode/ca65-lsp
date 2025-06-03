@@ -1,20 +1,77 @@
 {
-  "at_in_identifiers": "Accept the at character ('@') as a valid character in identifiers. The at character is not allowed to start an identifier, even with this feature enabled.",
-  "bracket_as_indirect": "Use `[]` instead of `()` for the indirect addressing modes. Example:\n```ca65\n  lda [$82]\n  lda [$82,x]\n  lda [$82],y\n  jmp [$fffe]\n  jmp [table,x]\n```\n_Note:_ This should not be used in 65186 mode because it conflicts with the 65816 instruction syntax for far addressing. See the section covering [address sizes](https://cc65.github.io/doc/ca65.html#address-sizes) for more information.",
-  "c_comments": "Allow C like comments using `/*` and `*/` as left and right comment terminators. Note that C comments may not be nested. There's also a pitfall when using C like comments: All statements must be terminated by \"end-of-line\". Using C like comments, it is possible to hide the newline, which results in error messages. See the following non working example:\n```ca65\n      lda #$00 /* This comment hides the newline\n  */  sta $82\n```",
-  "dollar_in_identifiers": "Accept the dollar sign ('$') as a valid character in identifiers. The dollar character is not allowed to start an identifier, even with this feature enabled.",
-  "dollar_is_pc": "The dollar sign may be used as an alias for the star ('*'), which gives the value of the current PC in expressions. Note: Assignment to the pseudo variable is not allowed.",
-  "force_range": "Force expressions into their valid range for immediate addressing and storage operators like [`.BYTE`](https://cc65.github.io/doc/ca65.html#.BYTE) and [`.WORD`](https://cc65.github.io/doc/ca65.html#.WORD). Be very careful with this one, since it will completely disable error checks.",
-  "labels_without_colons": "Allow labels without a trailing colon. These labels are only accepted, if they start at the beginning of a line (no leading white space).",
-  "leading_dot_in_identifiers": "Accept the dot ('.') as the first character of an identifier. This may be used for example to create macro names that start with a dot emulating control directives of other assemblers. Note however, that none of the reserved keywords built into the assembler, that starts with a dot, may be overridden. When using this feature, you may also get into trouble if later versions of the assembler define new keywords starting with a dot.",
-  "line_continuations": "Switch on or off line continuations using the backslash character before a newline. The option is off by default. Note: Line continuations do not work in a comment. A backslash at the end of a comment is treated as part of the comment and does not trigger line continuation.\n\nExample:\n```ca65\n  ; Allow line continuations\n  .feature line_continuations +\n\n  lda \\\n      #$20 ; This is legal now\n```\nFor backward compatibility reasons, the `.LINECONT +` control command is also supported and enables the same feature.",
-  "long_jsr_jmp_rts": "Affects 65816 mode only.\n\nAllows `jsr` and `jmp` to produce long jumps if the target address has been previously declared in a `far` segment, or imported as `far`. Otherwise `jsl` and `jml` must be used instead.\n\nAlso allows [`.SMART`](https://cc65.github.io/doc/ca65.html#.SMART) to convert `rts` to a long return `rtl` when the enclosing scope or memory model indicates returning from a `far` procedure.\n\nThis permits compatibility with the old behavior of this assembler, or other assemblers which similarly allowed `jsr` and `jmp` to be used this way.",
-  "loose_char_term": "Accept single quotes as well as double quotes as terminators for char constants.",
-  "loose_string_term": "Accept single quotes as well as double quotes as terminators for string constants.",
-  "missing_char_term": "Accept single quoted character constants where the terminating quote is missing.\n```ca65\n  lda #'a\n```\n_Note_: This does not work in conjunction with `.FEATURE loose_string_term`, since in this case the input would be ambiguous.",
-  "org_per_seg": "This feature makes relocatable/absolute mode local to the current segment. Using [`.ORG`](https://cc65.github.io/doc/ca65.html#.ORG) when `org_per_seg` is in effect will only enable absolute mode for the current segment. Dito for [`.RELOC`](https://cc65.github.io/doc/ca65.html#.RELOC).",
-  "pc_assignment": "Allow assignments to the PC symbol ('*' or '$' if `dollar_is_pc` is enabled). Such an assignment is handled identical to the [`.ORG`](https://cc65.github.io/doc/ca65.html#.ORG) command (which is usually not needed, so just removing the lines with the assignments may also be an option when porting code written for older assemblers).",
-  "string_escapes": "Allow C-style backslash escapes within string constants to embed special characters. The following escapes are accepted:\n\n- `\\\\` backslash (`$5C`)\n- `\\'` single quote (`$27`)\n- `\\\"` double quote (`$22`)\n- `\\t` tab (`$09`)\n- `\\r` carriage return (`$0D`)\n- `\\n` newline (`$0A`)\n- `\\xNN` (`$NN`)\n\nNote that string escapes are converted to platform-specific characters in the same way that other characters are converted.",
-  "ubiquitous_idents": "Allow the use of instructions names as names for macros and symbols. This makes it possible to \"overload\" instructions by defining a macro with the same name. This does also make it possible to introduce hard to find errors in your code, so be careful!",
-  "underline_in_numbers": "Allow underlines within numeric constants. These may be used for grouping the digits of numbers for easier reading. Example:\n```ca65\n  .feature underline_in_numbers\n  .word    %1100001110100101\n  .word    %1100_0011_1010_0101 ; Identical but easier to read"
+  "keys_to_doc": {
+    "at_in_identifiers": {
+      "documentation": "Accept the at character ('@') as a valid character in identifiers. The at character is not allowed to start an identifier, even with this feature enabled.",
+      "snippet_type": "word_with_newline"
+    },
+    "bracket_as_indirect": {
+      "documentation": "Use `[]` instead of `()` for the indirect addressing modes. Example:\n```ca65\n  lda [$82]\n  lda [$82,x]\n  lda [$82],y\n  jmp [$fffe]\n  jmp [table,x]\n```\n_Note:_ This should not be used in 65186 mode because it conflicts with the 65816 instruction syntax for far addressing. See the section covering [address sizes](https://cc65.github.io/doc/ca65.html#address-sizes) for more information.",
+      "snippet_type": "word_with_newline"
+    },
+    "c_comments": {
+      "documentation": "Allow C like comments using `/*` and `*/` as left and right comment terminators. Note that C comments may not be nested. There's also a pitfall when using C like comments: All statements must be terminated by \"end-of-line\". Using C like comments, it is possible to hide the newline, which results in error messages. See the following non working example:\n```ca65\n      lda #$00 /* This comment hides the newline\n  */  sta $82\n```",
+      "snippet_type": "word_with_newline"
+    },
+    "dollar_in_identifiers": {
+      "documentation": "Accept the dollar sign ('$') as a valid character in identifiers. The dollar character is not allowed to start an identifier, even with this feature enabled.",
+      "snippet_type": "word_with_newline"
+    },
+    "dollar_is_pc": {
+      "documentation": "The dollar sign may be used as an alias for the star ('*'), which gives the value of the current PC in expressions. Note: Assignment to the pseudo variable is not allowed.",
+      "snippet_type": "word_with_newline"
+    },
+    "force_range": {
+      "documentation": "Force expressions into their valid range for immediate addressing and storage operators like [`.BYTE`](https://cc65.github.io/doc/ca65.html#.BYTE) and [`.WORD`](https://cc65.github.io/doc/ca65.html#.WORD). Be very careful with this one, since it will completely disable error checks.",
+      "snippet_type": "word_with_newline"
+    },
+    "labels_without_colons": {
+      "documentation": "Allow labels without a trailing colon. These labels are only accepted, if they start at the beginning of a line (no leading white space).",
+      "snippet_type": "word_with_newline"
+    },
+    "leading_dot_in_identifiers": {
+      "documentation": "Accept the dot ('.') as the first character of an identifier. This may be used for example to create macro names that start with a dot emulating control directives of other assemblers. Note however, that none of the reserved keywords built into the assembler, that starts with a dot, may be overridden. When using this feature, you may also get into trouble if later versions of the assembler define new keywords starting with a dot.",
+      "snippet_type": "word_with_newline"
+    },
+    "line_continuations": {
+      "documentation": "Switch on or off line continuations using the backslash character before a newline. The option is off by default. Note: Line continuations do not work in a comment. A backslash at the end of a comment is treated as part of the comment and does not trigger line continuation.\n\nExample:\n```ca65\n  ; Allow line continuations\n  .feature line_continuations +\n\n  lda \\\n      #$20 ; This is legal now\n```\nFor backward compatibility reasons, the `.LINECONT +` control command is also supported and enables the same feature.",
+      "snippet_type": "word_with_newline"
+    },
+    "long_jsr_jmp_rts": {
+      "documentation": "Affects 65816 mode only.\n\nAllows `jsr` and `jmp` to produce long jumps if the target address has been previously declared in a `far` segment, or imported as `far`. Otherwise `jsl` and `jml` must be used instead.\n\nAlso allows [`.SMART`](https://cc65.github.io/doc/ca65.html#.SMART) to convert `rts` to a long return `rtl` when the enclosing scope or memory model indicates returning from a `far` procedure.\n\nThis permits compatibility with the old behavior of this assembler, or other assemblers which similarly allowed `jsr` and `jmp` to be used this way.",
+      "snippet_type": "word_with_newline"
+    },
+    "loose_char_term": {
+      "documentation": "Accept single quotes as well as double quotes as terminators for char constants.",
+      "snippet_type": "word_with_newline"
+    },
+    "loose_string_term": {
+      "documentation": "Accept single quotes as well as double quotes as terminators for string constants.",
+      "snippet_type": "word_with_newline"
+    },
+    "missing_char_term": {
+      "documentation": "Accept single quoted character constants where the terminating quote is missing.\n```ca65\n  lda #'a\n```\n_Note_: This does not work in conjunction with `.FEATURE loose_string_term`, since in this case the input would be ambiguous.",
+      "snippet_type": "word_with_newline"
+    },
+    "org_per_seg": {
+      "documentation": "This feature makes relocatable/absolute mode local to the current segment. Using [`.ORG`](https://cc65.github.io/doc/ca65.html#.ORG) when `org_per_seg` is in effect will only enable absolute mode for the current segment. Dito for [`.RELOC`](https://cc65.github.io/doc/ca65.html#.RELOC).",
+      "snippet_type": "word_with_newline"
+    },
+    "pc_assignment": {
+      "documentation": "Allow assignments to the PC symbol ('*' or '$' if `dollar_is_pc` is enabled). Such an assignment is handled identical to the [`.ORG`](https://cc65.github.io/doc/ca65.html#.ORG) command (which is usually not needed, so just removing the lines with the assignments may also be an option when porting code written for older assemblers).",
+      "snippet_type": "word_with_newline"
+    },
+    "string_escapes": {
+      "documentation": "Allow C-style backslash escapes within string constants to embed special characters. The following escapes are accepted:\n\n- `\\\\` backslash (`$5C`)\n- `\\'` single quote (`$27`)\n- `\\\"` double quote (`$22`)\n- `\\t` tab (`$09`)\n- `\\r` carriage return (`$0D`)\n- `\\n` newline (`$0A`)\n- `\\xNN` (`$NN`)\n\nNote that string escapes are converted to platform-specific characters in the same way that other characters are converted.",
+      "snippet_type": "word_with_newline"
+    },
+    "ubiquitous_idents": {
+      "documentation": "Allow the use of instructions names as names for macros and symbols. This makes it possible to \"overload\" instructions by defining a macro with the same name. This does also make it possible to introduce hard to find errors in your code, so be careful!",
+      "snippet_type": "word_with_newline"
+    },
+    "underline_in_numbers": {
+      "documentation": "Allow underlines within numeric constants. These may be used for grouping the digits of numbers for easier reading. Example:\n```ca65\n  .feature underline_in_numbers\n  .word    %1100001110100101\n  .word    %1100_0011_1010_0101 ; Identical but easier to read",
+      "snippet_type": "word_with_newline"
+    }
+  },
+  "keys_with_shared_doc": {}
 }

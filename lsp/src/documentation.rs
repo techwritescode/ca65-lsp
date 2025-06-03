@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use std::{collections::HashMap, fs, sync::OnceLock};
 use tower_lsp_server::lsp_types::{
-    self, CompletionItem, CompletionItemKind, DocumentChangeOperation, Documentation,
-    InsertTextFormat, MarkupContent, MarkupKind,
+    self, CompletionItem, CompletionItemKind, Documentation, InsertTextFormat, MarkupContent,
+    MarkupKind,
 };
 
 #[derive(Deserialize)]
@@ -17,14 +17,8 @@ pub struct MultiKeySingleDoc {
     keys_to_doc: HashMap<Keyword, KeywordInfo>,
     keys_with_shared_doc: HashMap<Keyword, Keyword>,
 }
-type SingleKeySingleDoc = HashMap<Keyword, String>;
 
-pub enum KeyedDocumentation {
-    MultiKeySingleDoc(MultiKeySingleDoc),
-    SingleKeySingleDoc(SingleKeySingleDoc),
-}
-
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Hash, Eq, PartialEq, Clone)]
 pub enum DocumentationKind {
     Ca65Keyword,
     Ca65DotOperator,
@@ -35,11 +29,7 @@ pub enum DocumentationKind {
 pub static DOCUMENTATION_COLLECTION: OnceLock<HashMap<DocumentationKind, MultiKeySingleDoc>> =
     OnceLock::new();
 
-pub trait DocumentationProvider {
-    fn get_doc_for_word(&self, word: &str) -> Option<String>;
-}
-
-impl DocumentationProvider for MultiKeySingleDoc {
+impl MultiKeySingleDoc {
     fn get_doc_for_word(&self, word: &str) -> Option<String> {
         if let Some(keyword_info) = self.keys_to_doc.get(word) {
             Some(keyword_info.documentation.clone())
@@ -57,22 +47,6 @@ impl DocumentationProvider for MultiKeySingleDoc {
     }
 }
 
-impl DocumentationProvider for SingleKeySingleDoc {
-    fn get_doc_for_word(&self, word: &str) -> Option<String> {
-        if let Some(doc) = self.get(word) {
-            Some(doc.clone())
-        } else {
-            None
-        }
-    }
-}
-
-// pub static CA65_DOCUMENTATION: OnceLock<MultiKeySingleDoc> = OnceLock::new();
-// pub static CA65_DOT_OPERATOR_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
-// pub static INSTRUCTION_DOCUMENTATION: OnceLock<MultiKeySingleDoc> = OnceLock::new();
-// pub static MACPACK_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
-// pub static FEATURE_DOCUMENTATION: OnceLock<HashMap<String, String>> = OnceLock::new();
-
 pub fn init() {
     init_docs();
     parse_json_to_completion_items();
@@ -81,7 +55,7 @@ pub fn init() {
 #[inline]
 fn init_docs() {
     let docs: HashMap<DocumentationKind, MultiKeySingleDoc> =
-        HashMap::<DocumentationKind, &str>::from([
+        Vec::<(DocumentationKind, &str)>::from([
             (
                 DocumentationKind::Ca65Keyword,
                 "../../data/ca65-keyword-doc.json",
@@ -94,139 +68,64 @@ fn init_docs() {
                 DocumentationKind::Instruction,
                 "../../data/65xx-instruction-doc.json",
             ),
-            (DocumentationKind::Feature, "../../data/features-doc.json"),
             (
                 DocumentationKind::Macpack,
                 "../../data/macpack-packages-doc.json",
             ),
+            (DocumentationKind::Feature, "../../data/features-doc.json"),
         ])
-        .iter()
+        .into_iter()
         .filter_map(|(kind, path)| {
             if let Ok(file) = fs::read_to_string(path) {
                 if let Ok(doc) = serde_json::from_str::<MultiKeySingleDoc>(file.as_str()) {
-                    return Some((kind.into(), doc));
+                    return Some((kind, doc));
                 }
             }
             None
         })
         .collect();
 
-    let mut map: HashMap<DocumentationKind, MultiKeySingleDoc> = HashMap::new();
-    map.insert(
-        DocumentationKind::Ca65Keyword,
-        MultiKeySingleDoc {
-            keys_to_doc: HashMap::new(),
-            keys_with_shared_doc: HashMap::new(),
-        },
-    );
-
-    // if let Ok(doc) =
-    //     serde_json::from_str::<MultiKeySingleDoc>(include_str!("../../data/ca65-keyword-doc.json"))
-    // {
-    //     if CA65_DOCUMENTATION.set(doc).is_err() {
-    //         eprintln!("CA65_KEYWORDS_MAP not able to be initialized");
-    //     }
-    // }
-    // if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!(
-    //     "../../data/ca65-dot-operators-doc.json"
-    // )) {
-    //     if CA65_DOT_OPERATOR_DOCUMENTATION.set(doc).is_err() {
-    //         eprintln!("CA65_DOT_OPERATORS_DOCUMENTATION not able to be initialized");
-    //     }
-    // }
-    // if let Ok(doc) = serde_json::from_str::<MultiKeySingleDoc>(include_str!(
-    //     "../../data/65xx-instruction-doc.json"
-    // )) {
-    //     if INSTRUCTION_DOCUMENTATION.set(doc).is_err() {
-    //         eprintln!("INSTRUCTION_DOC not able to be initialized");
-    //     }
-    // }
-    // if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!(
-    //     "../../data/macpack-packages-doc.json"
-    // )) {
-    //     if MACPACK_DOCUMENTATION.set(doc).is_err() {
-    //         eprintln!("MACPACK_DOC not able to be initialized");
-    //     }
-    // }
-    // if let Ok(doc) = serde_json::from_str::<HashMap<String, String>>(include_str!(
-    //     "../../data/features-doc.json"
-    // )) {
-    //     if FEATURE_DOCUMENTATION.set(doc).is_err() {
-    //         eprintln!("FEATURES_DOCUMENTATION not able to be initialized");
-    //     }
-    // }
+    if DOCUMENTATION_COLLECTION.set(docs).is_err() {
+        eprintln!("Could not set DOCUMENTATION_COLLECTION");
+    }
 }
 
-pub static CA65_KEYWORD_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
-pub static CA65_DOT_OPERATOR_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
-pub static INSTRUCTION_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
-pub static MACPACK_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
-pub static FEATURE_COMPLETION_ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
+pub static COMPLETION_ITEMS_COLLECTION: OnceLock<HashMap<DocumentationKind, Vec<CompletionItem>>> =
+    OnceLock::new();
+
 #[inline]
 fn parse_json_to_completion_items() {
     let snippets =
         serde_json::from_str::<HashMap<String, String>>(include_str!("../../data/snippets.json"))
             .expect("Could not parse snippets JSON");
 
-    let ca65_documentation = CA65_DOCUMENTATION
+    let items: HashMap<DocumentationKind, Vec<CompletionItem>> = DOCUMENTATION_COLLECTION
         .get()
-        .expect("Could not get CA65_DOCUMENTATION in init_completion_item_vecs()");
-    let ca65_keyword_completion_items =
-        get_completion_item_vec_from_indexed_documentation(ca65_documentation, &snippets, ".");
-    CA65_KEYWORD_COMPLETION_ITEMS
-        .set(ca65_keyword_completion_items)
-        .expect("Could not set CA65_KEYWORD_COMPLETION_ITEMS");
+        .expect("Could not get documentation collection")
+        .into_iter()
+        .map(|(kind, doc)| {
+            (
+                kind.clone(),
+                get_completion_item_vec_from_indexed_documentation(doc, &snippets),
+            )
+        })
+        .collect();
 
-    let ca65_dot_operator_documentation = CA65_DOT_OPERATOR_DOCUMENTATION
-        .get()
-        .expect("Could not get CA65_DOT_OPERATOR_DOCUMENTATION in init_completion_item_vecs()");
-    let ca65_dot_operator_completion_items =
-        get_completion_item_vec_from_string_string_hashmap(ca65_dot_operator_documentation);
-    CA65_DOT_OPERATOR_COMPLETION_ITEMS
-        .set(ca65_dot_operator_completion_items)
-        .expect("Could not set CA65_DOT_OPERATOR_COMPLETION_ITEMS");
-
-    let instruction_documentation = INSTRUCTION_DOCUMENTATION
-        .get()
-        .expect("Could not get CA65_DOCUMENTATION in init_completion_item_vecs()");
-    let instruction_completion_items = get_completion_item_vec_from_indexed_documentation(
-        instruction_documentation,
-        &snippets,
-        "",
-    );
-    INSTRUCTION_COMPLETION_ITEMS
-        .set(instruction_completion_items)
-        .expect("Could not set CA65_KEYWORD_COMPLETION_ITEMS");
-
-    let macpack_documentation = MACPACK_DOCUMENTATION
-        .get()
-        .expect("Could not get MACPACK_DOCUMENTATION in init_completion_item_vecs()");
-    let macpack_completion_items =
-        get_completion_item_vec_from_string_string_hashmap(macpack_documentation);
-    MACPACK_COMPLETION_ITEMS
-        .set(macpack_completion_items)
-        .expect("Could not set MACACK_COMPLETION_ITEMS");
-
-    let features_documentation = FEATURE_DOCUMENTATION
-        .get()
-        .expect("Could not get FEATURES_DOCUMENTATION in init_completion_item_vecs()");
-    let features_completion_items =
-        get_completion_item_vec_from_string_string_hashmap(features_documentation);
-    FEATURE_COMPLETION_ITEMS
-        .set(features_completion_items)
-        .expect("Could not set FEATURE_COMPLETION_ITEMS");
+    if COMPLETION_ITEMS_COLLECTION.set(items).is_err() {
+        eprintln!("Could not set completion items collection");
+    }
 }
+
 fn get_completion_item_vec_from_indexed_documentation(
     doc: &MultiKeySingleDoc,
     snippets: &HashMap<String, String>,
-    keyword_prepend_text: &str,
 ) -> Vec<CompletionItem> {
     vec![
         doc.keys_to_doc
             .iter()
             .map(|(keyword, keyword_info)| CompletionItem {
-                filter_text: Some(format!("{keyword_prepend_text}{keyword}")),
-                label: format!("{keyword_prepend_text}{keyword}"),
+                filter_text: Some(format!("{keyword}")),
+                label: format!("{keyword}"),
                 kind: Some(CompletionItemKind::KEYWORD),
                 documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
                     kind: MarkupKind::Markdown,
@@ -249,12 +148,12 @@ fn get_completion_item_vec_from_indexed_documentation(
                     alias,
                     doc.keys_to_doc
                         .get(key)
-                        .expect("Alias in IndexedDocumentation did not point to a key"),
+                        .expect("Alias in documentation did not point to a key"),
                 )
             })
             .map(|(alias, keyword_info)| CompletionItem {
-                filter_text: Some(format!("{keyword_prepend_text}{alias}")),
-                label: format!("{keyword_prepend_text}{alias}"),
+                filter_text: Some(format!("{alias}")),
+                label: format!("{alias}"),
                 kind: Some(CompletionItemKind::KEYWORD),
                 documentation: Some(Documentation::MarkupContent(MarkupContent {
                     kind: MarkupKind::Markdown,
@@ -272,21 +171,4 @@ fn get_completion_item_vec_from_indexed_documentation(
             .collect(),
     ]
     .concat()
-}
-
-fn get_completion_item_vec_from_string_string_hashmap(
-    doc: &HashMap<String, String>,
-) -> Vec<CompletionItem> {
-    doc.iter()
-        .map(|(keyword, documentation_text)| CompletionItem {
-            filter_text: Some(keyword.clone()),
-            label: keyword.clone(),
-            kind: Some(CompletionItemKind::MODULE),
-            documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: documentation_text.clone(),
-            })),
-            ..Default::default()
-        })
-        .collect()
 }
