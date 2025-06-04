@@ -315,14 +315,6 @@ impl LanguageServer for Asm {
                 .get_word_at_position(params.text_document_position_params.position.into())
                 .map_err(file_error_to_lsp)?;
 
-            eprintln!(
-                "doc collection: {:#?}",
-                DOCUMENTATION_COLLECTION
-                    .get()
-                    .unwrap()
-                    .get(&DocumentationKind::Ca65DotOperator)
-            );
-
             // TODO: take context into account when choosing to show hover doc
             for (_doc_kind, doc) in DOCUMENTATION_COLLECTION.get().unwrap() {
                 if let Some(doc) = doc.get_doc_for_word(&word.to_lowercase()) {
