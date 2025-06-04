@@ -43,7 +43,7 @@
     ".not": {
       "documentation": "Boolean not (!)",
       "snippet_type": "word_with_space"
-    }"
+    }
   },
   "keys_with_shared_doc": {}
 }
