@@ -10,7 +10,7 @@
     },
     ".elseif": {
       "documentation": "`.ELSEIF`\n---\nConditional assembly: Reverse current condition and test a new one.\n\n",
-      "snippet_type": "ca65_else_if"
+      "snippet_type": "else_if"
     },
     ".right": {
       "documentation": "`.RIGHT`\n---\nBuiltin function. Extracts the right part of a given token list.\n\nSyntax:\n\n\n```ca65\n  .RIGHT (<int expr>, <token list>)\n  \n```\n\n\n\nThe first integer expression gives the number of tokens to extract from the\ntoken list. The second argument is the token list itself.  The token list\nmay optionally be enclosed into curly braces. This allows the inclusion of\ntokens that would otherwise terminate the list (the closing right paren in\nthe given case).\n\nSee also the [`.LEFT`](https://cc65.github.io/doc/ca65.html#.LEFT) and [`.MID`](https://cc65.github.io/doc/ca65.html#.MID) builtin functions.\n\n",
