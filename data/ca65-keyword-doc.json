@@ -322,7 +322,7 @@
     },
     ".max": {
       "documentation": "`.MAX`\n---\nBuiltin function. The result is the larger of two values.\n\nThe syntax is\n\n\n```ca65\n  .MAX (<value #1>, <value #2>)\n  \n```\n\n\n\nExample:\n\n\n```ca65\n  ; Reserve space for the larger of two data blocks\n  savearea:       .res .max (.sizeof (foo), .sizeof (bar))\n  \n```\n\n\n\nSee: [`.MIN`](https://cc65.github.io/doc/ca65.html#.MIN)\n\n",
-      "snippet_type": "function"
+      "snippet_type": "function_with_two_args"
     },
     ".struct": {
       "documentation": "`.STRUCT`\n---\nStarts a struct definition. Structs are covered in a separate section named\n[Structs and unions](https://cc65.github.io/doc/ca65.html#structs).\n\nSee also: [`.ENDSTRUCT`](https://cc65.github.io/doc/ca65.html#.ENDSTRUCT),\n[`.ENDUNION`](https://cc65.github.io/doc/ca65.html#.ENDUNION),\n[`.UNION`](https://cc65.github.io/doc/ca65.html#.UNION)\n\n",
@@ -354,11 +354,11 @@
     },
     ".xmatch": {
       "documentation": "`.XMATCH`\n---\nBuiltin function. Matches two token lists against each other. This is\nmost useful within macros, since macros are not stored as strings, but\nas lists of tokens.\n\nThe syntax is\n\n\n```ca65\n  .XMATCH(<token list #1>, <token list #2>)\n  \n```\n\n\n\nBoth token list may contain arbitrary tokens with the exception of the\nterminator token (comma resp. right parenthesis) and\n\n\n\n\n- end-of-line\n\n- end-of-file\n\n\n\n\nThe token lists may optionally be enclosed into curly braces. This allows\nthe inclusion of tokens that would otherwise terminate the list (the closing\nright paren in the given case). Often a macro parameter is used for any of\nthe token lists.\n\nThe function compares tokens _and_ token values. If you need a function\nthat just compares the type of tokens, have a look at the [`.MATCH`](https://cc65.github.io/doc/ca65.html#.MATCH) function.\n\nSee: [`.MATCH`](https://cc65.github.io/doc/ca65.html#.MATCH)\n\n",
-      "snippet_type": "function"
+      "snippet_type": "function_with_two_args"
     },
     ".min": {
       "documentation": "`.MIN`\n---\nBuiltin function. The result is the smaller of two values.\n\nThe syntax is\n\n\n```ca65\n  .MIN (<value #1>, <value #2>)\n  \n```\n\n\n\nExample:\n\n\n```ca65\n  ; Reserve space for some data, but 256 bytes maximum\n  savearea:       .res .min (.sizeof (foo), 256)\n  \n```\n\n\n\nSee: [`.MAX`](https://cc65.github.io/doc/ca65.html#.MAX)\n\n",
-      "snippet_type": "function"
+      "snippet_type": "function_with_two_args"
     },
     ".i8": {
       "documentation": "`.I8`\n---\nValid only in 65816 mode. Assume the index registers are 8 bit.\n\nNote: This command will not emit any code, it will tell the assembler to\ncreate 8 bit operands for immediate operands.\n\nSee also the [`.I16`](https://cc65.github.io/doc/ca65.html#.I16) and [`.SMART`](https://cc65.github.io/doc/ca65.html#.SMART) commands.\n\n",
@@ -542,7 +542,7 @@
     },
     ".charmap": {
       "documentation": "`.CHARMAP`\n---\nApply a custom mapping for characters for the commands [`.ASCIIZ`](https://cc65.github.io/doc/ca65.html#.ASCIIZ) and [`.BYTE`](https://cc65.github.io/doc/ca65.html#.BYTE). The command\nis followed by two numbers. The first one is the index of the source character\n(range 0..255);\nthe second one is the mapping (range 0..255). The mapping applies to all\ncharacter and string constants _when_ they generate output; and, overrides\na mapping table specified with the [`-t`](https://cc65.github.io/doc/ca65.html#option-t)\ncommand line switch.\n\nExample:\n```ca65\n  .charmap        $41, $61        ; Map 'A' to 'a'\n  \n```\n\n\n\n",
-      "snippet_type": "word_with_space"
+      "snippet_type": "word_with_two_args"
     },
     ".string": {
       "documentation": "`.STRING`\n---\nBuiltin function. The function accepts an argument in parentheses and converts\nthis argument into a string constant. The argument may be an identifier, or\na constant numeric value.\n\nSince you can use a string in the first place, the use of the function may\nnot be obvious. However, it is useful in macros, or more complex setups.\n\nExample:\n\n\n```ca65\n  ; Emulate other assemblers:\n  .macro  section name\n          .segment        .string(name)\n  .endmacro\n  \n```\n\n\n\n",
