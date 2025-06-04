@@ -315,81 +315,25 @@ impl LanguageServer for Asm {
                 .get_word_at_position(params.text_document_position_params.position.into())
                 .map_err(file_error_to_lsp)?;
 
-            if let Some(documentation) = DOCUMENTATION_COLLECTION
-                .get()
-                .unwrap()
-                .get(&DocumentationKind::Instruction)
-                .unwrap()
-                .get_doc_for_word(&word.to_lowercase())
-            {
-                return Ok(Some(Hover {
-                    range: None,
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: documentation,
-                    }),
-                }));
-            }
+            eprintln!(
+                "doc collection: {:#?}",
+                DOCUMENTATION_COLLECTION
+                    .get()
+                    .unwrap()
+                    .get(&DocumentationKind::Ca65DotOperator)
+            );
 
-            if let Some(documentation) = DOCUMENTATION_COLLECTION
-                .get()
-                .unwrap()
-                .get(&DocumentationKind::Ca65Keyword)
-                .unwrap()
-                .get_doc_for_word(&word.to_lowercase())
-            {
-                return Ok(Some(Hover {
-                    range: None,
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: documentation,
-                    }),
-                }));
-            }
-
-            if let Some(documentation) = DOCUMENTATION_COLLECTION
-                .get()
-                .unwrap()
-                .get(&DocumentationKind::Ca65DotOperator)
-                .unwrap()
-                .get_doc_for_word(&word.to_lowercase())
-            {
-                return Ok(Some(Hover {
-                    range: None,
-                    contents: HoverContents::Scalar(MarkedString::String(documentation.clone())),
-                }));
-            }
-
-            if let Some(documentation) = DOCUMENTATION_COLLECTION
-                .get()
-                .unwrap()
-                .get(&DocumentationKind::Feature)
-                .unwrap()
-                .get_doc_for_word(&word.to_lowercase())
-            {
-                return Ok(Some(Hover {
-                    range: None,
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: documentation.clone(),
-                    }),
-                }));
-            }
-
-            if let Some(documentation) = DOCUMENTATION_COLLECTION
-                .get()
-                .unwrap()
-                .get(&DocumentationKind::Macpack)
-                .unwrap()
-                .get_doc_for_word(&word.to_lowercase())
-            {
-                return Ok(Some(Hover {
-                    range: None,
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: documentation.clone(),
-                    }),
-                }));
+            // TODO: take context into account when choosing to show hover doc
+            for (_doc_kind, doc) in DOCUMENTATION_COLLECTION.get().unwrap() {
+                if let Some(doc) = doc.get_doc_for_word(&word.to_lowercase()) {
+                    return Ok(Some(Hover {
+                        range: None,
+                        contents: HoverContents::Markup(MarkupContent {
+                            kind: MarkupKind::Markdown,
+                            value: doc,
+                        }),
+                    }));
+                }
             }
 
             let definitions = self

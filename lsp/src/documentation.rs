@@ -5,20 +5,20 @@ use tower_lsp_server::lsp_types::{
     MarkupKind,
 };
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct KeywordInfo {
     documentation: String,
     snippet_type: String,
 }
 
 type Keyword = String;
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct MultiKeySingleDoc {
     keys_to_doc: HashMap<Keyword, KeywordInfo>,
     keys_with_shared_doc: HashMap<Keyword, Keyword>,
 }
 
-#[derive(Hash, Eq, PartialEq, Clone)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub enum DocumentationKind {
     Ca65Keyword,
     Ca65DotOperator,
@@ -58,36 +58,35 @@ fn init_docs() {
         Vec::<(DocumentationKind, &str)>::from([
             (
                 DocumentationKind::Ca65Keyword,
-                "../../data/ca65-keyword-doc.json",
+                include_str!("../../data/ca65-keyword-doc.json"),
             ),
             (
                 DocumentationKind::Ca65DotOperator,
-                "../../data/ca65-dot-operators-doc.json",
+                include_str!("../../data/ca65-dot-operators-doc.json"),
             ),
             (
                 DocumentationKind::Instruction,
-                "../../data/65xx-instruction-doc.json",
+                include_str!("../../data/65xx-instruction-doc.json"),
             ),
             (
                 DocumentationKind::Macpack,
-                "../../data/macpack-packages-doc.json",
+                include_str!("../../data/macpack-packages-doc.json"),
             ),
-            (DocumentationKind::Feature, "../../data/features-doc.json"),
+            (
+                DocumentationKind::Feature,
+                include_str!("../../data/features-doc.json"),
+            ),
         ])
         .into_iter()
-        .filter_map(|(kind, path)| {
-            if let Ok(file) = fs::read_to_string(path) {
-                if let Ok(doc) = serde_json::from_str::<MultiKeySingleDoc>(file.as_str()) {
-                    return Some((kind, doc));
-                }
+        .filter_map(|(kind, file_contents)| {
+            if let Ok(doc) = serde_json::from_str::<MultiKeySingleDoc>(file_contents) {
+                return Some((kind, doc));
             }
             None
         })
         .collect();
 
-    if DOCUMENTATION_COLLECTION.set(docs).is_err() {
-        eprintln!("Could not set DOCUMENTATION_COLLECTION");
-    }
+    DOCUMENTATION_COLLECTION.set(docs).expect("f");
 }
 
 pub static COMPLETION_ITEMS_COLLECTION: OnceLock<HashMap<DocumentationKind, Vec<CompletionItem>>> =
