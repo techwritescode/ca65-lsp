@@ -1,24 +1,24 @@
 use serde::Deserialize;
-use std::{collections::HashMap, fs, sync::OnceLock};
+use std::{collections::HashMap, sync::OnceLock};
 use tower_lsp_server::lsp_types::{
     self, CompletionItem, CompletionItemKind, Documentation, InsertTextFormat, MarkupContent,
     MarkupKind,
 };
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct KeywordInfo {
     documentation: String,
     snippet_type: String,
 }
 
 type Keyword = String;
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct MultiKeySingleDoc {
     keys_to_doc: HashMap<Keyword, KeywordInfo>,
     keys_with_shared_doc: HashMap<Keyword, Keyword>,
 }
 
-#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+#[derive(Hash, Eq, PartialEq, Clone)]
 pub enum DocumentationKind {
     Ca65Keyword,
     Ca65DotOperator,
@@ -49,7 +49,7 @@ impl MultiKeySingleDoc {
 
 pub fn init() {
     init_docs();
-    parse_json_to_completion_items();
+    init_completion_items();
 }
 
 #[inline]
@@ -86,14 +86,16 @@ fn init_docs() {
         })
         .collect();
 
-    DOCUMENTATION_COLLECTION.set(docs).expect("f");
+    if DOCUMENTATION_COLLECTION.set(docs).is_err() {
+        eprintln!("Could not set documentation collection");
+    }
 }
 
 pub static COMPLETION_ITEMS_COLLECTION: OnceLock<HashMap<DocumentationKind, Vec<CompletionItem>>> =
     OnceLock::new();
 
 #[inline]
-fn parse_json_to_completion_items() {
+fn init_completion_items() {
     let snippets =
         serde_json::from_str::<HashMap<String, String>>(include_str!("../../data/snippets.json"))
             .expect("Could not parse snippets JSON");
@@ -105,7 +107,7 @@ fn parse_json_to_completion_items() {
         .map(|(kind, doc)| {
             (
                 kind.clone(),
-                get_completion_item_vec_from_indexed_documentation(doc, &snippets),
+                get_completion_item_vec_from_multi_key_single_doc(doc, &snippets),
             )
         })
         .collect();
@@ -115,7 +117,7 @@ fn parse_json_to_completion_items() {
     }
 }
 
-fn get_completion_item_vec_from_indexed_documentation(
+fn get_completion_item_vec_from_multi_key_single_doc(
     doc: &MultiKeySingleDoc,
     snippets: &HashMap<String, String>,
 ) -> Vec<CompletionItem> {
@@ -123,8 +125,8 @@ fn get_completion_item_vec_from_indexed_documentation(
         doc.keys_to_doc
             .iter()
             .map(|(keyword, keyword_info)| CompletionItem {
-                filter_text: Some(format!("{keyword}")),
-                label: format!("{keyword}"),
+                filter_text: Some(keyword.clone()),
+                label: keyword.clone(),
                 kind: Some(CompletionItemKind::KEYWORD),
                 documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
                     kind: MarkupKind::Markdown,
@@ -151,8 +153,8 @@ fn get_completion_item_vec_from_indexed_documentation(
                 )
             })
             .map(|(alias, keyword_info)| CompletionItem {
-                filter_text: Some(format!("{alias}")),
-                label: format!("{alias}"),
+                filter_text: Some(alias.clone()),
+                label: alias.clone(),
                 kind: Some(CompletionItemKind::KEYWORD),
                 documentation: Some(Documentation::MarkupContent(MarkupContent {
                     kind: MarkupKind::Markdown,
