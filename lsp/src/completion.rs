@@ -1,8 +1,10 @@
-use crate::codespan::FileId;
 use crate::documentation::{DocumentationKind, COMPLETION_ITEMS_COLLECTION};
-use crate::state::State;
-use crate::symbol_cache::{symbol_cache_get, SymbolType};
+use crate::{
+    data::symbol::SymbolType,
+    state::State,
+};
 use analysis::ScopeAnalyzer;
+use codespan::FileId;
 use codespan::Position;
 use parser::TokenType;
 use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails};
@@ -43,27 +45,15 @@ impl CompletionProvider for SymbolCompletionProvider {
         id: FileId,
         position: Position,
     ) -> Vec<CompletionItem> {
+        let file = &state.files.get(id);
         let show_instructions = state.files.show_instructions(id, position); // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
-        let scopes = state
-            .scopes
-            .get(&state.files.get_uri(id))
-            .unwrap_or(&vec![])
-            .clone();
-        let byte_position = state
-            .files
-            .get(id)
-            .position_to_byte_index(position)
-            .unwrap_or(0);
-        let scope = ScopeAnalyzer::search(&scopes, byte_position);
+        let byte_position = file.file.position_to_byte_index(position).unwrap_or(0);
+        let scope = ScopeAnalyzer::search(&file.scopes, byte_position);
 
-        let word_at_position = state
-            .files
-            .get(id)
-            .get_word_at_position(position)
-            .unwrap_or("");
+        let word_at_position = file.file.get_word_at_position(position).unwrap_or("");
         let has_namespace = word_at_position.contains(":");
 
-        symbol_cache_get()
+        file.symbols
             .iter()
             .filter_map(|symbol| {
                 if show_instructions

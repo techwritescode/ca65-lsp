@@ -1,5 +1,5 @@
 use crate::visitor::ASTVisitor;
-use codespan::Span;
+use codespan::{FileId, Span};
 use parser::{
     Ast, ConstantAssign, EnumMember, Expression, ImportExport, Statement, StructMember, Token,
 };
@@ -74,6 +74,12 @@ pub struct Scope {
     pub children: Vec<Scope>,
 }
 
+#[derive(Clone, Debug)]
+pub struct Include {
+    pub file: FileId,
+    pub scope: Vec<Scope>,
+}
+
 impl Scope {
     fn find_inner_scope(&self, index: usize) -> Option<Vec<Scope>> {
         if index < self.span.start || index >= self.span.end {
@@ -94,6 +100,7 @@ pub struct ScopeAnalyzer {
     pub ast: Vec<Statement>,
     pub stack: Vec<Scope>,
     pub symtab: HashMap<String, Symbol>,
+    pub includes: Vec<Include>,
 }
 
 impl ScopeAnalyzer {
@@ -119,17 +126,22 @@ impl ScopeAnalyzer {
                 span: Span::new(0, 0),
                 children: vec![],
             }],
+            includes: vec![],
             symtab: HashMap::new(),
         }
     }
 
-    pub fn analyze(&mut self) -> (Vec<Scope>, HashMap<String, Symbol>) {
+    pub fn analyze(&mut self) -> (Vec<Scope>, HashMap<String, Symbol>, Vec<Include>) {
         for statement in self.ast.clone().iter() {
             self.visit_statement(statement);
         }
 
         // Get children of root node
-        (self.stack[0].children.clone(), self.symtab.clone())
+        (
+            self.stack[0].children.clone(),
+            self.symtab.clone(),
+            self.includes.clone(),
+        )
     }
 
     pub fn search(scopes: &[Scope], index: usize) -> Vec<String> {
@@ -234,11 +246,22 @@ impl ASTVisitor for ScopeAnalyzer {
 
         self.pop_scope()
     }
-    fn visit_define(&mut self, ident: &Token, params: &Option<Vec<Token>>, expr: &Expression, span: Span) {
+    fn visit_define(
+        &mut self,
+        ident: &Token,
+        params: &Option<Vec<Token>>,
+        expr: &Expression,
+        span: Span,
+    ) {
         if let Some(params) = params {
             self.push_scope(ident.lexeme.clone(), span);
             for param in params.iter() {
-                self.insert_symbol(param, Symbol::Constant { name: param.clone() });
+                self.insert_symbol(
+                    param,
+                    Symbol::Constant {
+                        name: param.clone(),
+                    },
+                );
             }
             self.pop_scope();
         }
@@ -330,5 +353,12 @@ impl ASTVisitor for ScopeAnalyzer {
                 );
             }
         }
+    }
+
+    fn visit_include(&mut self, _path: &Token, _span: Span) {
+        self.includes.push(Include {
+            file: FileId::new(0),
+            scope: self.stack.clone(),
+        })
     }
 }

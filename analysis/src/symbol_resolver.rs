@@ -1,6 +1,6 @@
 use crate::visitor::ASTVisitor;
 use codespan::Span;
-use parser::{Ast, EnumMember, Expression, ImportExport, Segment, Statement, StructMember, Token};
+use parser::{Ast, EnumMember, Expression, ImportExport, Statement, StructMember, Token};
 
 #[derive(Debug)]
 pub struct IdentifierAccess {

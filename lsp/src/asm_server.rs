@@ -1,17 +1,17 @@
-use crate::codespan::{FileId, Files};
+use crate::codespan::Files;
 use crate::completion::{
     Ca65DotOperatorCompletionProvider, Ca65KeywordCompletionProvider, CompletionProvider,
     FeatureCompletionProvider, InstructionCompletionProvider, MacpackCompletionProvider,
     SymbolCompletionProvider,
 };
-use crate::configuration::Configuration;
+use crate::data::configuration::Configuration;
 use crate::definition::Definition;
 use crate::documentation::{DocumentationKind, DOCUMENTATION_COLLECTION};
 use crate::error::file_error_to_lsp;
 use crate::index_engine::IndexEngine;
 use crate::state::State;
-use crate::symbol_cache::symbol_cache_get;
 use analysis::Scope;
+use codespan::FileId;
 use codespan::{File, Span};
 use std::collections::HashMap;
 use std::path::Path;
@@ -53,7 +53,6 @@ impl Asm {
     pub fn new(client: Client) -> Self {
         let state = Arc::new(Mutex::new(State {
             sources: HashMap::new(),
-            scopes: Default::default(),
             files: Files::new(),
             workspace_folder: None,
             client: client.clone(),
@@ -71,19 +70,14 @@ impl Asm {
                 Arc::from(FeatureCompletionProvider {}),
             ],
             definition: Definition {},
-            index_engine: Arc::new(Mutex::new(IndexEngine {
-                state: state.clone(),
-            })),
+            index_engine: Arc::new(Mutex::new(IndexEngine::new(state.clone()))),
         }
     }
 
     async fn index(&self, file_id: &FileId) {
         let mut state = self.state.lock().await;
-        let diagnostics = [
-            state.parse_labels(*file_id).await,
-            state.lint(*file_id).await,
-        ]
-        .concat();
+        let file = state.files.get_mut(*file_id);
+        let diagnostics = [file.parse_labels().await, file.lint().await].concat();
         state.publish_diagnostics(*file_id, diagnostics).await;
     }
 
@@ -123,11 +117,12 @@ async fn make_diagnostics_from_ca65_output(
             continue;
         }
 
-        let line_span = files
-            .get(file_id)
+        let file = &files.get(file_id).file;
+
+        let line_span = file
             .get_line(message[1].parse::<usize>().unwrap() - 1)
             .unwrap();
-        let range = files.get(file_id).byte_span_to_range(line_span).unwrap();
+        let range = file.byte_span_to_range(line_span).unwrap();
         let severity = match message[2] {
             "Error" => Some(DiagnosticSeverity::ERROR),
             _ => None,
@@ -278,12 +273,14 @@ impl LanguageServer for Asm {
                         let range = state
                             .files
                             .get(definition.file_id)
+                            .file
                             .byte_span_to_range(definition.span)
                             .unwrap()
                             .into();
                         let source_range = state
                             .files
                             .get(*id)
+                            .file
                             .byte_span_to_range(span)
                             .unwrap()
                             .into();
@@ -312,6 +309,7 @@ impl LanguageServer for Asm {
             let word = state
                 .files
                 .get(*id)
+                .file
                 .get_word_at_position(params.text_document_position_params.position.into())
                 .map_err(file_error_to_lsp)?;
 
@@ -362,11 +360,12 @@ impl LanguageServer for Asm {
 
         if let Some(id) = state.sources.get(&params.text_document.uri) {
             let mut symbols = vec![];
-            for symbol in symbol_cache_get().iter() {
+            for symbol in state.files.get(*id).symbols.iter() {
                 if symbol.file_id == *id {
                     let range = state
                         .files
                         .get(*id)
+                        .file
                         .byte_span_to_range(symbol.span)
                         .unwrap()
                         .into();
@@ -481,18 +480,13 @@ impl LanguageServer for Asm {
         let state = self.state.lock().await;
 
         if let Some(id) = state.sources.get(&params.text_document.uri) {
-            let uri = state.files.get_uri(*id);
-            if let Some(scopes) = state.scopes.get(&uri) {
-                let file = state.files.get(*id);
-                Ok(Some(
-                    scopes
-                        .iter()
-                        .flat_map(|scope| scope_to_folding_range(file, scope))
-                        .collect(),
-                ))
-            } else {
-                Ok(None)
-            }
+            let file = &state.files.get(*id);
+            Ok(Some(
+                file.scopes
+                    .iter()
+                    .flat_map(|scope| scope_to_folding_range(&file.file, scope))
+                    .collect(),
+            ))
         } else {
             Ok(None)
         }
@@ -501,18 +495,13 @@ impl LanguageServer for Asm {
         let state = self.state.lock().await;
 
         if let Some(id) = state.sources.get(&params.text_document.uri) {
-            let uri = state.files.get_uri(*id);
-            if let Some(scopes) = state.scopes.get(&uri) {
-                let file = state.files.get(*id);
-                Ok(Some(
-                    scopes
-                        .iter()
-                        .flat_map(|scope| scope_to_inlay_hint(file, scope))
-                        .collect(),
-                ))
-            } else {
-                Ok(None)
-            }
+            let file = &state.files.get(*id);
+            Ok(Some(
+                file.scopes
+                    .iter()
+                    .flat_map(|scope| scope_to_inlay_hint(&file.file, scope))
+                    .collect(),
+            ))
         } else {
             Ok(None)
         }
