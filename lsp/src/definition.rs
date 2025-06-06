@@ -1,8 +1,9 @@
-use crate::codespan::FileId;
-use crate::state::State;
-use crate::symbol_cache::{symbol_cache_fetch, Symbol};
+use crate::{
+    state::State,
+    data::symbol::Symbol
+};
 use analysis::ScopeAnalyzer;
-use codespan::{FileError, Position, Span};
+use codespan::{FileError, FileId, Position, Span};
 use std::cmp::Ordering;
 
 #[derive(Debug, Copy, Clone)]
@@ -44,9 +45,10 @@ impl Definition {
         id: FileId,
         position: Position,
     ) -> Result<Option<(Vec<Symbol>, Span)>, FileError> {
-        let (word, span) = state.files.get(id).get_word_span_at_position(position)?;
-        let index = state.files.get(id).position_to_byte_index(position)?;
-        let scopes = state.scopes.get(&state.files.get_uri(id)).unwrap();
+        let file = &state.files.get(id);
+        let (word, span) = file.file.get_word_span_at_position(position)?;
+        let index = file.file.position_to_byte_index(position)?;
+        let scopes = &file.scopes;
         let current_scopes = ScopeAnalyzer::search(scopes, index);
 
         let new_span = get_sub_identifier(word, index, span);
@@ -55,15 +57,20 @@ impl Definition {
         let mut definitions = vec![];
 
         if slice.starts_with("::") {
-            definitions.extend(symbol_cache_fetch(slice.to_string()));
+            if let Some(m) = file.symbols.iter().find(|Symbol { fqn, .. }| fqn == slice) {
+                definitions.push(m.clone());
+            }
         } else {
             for (idx, _scope) in current_scopes.iter().rev().enumerate() {
-                let fqn = [&current_scopes[0..=idx], &[slice.to_string()]]
+                let target_fqn = [&current_scopes[0..=idx], &[slice.to_string()]]
                     .concat()
                     .join("::");
-                let defs = symbol_cache_fetch(fqn.clone());
-                if !defs.is_empty() {
-                    definitions.extend(defs);
+                if let Some(m) = file
+                    .symbols
+                    .iter()
+                    .find(|Symbol { fqn, .. }| fqn == &target_fqn)
+                {
+                    definitions.push(m.clone());
                     break;
                 }
             }
