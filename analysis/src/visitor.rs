@@ -164,7 +164,7 @@ pub trait ASTVisitor {
     fn visit_define(
         &mut self,
         _ident: &Token,
-        params: &Option<Vec<Token>>,
+        _params: &Option<Vec<Token>>,
         expr: &Expression,
         _span: Span,
     ) {
