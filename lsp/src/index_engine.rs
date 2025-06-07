@@ -1,5 +1,4 @@
 use crate::state::State;
-use analysis::Symbol;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::Path;
@@ -10,12 +9,6 @@ use tower_lsp_server::lsp_types::request::WorkDoneProgressCreate;
 use tower_lsp_server::lsp_types::{ProgressToken, Uri, WorkDoneProgressCreateParams};
 use tower_lsp_server::Client;
 use uuid::Uuid;
-
-pub struct CompilationUnit {
-    root_uri: Uri,
-    symbols: Vec<Symbol>,
-    included_files: Vec<Uri>,
-}
 
 pub struct IndexEngine {
     pub state: Arc<Mutex<State>>,
@@ -73,13 +66,13 @@ impl IndexEngine {
             let uri = Uri::from_str(format!("file://{}", file.to_str().unwrap()).as_str()).unwrap();
             let contents = std::fs::read_to_string(file).unwrap();
             let id = state.get_or_insert_source(uri, contents);
-            diagnostics.insert(id, state.parse_labels(id).await);
+            diagnostics.insert(id, state.files.get_mut(id).parse_labels().await);
             parsed_files.push(id);
         }
 
         for id in parsed_files.iter() {
             let mut diags = diagnostics.get(id).unwrap().clone();
-            diags.extend(state.lint(*id).await);
+            diags.extend(state.files.get_mut(*id).lint().await);
             state.publish_diagnostics(*id, diags).await;
         }
 
