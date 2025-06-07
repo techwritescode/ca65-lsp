@@ -7,7 +7,7 @@
   "word_with_string_arg": "% \"$1\"",
   "word_with_char_arg": "% '$1'",
   "word_with_two_args": "% $1, $2",
-  "closure": "% $1\n\t$0\n.end%",
+  "closure": "% $1\n\t$0\n.end@",
   "if_with_param": "% $1\n\t$0\n.endif",
   "if_no_param": "%\n\t$0\n.endif",
   "else": "%\n\t$0",

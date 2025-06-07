@@ -136,7 +136,8 @@ fn get_completion_item_vec_from_multi_key_single_doc(
                     snippets
                         .get(&keyword_info.snippet_type)
                         .expect("Could not get snippet type for keyword")
-                        .replace("%", keyword),
+                        .replace("%", keyword)
+                        .replace("@", &keyword[1..]),
                 ),
                 insert_text_format: Some(InsertTextFormat::SNIPPET),
                 ..Default::default()
@@ -164,7 +165,8 @@ fn get_completion_item_vec_from_multi_key_single_doc(
                     snippets
                         .get(keyword_info.snippet_type.as_str())
                         .expect("Could not get snippet type for keyword")
-                        .replace("%", alias),
+                        .replace("%", alias)
+                        .replace("@", &alias[1..]),
                 ),
                 insert_text_format: Some(InsertTextFormat::SNIPPET),
                 ..Default::default()
