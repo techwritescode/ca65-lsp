@@ -1,6 +1,160 @@
 {
   "lhs": {
-    
+    ".a16",
+    ".a8",
+    ".addr",
+    ".align",
+    ".asciiz",
+    ".assert",
+    ".autoimport",
+    ".bankbytes",
+    ".bss",
+    ".byt",
+    ".byte",
+    ".case",
+    ".charmap",
+    ".code",
+    ".condes",
+    ".constructor",
+    ".data",
+    ".dbyt",
+    ".debuginfo",
+    ".define",
+    ".delmac",
+    ".delmacro",
+    ".destructor",
+    ".dword",
+    ".else",
+    ".elseif",
+    ".end",
+    ".endenum",
+    ".endif",
+    ".endmac",
+    ".endmacro",
+    ".endproc",
+    ".endrep",
+    ".endrepeat",
+    ".endscope",
+    ".endstruct",
+    ".endunion",
+    ".enum",
+    ".error",
+    ".exitmac",
+    ".exitmacro",
+    ".export",
+    ".exportzp",
+    ".faraddr",
+    ".fatal",
+    ".feature",
+    ".fileopt",
+    ".fopt",
+    ".forceimport",
+    ".global",
+    ".globalzp",
+    ".hibytes",
+    ".i16",
+    ".i8",
+    ".if",
+    ".ifblank",
+    ".ifconst",
+    ".ifdef",
+    ".ifnblank",
+    ".ifndef",
+    ".ifnref",
+    ".ifp02",
+    ".ifp4510",
+    ".ifp816",
+    ".ifpc02",
+    ".ifpdtv",
+    ".ifpsc02",
+    ".ifref",
+    ".import",
+    ".importzp",
+    ".incbin",
+    ".include",
+    ".interruptor",
+    ".list",
+    ".listbytes",
+    ".literal",
+    ".lobytes",
+    ".local",
+    ".localchar",
+    ".mac",
+    ".macpack",
+    ".macro",
+    ".org",
+    ".out",
+    ".p02",
+    ".p4510",
+    ".p816",
+    ".pagelen",
+    ".pagelength",
+    ".pc02",
+    ".pdtv",
+    ".popcharmap",
+    ".popcpu",
+    ".popseg",
+    ".proc",
+    ".psc02",
+    ".pushcharmap",
+    ".pushcpu",
+    ".pushseg",
+    ".referto",
+    ".refto",
+    ".reloc",
+    ".repeat",
+    ".res",
+    ".rodata",
+    ".scope",
+    ".segment",
+    ".setcpu",
+    ".smart",
+    ".struct",
+    ".tag",
+    ".undef",
+    ".undefine",
+    ".union",
+    ".warning",
+    ".word",
+    ".zeropage",
+  },
+  "rhs": {
+    ".addrsize",
+    ".asize",
+    ".bank",
+    ".bankbyte",
+    ".blank",
+    ".concat",
+    ".const",
+    ".cpu",
+    ".def",
+    ".defined",
+    ".definedmacro",
+    ".hibyte",
+    ".hiword",
+    ".isize",
+    ".ismnem",
+    ".ismnemonic",
+    ".left",
+    ".lobyte",
+    ".loword",
+    ".match",
+    ".max",
+    ".mid",
+    ".min",
+    ".paramcount",
+    ".ref",
+    ".referenced",
+    ".right",
+    ".sizeof",
+    ".sprintf",
+    ".strat",
+    ".string",
+    ".strlen",
+    ".tcount",
+    ".time",
+    ".version",
+    ".xmatch",
   },
   "ident": {
     ".ident"
@@ -9,157 +163,3 @@
     ".set"
   }
 }
-
-".forceimport"
-".reloc"
-".elseif"
-".right"
-".a8"
-".enum"
-".localchar"
-".ifnref"
-".ifblank"
-".delmacro"
-".dbyt"
-".endrepeat"
-".addrsize"
-".listbytes"
-".debuginfo"
-".p02"
-".popcharmap"
-".importzp"
-".sizeof"
-".ifp816"
-".repeat"
-".paramcount"
-".p4510"
-".word"
-".ifp4510"
-".res"
-".bank"
-".macpack"
-".left"
-".referto"
-".addr"
-".ifpc02"
-".loword"
-".bankbyte"
-".error"
-".assert"
-".byte"
-".i16"
-".interruptor"
-".pagelength"
-".blank"
-".case"
-".data"
-".import"
-".constructor"
-".incbin"
-".literal"
-".pc02"
-".global"
-".warning"
-".pdtv"
-".a16"
-".hibytes"
-".globalzp"
-".segment"
-".popcpu"
-".concat"
-".popseg"
-".else"
-".defined"
-".match"
-".define"
-".scope"
-".macro"
-".ifconst"
-".ismnemonic"
-".endmacro"
-".cpu"
-".endstruct"
-".ifref"
-".fatal"
-".ifpdtv"
-".lobytes"
-".export"
-".ifndef"
-".ifp02"
-".psc02"
-".list"
-".max"
-".struct"
-".sprintf"
-".ifpsc02"
-".exitmacro"
-".destructor"
-".tcount"
-".smart"
-".xmatch"
-".min"
-".i8"
-".endproc"
-".strat"
-".autoimport"
-".fopt"
-".rodata"
-".tag"
-".version"
-".asize"
-".pushcpu"
-".endif"
-".include"
-".union"
-".definedmacro"
-".dword"
-".asciiz"
-".ifnblank"
-".ifdef"
-".mid"
-".endenum"
-".code"
-".strlen"
-".feature"
-".org"
-".time"
-".isize"
-".const"
-".p816"
-".setcpu"
-".pushcharmap"
-".local"
-".align"
-".undefine"
-".endunion"
-".condes"
-".faraddr"
-".endscope"
-".exportzp"
-".hiword"
-".pushseg"
-".lobyte"
-".hibyte"
-".zeropage"
-".end"
-".if"
-".charmap"
-".string"
-".referenced"
-".bss"
-".proc"
-".out"
-".bankbytes"
-".mac"
-".exitmac"
-".endrep"
-".byt"
-".undef"
-".ismnem"
-".def"
-".ref"
-".pagelen"
-".refto"
-".endmac"
-".delmac"
-".fileopt"
