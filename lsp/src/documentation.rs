@@ -50,6 +50,7 @@ impl MultiKeySingleDoc {
 pub fn init() {
     init_docs();
     init_completion_items();
+    init_context_types();
 }
 
 #[inline]
@@ -174,4 +175,15 @@ fn get_completion_item_vec_from_multi_key_single_doc(
             .collect(),
     ]
     .concat()
+}
+
+pub static CA65_CONTEXT_TYPES: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
+
+#[inline]
+pub fn init_context_types() {
+    CA65_CONTEXT_TYPES.set(
+        serde_json::from_str::<HashMap<String, Vec<String>>>(
+            include_str!("../../data/ca65-context-types.json")
+        ).expect("Could not parse ca65 context types json")
+    ).expect("Could not set ca65 context types OnceLock");
 }

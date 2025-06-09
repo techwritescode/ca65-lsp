@@ -1,5 +1,5 @@
 {
-  "lhs": {
+  "lhs": [
     ".a16",
     ".a8",
     ".addr",
@@ -116,9 +116,9 @@
     ".union",
     ".warning",
     ".word",
-    ".zeropage",
-  },
-  "rhs": {
+    ".zeropage"
+  ],
+  "rhs": [
     ".addrsize",
     ".asize",
     ".bank",
@@ -154,12 +154,12 @@
     ".tcount",
     ".time",
     ".version",
-    ".xmatch",
-  },
-  "ident": {
+    ".xmatch"
+  ],
+  "ident": [
     ".ident"
-  },
-  "set": {
+  ],
+  "set": [
     ".set"
-  }
+  ]
 }

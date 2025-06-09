@@ -1,4 +1,4 @@
-use crate::documentation::{DocumentationKind, COMPLETION_ITEMS_COLLECTION};
+use crate::documentation::{DocumentationKind, COMPLETION_ITEMS_COLLECTION, CA65_CONTEXT_TYPES};
 use crate::{
     data::symbol::SymbolType,
     state::State,
@@ -23,7 +23,7 @@ impl CompletionProvider for InstructionCompletionProvider {
         id: FileId,
         position: Position,
     ) -> Vec<CompletionItem> {
-        if state.files.show_instructions(id, position) {
+        if state.files.show_lhs_completions(id, position) {
             COMPLETION_ITEMS_COLLECTION
                 .get()
                 .expect("Could not get completion items collection for instructions")
@@ -46,7 +46,7 @@ impl CompletionProvider for SymbolCompletionProvider {
         position: Position,
     ) -> Vec<CompletionItem> {
         let file = &state.files.get(id);
-        let show_instructions = state.files.show_instructions(id, position); // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
+        let show_instructions = state.files.show_lhs_completions(id, position); // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
         let byte_position = file.file.position_to_byte_index(position).unwrap_or(0);
         let scope = ScopeAnalyzer::search(&file.scopes, byte_position);
 
@@ -119,7 +119,6 @@ impl CompletionProvider for Ca65DotOperatorCompletionProvider {
 }
 
 pub struct Ca65KeywordCompletionProvider;
-
 impl CompletionProvider for Ca65KeywordCompletionProvider {
     fn completions_for(
         &self,
@@ -137,7 +136,6 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
 }
 
 pub struct MacpackCompletionProvider;
-
 impl CompletionProvider for MacpackCompletionProvider {
     fn completions_for(
         &self,

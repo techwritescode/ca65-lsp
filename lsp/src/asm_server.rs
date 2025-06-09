@@ -400,6 +400,18 @@ impl LanguageServer for Asm {
                     params.text_document_position.position.into(),
                 ));
             }
+
+            completion_items.extend(vec![
+                CompletionItem {
+                    label: "debug".to_string(),
+                    documentation: Some(tower_lsp_server::lsp_types::Documentation::MarkupContent(MarkupContent {
+                        kind: MarkupKind::PlainText,
+                        value: format!("{:#?}", state.files.line_tokens(*id, params.text_document_position.position.into())),
+                    })),
+                    ..Default::default()
+                }
+            ]);
+            
             Ok(Some(CompletionResponse::Array(completion_items)))
         } else {
             Ok(None)

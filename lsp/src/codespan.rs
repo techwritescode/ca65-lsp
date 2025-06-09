@@ -2,7 +2,7 @@ use crate::cache_file::CacheFile;
 use crate::data::path::diff_paths;
 use codespan::{File, FileId, Position};
 use lazy_static::lazy_static;
-use parser::{Ast, Instructions, ParseError, Token, TokenizerError};
+use parser::{Ast, Instructions, ParseError, Token, TokenType, TokenizerError};
 use std::path::Path;
 use std::str::FromStr;
 use tower_lsp_server::lsp_types::Uri;
@@ -78,9 +78,18 @@ impl Files {
         self.get_mut(id).file.update(source)
     }
 
-    pub fn show_instructions(&self, id: FileId, position: Position) -> bool {
+    pub fn show_lhs_completions(&self, id: FileId, position: Position) -> bool {
         let tokens = self.line_tokens(id, position);
         let offset = self.get(id).file.position_to_byte_index(position).unwrap();
-        tokens.is_empty() || tokens[0].span.end >= offset // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
+        let tokens_before_cursor: Vec<&Token> = tokens
+            .iter()
+            .filter(|tok| tok.span.end < offset)
+            .collect();
+
+        tokens_before_cursor.is_empty() || (
+            tokens_before_cursor.len() == 2
+            && tokens_before_cursor[0].token_type == TokenType::Identifier
+            && tokens_before_cursor[1].token_type == TokenType::Colon
+        )
     }
 }
