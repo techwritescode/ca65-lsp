@@ -70,6 +70,7 @@ impl Symbol {
 #[derive(Clone, Debug)]
 pub struct Scope {
     pub name: String,
+    pub name_span: Span,
     pub span: Span,
     pub children: Vec<Scope>,
 }
@@ -123,7 +124,8 @@ impl ScopeAnalyzer {
             ast,
             stack: vec![Scope {
                 name: "Root".to_string(),
-                span: Span::new(0, 0),
+                name_span: Span::NONE,
+                span: Span::NONE,
                 children: vec![],
             }],
             includes: vec![],
@@ -163,9 +165,10 @@ impl ScopeAnalyzer {
             .to_string()
     }
 
-    fn push_scope(&mut self, name: String, span: Span) {
+    fn push_scope(&mut self, name: &Token, span: Span) {
         self.stack.push(Scope {
-            name: name.clone(),
+            name: name.to_string(),
+            name_span: name.span,
             children: vec![],
             span,
         });
@@ -186,10 +189,9 @@ impl ScopeAnalyzer {
 impl ASTVisitor for ScopeAnalyzer {
     fn visit_scope(&mut self, name: &Option<Token>, statements: &[Statement], span: Span) {
         if let Some(name) = name {
-            let lexeme = name.lexeme.clone();
             self.insert_symbol(name, Symbol::Scope { name: name.clone() });
 
-            self.push_scope(lexeme.clone(), span);
+            self.push_scope(name, span);
 
             for statement in statements {
                 self.visit_statement(statement);
@@ -208,10 +210,9 @@ impl ASTVisitor for ScopeAnalyzer {
         self.visit_expression(&statement.value);
     }
     fn visit_procedure(&mut self, name: &Token, _far: &bool, statements: &[Statement], span: Span) {
-        let lexeme = name.lexeme.clone();
         self.insert_symbol(name, Symbol::Scope { name: name.clone() });
 
-        self.push_scope(lexeme.clone(), span);
+        self.push_scope(name, span);
 
         for statement in statements {
             self.visit_statement(statement);
@@ -226,10 +227,9 @@ impl ASTVisitor for ScopeAnalyzer {
         statements: &[Statement],
         span: Span,
     ) {
-        let lexeme = name.lexeme.clone();
         self.insert_symbol(name, Symbol::Scope { name: name.clone() });
 
-        self.push_scope(lexeme.clone(), span);
+        self.push_scope(name, span);
 
         for parameter in parameters.iter() {
             self.insert_symbol(
@@ -254,7 +254,7 @@ impl ASTVisitor for ScopeAnalyzer {
         span: Span,
     ) {
         if let Some(params) = params {
-            self.push_scope(ident.lexeme.clone(), span);
+            self.push_scope(ident, span);
             for param in params.iter() {
                 self.insert_symbol(
                     param,
@@ -271,10 +271,9 @@ impl ASTVisitor for ScopeAnalyzer {
         self.insert_symbol(name, Symbol::Label { name: name.clone() });
     }
     fn visit_struct(&mut self, name: &Token, members: &[StructMember], span: Span) {
-        let lexeme = name.lexeme.clone();
         self.insert_symbol(name, Symbol::Scope { name: name.clone() });
 
-        self.push_scope(lexeme.clone(), span);
+        self.push_scope(name, span);
 
         for member in members.iter() {
             match member {
@@ -296,10 +295,9 @@ impl ASTVisitor for ScopeAnalyzer {
     }
     fn visit_enum(&mut self, name: &Option<Token>, members: &[EnumMember], span: Span) {
         if let Some(name) = name {
-            let lexeme = name.to_string();
             self.insert_symbol(name, Symbol::Scope { name: name.clone() });
 
-            self.push_scope(lexeme.clone(), span);
+            self.push_scope(name, span);
 
             for member in members.iter() {
                 self.insert_symbol(
@@ -321,14 +319,15 @@ impl ASTVisitor for ScopeAnalyzer {
         statements: &[Statement],
         span: Span,
     ) {
-        self.push_scope("__repeat".to_owned(), span);
+        // TODO: figure out how to have "invisible scopes"
+        // self.push_scope("__repeat".to_owned(), span);
         if let Some(incr) = incr {
             self.insert_symbol(incr, Symbol::Constant { name: incr.clone() });
         }
         for statement in statements {
             self.visit_statement(statement);
         }
-        self.pop_scope()
+        // self.pop_scope()
     }
 
     fn visit_import(&mut self, imports: &[ImportExport], _zero_page: &bool, _span: Span) {
