@@ -1,3 +1,4 @@
+use crate::cache_file::CacheFile;
 use crate::codespan::Files;
 use crate::completion::{
     Ca65DotOperatorCompletionProvider, Ca65KeywordCompletionProvider, CompletionProvider,
@@ -6,7 +7,7 @@ use crate::completion::{
 };
 use crate::data::configuration::Configuration;
 use crate::definition::Definition;
-use crate::documentation::{DocumentationKind, DOCUMENTATION_COLLECTION};
+use crate::documentation::DOCUMENTATION_COLLECTION;
 use crate::error::file_error_to_lsp;
 use crate::index_engine::IndexEngine;
 use crate::state::State;
@@ -22,18 +23,19 @@ use tokio::sync::Mutex;
 use tower_lsp_server::lsp_types::{
     CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionItem,
     CompletionOptions, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
-    DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams, DocumentSymbolParams,
-    DocumentSymbolResponse, FileOperationRegistrationOptions, FoldingRange, FoldingRangeParams,
-    FoldingRangeProviderCapability, HoverContents, HoverProviderCapability, InitializedParams,
-    InlayHint, InlayHintLabel, InlayHintParams, LocationLink, MarkupContent, MarkupKind,
-    MessageType, OneOf, Registration, SymbolInformation, WorkspaceFileOperationsServerCapabilities,
-    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+    DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams, DocumentSymbol,
+    DocumentSymbolParams, DocumentSymbolResponse, FileOperationRegistrationOptions, FoldingRange,
+    FoldingRangeParams, FoldingRangeProviderCapability, HoverContents, HoverProviderCapability,
+    InitializedParams, InlayHint, InlayHintLabel, InlayHintParams, LocationLink, MarkupContent,
+    MarkupKind, MessageType, OneOf, Registration, SymbolKind,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    WorkspaceServerCapabilities,
 };
 use tower_lsp_server::{
     jsonrpc::Result,
     lsp_types::{
         DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
-        GotoDefinitionResponse, Hover, HoverParams, InitializeParams, InitializeResult, Location,
+        GotoDefinitionResponse, Hover, HoverParams, InitializeParams, InitializeResult,
         MarkedString, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Uri,
     },
     Client, LanguageServer,
@@ -360,27 +362,38 @@ impl LanguageServer for Asm {
 
         if let Some(id) = state.sources.get(&params.text_document.uri) {
             let mut symbols = vec![];
-            for symbol in state.files.get(*id).symbols.iter() {
-                if symbol.file_id == *id {
-                    let range = state
-                        .files
-                        .get(*id)
-                        .file
-                        .byte_span_to_range(symbol.span)
-                        .unwrap()
-                        .into();
+            let file = state.files.get(*id);
 
-                    symbols.push(SymbolInformation {
-                        name: symbol.label.clone(),
-                        container_name: None,
-                        kind: tower_lsp_server::lsp_types::SymbolKind::FUNCTION,
-                        location: Location::new(params.text_document.uri.clone(), range),
-                        tags: None,
-                        deprecated: None,
-                    });
+            fn scope_to_symbol(scope: &Scope, file: &CacheFile) -> DocumentSymbol {
+                let range = file.file.byte_span_to_range(scope.span).unwrap().into();
+                eprintln!("{} {:?} {:?}", scope.name, range, scope.name_span);
+                DocumentSymbol {
+                    name: scope.name.clone(),
+                    detail: None,
+                    kind: SymbolKind::NAMESPACE,
+                    tags: None,
+                    deprecated: None,
+                    range,
+                    selection_range: range,
+                    children: {
+                        let children: Vec<DocumentSymbol> = scope
+                            .children
+                            .iter()
+                            .map(|child| scope_to_symbol(child, file))
+                            .collect();
+                        if children.is_empty() {
+                            None
+                        } else {
+                            Some(children)
+                        }
+                    },
                 }
             }
-            return Ok(Some(DocumentSymbolResponse::Flat(symbols)));
+
+            for symbol in file.scopes.iter() {
+                symbols.push(scope_to_symbol(symbol, file));
+            }
+            return Ok(Some(DocumentSymbolResponse::Nested(symbols)));
         }
         Ok(None)
     }
