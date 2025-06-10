@@ -78,18 +78,26 @@ impl Files {
         self.get_mut(id).file.update(source)
     }
 
-    pub fn show_lhs_completions(&self, id: FileId, position: Position) -> bool {
+    fn get_tokens_before_cursor(&self, id: FileId, position: Position) -> Vec<&Token> {
         let tokens = self.line_tokens(id, position);
         let offset = self.get(id).file.position_to_byte_index(position).unwrap();
-        let tokens_before_cursor: Vec<&Token> = tokens
-            .iter()
-            .filter(|tok| tok.span.end < offset)
-            .collect();
 
-        tokens_before_cursor.is_empty() || (
-            tokens_before_cursor.len() == 2
-            && tokens_before_cursor[0].token_type == TokenType::Identifier
-            && tokens_before_cursor[1].token_type == TokenType::Colon
-        )
+        tokens.iter().filter(|tok| tok.span.end < offset).collect()
+    }
+    pub fn show_lhs_completions(&self, id: FileId, position: Position) -> bool {
+        let tokens_before_cursor = self.get_tokens_before_cursor(id, position);
+
+        tokens_before_cursor.is_empty()
+            || (tokens_before_cursor.len() == 2
+                && tokens_before_cursor[0].token_type == TokenType::Identifier
+                && tokens_before_cursor[1].token_type == TokenType::Colon)
+    }
+    pub fn show_rhs_completions(&self, id: FileId, position: Position) -> bool {
+        let tokens_before_cursor = self.get_tokens_before_cursor(id, position);
+
+        !tokens_before_cursor.is_empty()
+            && (tokens_before_cursor.last().is_some_and(|tok| {
+                tok.token_type == TokenType::Instruction || tok.token_type == TokenType::Macro
+            }))
     }
 }

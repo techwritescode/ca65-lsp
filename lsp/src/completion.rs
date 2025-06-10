@@ -1,8 +1,5 @@
-use crate::documentation::{DocumentationKind, COMPLETION_ITEMS_COLLECTION, CA65_CONTEXT_TYPES};
-use crate::{
-    data::symbol::SymbolType,
-    state::State,
-};
+use crate::documentation::{DocumentationKind, CA65_CONTEXT_TYPES, COMPLETION_ITEMS_COLLECTION};
+use crate::{data::symbol::SymbolType, state::State};
 use analysis::ScopeAnalyzer;
 use codespan::FileId;
 use codespan::Position;
@@ -46,7 +43,7 @@ impl CompletionProvider for SymbolCompletionProvider {
         position: Position,
     ) -> Vec<CompletionItem> {
         let file = &state.files.get(id);
-        let show_instructions = state.files.show_lhs_completions(id, position); // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
+        let show_lhs_completions = state.files.show_lhs_completions(id, position); // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
         let byte_position = file.file.position_to_byte_index(position).unwrap_or(0);
         let scope = ScopeAnalyzer::search(&file.scopes, byte_position);
 
@@ -56,11 +53,11 @@ impl CompletionProvider for SymbolCompletionProvider {
         file.symbols
             .iter()
             .filter_map(|symbol| {
-                if show_instructions
+                if show_lhs_completions
                     && matches!(symbol.sym_type, SymbolType::Label | SymbolType::Constant)
                 {
                     None
-                } else if !show_instructions && matches!(symbol.sym_type, SymbolType::Macro) {
+                } else if !show_lhs_completions && matches!(symbol.sym_type, SymbolType::Macro) {
                     None
                 } else {
                     let name = if has_namespace {
@@ -122,16 +119,30 @@ pub struct Ca65KeywordCompletionProvider;
 impl CompletionProvider for Ca65KeywordCompletionProvider {
     fn completions_for(
         &self,
-        _state: &State,
-        _id: FileId,
-        _position: Position,
+        state: &State,
+        id: FileId,
+        position: Position,
     ) -> Vec<CompletionItem> {
-        COMPLETION_ITEMS_COLLECTION
+        let context_types = CA65_CONTEXT_TYPES
+            .get()
+            .expect("Could not get context types for ca65 completion provider");
+        let all_ca65_completion_items = COMPLETION_ITEMS_COLLECTION
             .get()
             .expect("Could not get completion items collection for ca65 keywords")
             .get(&DocumentationKind::Ca65Keyword)
             .expect("Could not get ca65 keyword completion items")
-            .clone()
+            .clone();
+
+        if state.files.show_lhs_completions(id, position) {
+            let lhs_context_items = context_types
+                .get("lhs")
+                .expect("Couldn't get lhs context items");
+            return all_ca65_completion_items
+                .into_iter()
+                .filter(|item| lhs_context_items.contains(&item.label))
+                .collect();
+        }
+        vec![]
     }
 }
 
