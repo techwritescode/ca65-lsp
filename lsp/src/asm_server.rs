@@ -366,7 +366,6 @@ impl LanguageServer for Asm {
 
             fn scope_to_symbol(scope: &Scope, file: &CacheFile) -> DocumentSymbol {
                 let range = file.file.byte_span_to_range(scope.span).unwrap().into();
-                eprintln!("{} {:?} {:?}", scope.name, range, scope.name_span);
                 DocumentSymbol {
                     name: scope.name.clone(),
                     detail: None,
