@@ -1,7 +1,6 @@
 use crate::state::State;
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -29,7 +28,7 @@ impl IndexEngine {
             .await
             .unwrap();
 
-        let directory = Path::new(root_uri.path().as_str());
+        let directory = url::Url::parse(root_uri.as_str()).unwrap().to_file_path().unwrap();
         let mut sources = vec![];
         let progress = client
             .progress(token, "Indexing".to_string())
@@ -63,7 +62,7 @@ impl IndexEngine {
                     ((idx as f32) / (sources.len() as f32) * 100.0) as u32,
                 )
                 .await;
-            let uri = Uri::from_str(format!("file://{}", file.to_str().unwrap()).as_str()).unwrap();
+            let uri = Uri::from_str(url::Url::from_file_path(file).unwrap().as_ref()).unwrap();
             let contents = std::fs::read_to_string(file).unwrap();
             let id = state.get_or_insert_source(uri, contents);
             diagnostics.insert(id, state.files.get_mut(id).parse_labels().await);

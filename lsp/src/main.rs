@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
     instructions::init_instruction_map();
     documentation::init();
 
-    let (service, socket) = LspService::new(|client| Asm::new(client));
+    let (service, socket) = LspService::new(Asm::new);
     Server::new(stdin, stdout, socket).serve(service).await;
 
     Ok(())
