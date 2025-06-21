@@ -105,16 +105,44 @@ pub struct Ca65DotOperatorCompletionProvider;
 impl CompletionProvider for Ca65DotOperatorCompletionProvider {
     fn completions_for(
         &self,
-        _state: &State,
-        _id: FileId,
-        _position: Position,
+        state: &State,
+        id: FileId,
+        position: Position,
     ) -> Vec<CompletionItem> {
+        let curr_word = state
+            .files
+            .get(id)
+            .file
+            .get_word_at_position(position)
+            .expect("Could not get word at position in completion provider");
+
+        let insert_range = Range {
+            start: tower_lsp_server::lsp_types::Position {
+                line: position.line as u32,
+                character: (position.character - curr_word.len()) as u32
+            },
+            end: tower_lsp_server::lsp_types::Position {
+                line: position.line as u32,
+                character: position.character as u32
+            },
+        };
+        
         COMPLETION_ITEMS_COLLECTION
             .get()
             .expect("Could not get completion items collection for ca65 dot operators")
             .get(&DocumentationKind::Ca65DotOperator)
             .expect("Could not get ca65 dot operator completion items")
-            .clone()
+            .iter()
+            .map(|item| {
+                let mut new_item = item.clone();
+                new_item.text_edit = Some(CompletionTextEdit::InsertAndReplace(InsertReplaceEdit {
+                    new_text: item.insert_text.as_ref().expect("ca65 dot operator completion item did not have insert_text").clone(),
+                    insert: insert_range,
+                    replace: insert_range,
+                }));
+                new_item
+            })
+            .collect()
     }
 }
 
