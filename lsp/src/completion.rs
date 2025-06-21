@@ -134,6 +134,17 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
             .get_word_at_position(position)
             .expect("Could not get word at position in completion provider");
 
+        let insert_range = Range {
+            start: tower_lsp_server::lsp_types::Position {
+                line: position.line as u32,
+                character: (position.character - curr_word.len()) as u32
+            },
+            end: tower_lsp_server::lsp_types::Position {
+                line: position.line as u32,
+                character: position.character as u32
+            },
+        };
+
         COMPLETION_ITEMS_COLLECTION
             .get()
             .expect("Could not get completion items collection for ca65 keywords")
@@ -144,40 +155,9 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
                 let mut new_item = item.clone();
                 new_item.text_edit = Some(CompletionTextEdit::InsertAndReplace(InsertReplaceEdit {
                     new_text: item.insert_text.as_ref().expect("ca65 keyword completion item did not have insert_text").clone(),
-                    insert: Range {
-                        start: tower_lsp_server::lsp_types::Position {
-                            line: position.line as u32,
-                            character: (position.character - curr_word.len()) as u32
-                        },
-                        end: tower_lsp_server::lsp_types::Position {
-                            line: position.line as u32,
-                            character: position.character as u32
-                        },
-                    },
-                    replace: Range {
-                        start: tower_lsp_server::lsp_types::Position {
-                            line: position.line as u32,
-                            character: position.character as u32
-                        },
-                        end: tower_lsp_server::lsp_types::Position {
-                            line: position.line as u32,
-                            character: position.character as u32
-                        },
-                    },
+                    insert: insert_range,
+                    replace: insert_range,
                 }));
-                // new_item.text_edit = Some(CompletionTextEdit {
-                //     range: Range {
-                //         start: tower_lsp_server::lsp_types::Position {
-                //             line: position.line as u32,
-                //             character: position.character as u32,
-                //         },
-                //         end: tower_lsp_server::lsp_types::Position {
-                //             line: position.line as u32,
-                //             character: position.character as u32,
-                //         },
-                //     },
-                //     new_text: item.label,
-                // });
                 new_item
             })
             .collect()
