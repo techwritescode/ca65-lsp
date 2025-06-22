@@ -75,7 +75,7 @@ impl IndexEngine {
             state.publish_diagnostics(*id, diags).await;
         }
 
-        state.client.inlay_hint_refresh().await.unwrap();
+        let _ = state.client.inlay_hint_refresh().await;
         progress.finish().await;
     }
 }
