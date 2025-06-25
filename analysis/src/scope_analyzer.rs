@@ -1,5 +1,5 @@
 use crate::visitor::ASTVisitor;
-use codespan::{FileId, Span};
+use codespan::Span;
 use parser::{
     Ast, ConstantAssign, EnumMember, Expression, ImportExport, Statement, StructMember, Token,
 };
@@ -317,7 +317,7 @@ impl ASTVisitor for ScopeAnalyzer {
         _max: &Expression,
         incr: &Option<Token>,
         statements: &[Statement],
-        span: Span,
+        _span: Span,
     ) {
         // TODO: figure out how to have "invisible scopes"
         // self.push_scope("__repeat".to_owned(), span);

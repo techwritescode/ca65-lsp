@@ -9,7 +9,6 @@ use crate::data::configuration::Configuration;
 use crate::definition::Definition;
 use crate::documentation::DOCUMENTATION_COLLECTION;
 use crate::error::file_error_to_lsp;
-use crate::include_resolver::IncludeResolver;
 use crate::index_engine::IndexEngine;
 use crate::state::State;
 use analysis::Scope;

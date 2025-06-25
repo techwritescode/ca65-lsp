@@ -1,19 +1,11 @@
 use parser::{Instructions, ParseError, Tokenizer, TokenizerError};
-use std::fs::File;
-use std::io::Read;
 
 fn main() {
-    let mut args = std::env::args();
     let instructions = Instructions::load();
-    
-    // if args.len() < 2 {
-    //     eprintln!("Usage: parser <file>");
-    //     std::process::exit(1);
-    // }
-    
+
     let buf = std::fs::read_to_string("test.s").unwrap();
     let cs_file = codespan::File::new("test", buf);
-    
+
     let mut tokenizer = Tokenizer::new(&cs_file.source, &instructions);
     match tokenizer.parse() {
         Ok(tokens) => {

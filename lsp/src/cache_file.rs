@@ -1,7 +1,5 @@
-use std::collections::HashMap;
 use crate::codespan::Files;
 use crate::include_resolver::IncludeResolver;
-use crate::state::State;
 use crate::{
     codespan::IndexError,
     data::symbol::{Symbol, SymbolType},
@@ -9,6 +7,7 @@ use crate::{
 use analysis::{Include, Scope, ScopeAnalyzer, SymbolResolver};
 use codespan::{File, FileId};
 use parser::{Ast, ParseError, Token};
+use std::collections::HashMap;
 use tower_lsp_server::lsp_types::{Diagnostic, DiagnosticSeverity, Range, Uri};
 
 type IndexResult<T> = Result<T, IndexError>;
@@ -129,7 +128,11 @@ impl CacheFile {
         self.resolve_identifier_access(files, sources)
     }
 
-    pub fn resolve_identifier_access(&self, files: &Files, sources: &HashMap<Uri, FileId>) -> Vec<Diagnostic> {
+    pub fn resolve_identifier_access(
+        &self,
+        files: &Files,
+        sources: &HashMap<Uri, FileId>,
+    ) -> Vec<Diagnostic> {
         let mut diagnostics = vec![];
         let identifiers = SymbolResolver::find_identifiers(self.ast.clone());
         let mut resolved = IncludeResolver::new();
