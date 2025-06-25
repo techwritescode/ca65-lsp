@@ -1,10 +1,9 @@
-use crate::state::State;
+use crate::codespan::Files;
+use crate::data::symbol::Symbol;
 use codespan::FileId;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use tower_lsp_server::lsp_types::Uri;
-use crate::codespan::Files;
-use crate::data::symbol::Symbol;
 
 pub struct IncludeResolver {
     pub included: HashSet<FileId>,
@@ -21,7 +20,12 @@ impl IncludeResolver {
         }
     }
 
-    pub fn resolve_include_tree(&mut self, files: &Files, sources: &HashMap<Uri, FileId>, file_id: FileId) {
+    pub fn resolve_include_tree(
+        &mut self,
+        files: &Files,
+        sources: &HashMap<Uri, FileId>,
+        file_id: FileId,
+    ) {
         let uri = files.get_uri(file_id);
         let url = url::Url::parse(uri.as_str()).unwrap();
         self.included.insert(file_id);
@@ -30,7 +34,7 @@ impl IncludeResolver {
             Ok(path) => {
                 let parent = path.parent().unwrap();
                 let file = files.get(file_id);
-                
+
                 for symbol in file.symbols.iter() {
                     self.symbols.push(Symbol {
                         file_id,
@@ -41,7 +45,7 @@ impl IncludeResolver {
                         sym_type: symbol.sym_type,
                     })
                 }
-                
+
                 for include in file.includes.iter() {
                     let name = &include.file[1..include.file.len() - 1];
                     if let Ok(path) = parent.join(name).canonicalize() {

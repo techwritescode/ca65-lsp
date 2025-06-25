@@ -2,7 +2,7 @@ use crate::cache_file::CacheFile;
 use crate::data::path::diff_paths;
 use codespan::{File, FileId, Position};
 use lazy_static::lazy_static;
-use parser::{Ast, Instructions, ParseError, Token, TokenizerError};
+use parser::{Instructions, ParseError, Token, TokenizerError};
 use std::path::Path;
 use std::str::FromStr;
 use tower_lsp_server::lsp_types::Uri;
