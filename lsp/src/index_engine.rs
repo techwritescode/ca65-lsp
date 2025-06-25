@@ -28,7 +28,10 @@ impl IndexEngine {
             .await
             .unwrap();
 
-        let directory = url::Url::parse(root_uri.as_str()).unwrap().to_file_path().unwrap();
+        let directory = url::Url::parse(root_uri.as_str())
+            .unwrap()
+            .to_file_path()
+            .unwrap();
         let mut sources = vec![];
         let progress = client
             .progress(token, "Indexing".to_string())
@@ -75,7 +78,19 @@ impl IndexEngine {
             state.publish_diagnostics(*id, diags).await;
         }
 
-        let _ = state.client.inlay_hint_refresh().await;
+        if state
+            .client_capabilities
+            .workspace
+            .as_ref()
+            .is_some_and(|w| {
+                w.inlay_hint
+                    .as_ref()
+                    .is_some_and(|i| i.refresh_support.is_some_and(|r| r))
+            })
+        {
+            state.client.inlay_hint_refresh().await.unwrap();
+        }
+
         progress.finish().await;
     }
 }
