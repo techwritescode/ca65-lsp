@@ -21,13 +21,13 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp_server::lsp_types::{
-    CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionItem,
-    CompletionOptions, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
-    DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams, DocumentSymbol,
-    DocumentSymbolParams, DocumentSymbolResponse, FileOperationRegistrationOptions, FoldingRange,
-    FoldingRangeParams, FoldingRangeProviderCapability, HoverContents, HoverProviderCapability,
-    InitializedParams, InlayHint, InlayHintLabel, InlayHintParams, LocationLink, MarkupContent,
-    MarkupKind, MessageType, OneOf, Registration, SymbolKind,
+    ClientCapabilities, CodeActionParams, CodeActionProviderCapability, CodeActionResponse,
+    CompletionItem, CompletionOptions, CompletionParams, CompletionResponse, Diagnostic,
+    DiagnosticSeverity, DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams,
+    DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse, FileOperationRegistrationOptions,
+    FoldingRange, FoldingRangeParams, FoldingRangeProviderCapability, HoverContents,
+    HoverProviderCapability, InitializedParams, InlayHint, InlayHintLabel, InlayHintParams,
+    LocationLink, MarkupContent, MarkupKind, MessageType, OneOf, Registration, SymbolKind,
     WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities,
 };
@@ -58,6 +58,7 @@ impl Asm {
             files: Files::new(),
             workspace_folder: None,
             client: client.clone(),
+            client_capabilities: ClientCapabilities::default(),
         }));
         Asm {
             client,
@@ -151,6 +152,8 @@ impl LanguageServer for Asm {
                 state.workspace_folder = Some(workspace_folders.first().unwrap().clone().uri)
             }
         }
+
+        state.client_capabilities = params.capabilities.clone();
 
         Ok(InitializeResult {
             server_info: None,
