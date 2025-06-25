@@ -3,7 +3,8 @@ use codespan::FileId;
 use std::collections::HashMap;
 use std::str::FromStr;
 use tower_lsp_server::lsp_types::{
-    Diagnostic, TextDocumentContentChangeEvent, Uri, VersionedTextDocumentIdentifier,
+    ClientCapabilities, Diagnostic, TextDocumentContentChangeEvent, Uri,
+    VersionedTextDocumentIdentifier,
 };
 use tower_lsp_server::Client;
 
@@ -12,6 +13,7 @@ pub struct State {
     pub files: Files,
     pub workspace_folder: Option<Uri>,
     pub client: Client,
+    pub client_capabilities: ClientCapabilities,
 }
 
 impl State {
