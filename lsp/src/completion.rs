@@ -1,8 +1,6 @@
 use crate::documentation::{DocumentationKind, COMPLETION_ITEMS_COLLECTION};
-use crate::{
-    data::symbol::SymbolType,
-    state::State,
-};
+use crate::include_resolver::IncludeResolver;
+use crate::{data::symbol::SymbolType, state::State};
 use analysis::ScopeAnalyzer;
 use codespan::FileId;
 use codespan::Position;
@@ -52,8 +50,11 @@ impl CompletionProvider for SymbolCompletionProvider {
 
         let word_at_position = file.file.get_word_at_position(position).unwrap_or("");
         let has_namespace = word_at_position.contains(":");
+        let mut resolved = IncludeResolver::new();
+        resolved.resolve_include_tree(&state.files, &state.sources, id);
 
-        file.symbols
+        resolved
+            .symbols
             .iter()
             .filter_map(|symbol| {
                 if show_instructions
@@ -69,11 +70,13 @@ impl CompletionProvider for SymbolCompletionProvider {
                         ScopeAnalyzer::remove_denominator(&scope, symbol.fqn.clone())
                     };
 
-                    let postfix = if matches!(symbol.sym_type, SymbolType::Scope) {
-                        "::"
-                    } else {
-                        ""
-                    };
+                    // TODO: Add back once scopes and procs are sorted out
+                    // let postfix = if matches!(symbol.sym_type, SymbolType::Scope) {
+                    //     "::"
+                    // } else {
+                    //     ""
+                    // };
+                    let postfix = "";
 
                     Some(CompletionItem {
                         label: format!("{name}{postfix}"),

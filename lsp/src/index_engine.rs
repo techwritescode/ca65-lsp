@@ -77,7 +77,7 @@ impl IndexEngine {
 
         for id in parsed_files.iter() {
             let mut diags = diagnostics.get(id).unwrap().clone();
-            diags.extend(state.files.get_mut(*id).lint().await);
+            diags.extend(state.files.get(*id).lint(&state.files, &state.sources).await);
             state.publish_diagnostics(*id, diags).await;
         }
 

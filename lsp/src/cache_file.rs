@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+use crate::codespan::Files;
+use crate::include_resolver::IncludeResolver;
+use crate::state::State;
 use crate::{
     codespan::IndexError,
     data::symbol::{Symbol, SymbolType},
@@ -5,7 +9,7 @@ use crate::{
 use analysis::{Include, Scope, ScopeAnalyzer, SymbolResolver};
 use codespan::{File, FileId};
 use parser::{Ast, ParseError, Token};
-use tower_lsp_server::lsp_types::{Diagnostic, DiagnosticSeverity, Range};
+use tower_lsp_server::lsp_types::{Diagnostic, DiagnosticSeverity, Range, Uri};
 
 type IndexResult<T> = Result<T, IndexError>;
 
@@ -121,13 +125,15 @@ impl CacheFile {
     }
 
     // TODO: store a diagnostics array for the different stages and concatenate them together
-    pub async fn lint(&mut self) -> Vec<Diagnostic> {
-        self.resolve_identifier_access()
+    pub async fn lint(&self, files: &Files, sources: &HashMap<Uri, FileId>) -> Vec<Diagnostic> {
+        self.resolve_identifier_access(files, sources)
     }
 
-    pub fn resolve_identifier_access(&self) -> Vec<Diagnostic> {
+    pub fn resolve_identifier_access(&self, files: &Files, sources: &HashMap<Uri, FileId>) -> Vec<Diagnostic> {
         let mut diagnostics = vec![];
         let identifiers = SymbolResolver::find_identifiers(self.ast.clone());
+        let mut resolved = IncludeResolver::new();
+        resolved.resolve_include_tree(files, sources, self.id);
 
         for identifier_access in identifiers {
             let range = self
@@ -137,7 +143,7 @@ impl CacheFile {
                 .into();
 
             if identifier_access.name.starts_with("::") {
-                let m = self
+                let m = resolved
                     .symbols
                     .iter()
                     .find(|Symbol { fqn, .. }| fqn == &identifier_access.name);
@@ -161,7 +167,7 @@ impl CacheFile {
                     .concat()
                     .join("::")
                     .to_string();
-                let m = self
+                let m = resolved
                     .symbols
                     .iter()
                     .find(|Symbol { fqn, .. }| fqn == &target_fqn);

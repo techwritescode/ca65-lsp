@@ -6,6 +6,7 @@ mod data;
 mod definition;
 mod documentation;
 mod error;
+mod include_resolver;
 mod index_engine;
 mod logger;
 mod state;

@@ -5,6 +5,7 @@ use crate::{
 use analysis::ScopeAnalyzer;
 use codespan::{FileError, FileId, Position, Span};
 use std::cmp::Ordering;
+use crate::include_resolver::IncludeResolver;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Definition;
@@ -50,6 +51,8 @@ impl Definition {
         let index = file.file.position_to_byte_index(position)?;
         let scopes = &file.scopes;
         let current_scopes = ScopeAnalyzer::search(scopes, index);
+        let mut resolved = IncludeResolver::new();
+        resolved.resolve_include_tree(&state.files, &state.sources, id);
 
         let new_span = get_sub_identifier(word, index, span);
         let slice = &word[0..new_span.end];
@@ -57,7 +60,7 @@ impl Definition {
         let mut definitions = vec![];
 
         if slice.starts_with("::") {
-            if let Some(m) = file.symbols.iter().find(|Symbol { fqn, .. }| fqn == slice) {
+            if let Some(m) = resolved.symbols.iter().find(|Symbol { fqn, .. }| fqn == slice) {
                 definitions.push(m.clone());
             }
         } else {
@@ -65,7 +68,7 @@ impl Definition {
                 let target_fqn = [&current_scopes[0..=idx], &[slice.to_string()]]
                     .concat()
                     .join("::");
-                if let Some(m) = file
+                if let Some(m) = resolved
                     .symbols
                     .iter()
                     .find(|Symbol { fqn, .. }| fqn == &target_fqn)

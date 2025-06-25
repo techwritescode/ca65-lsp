@@ -77,7 +77,7 @@ pub struct Scope {
 
 #[derive(Clone, Debug)]
 pub struct Include {
-    pub file: FileId,
+    pub file: String,
     pub scope: Vec<Scope>,
 }
 
@@ -354,9 +354,9 @@ impl ASTVisitor for ScopeAnalyzer {
         }
     }
 
-    fn visit_include(&mut self, _path: &Token, _span: Span) {
+    fn visit_include(&mut self, path: &Token, _span: Span) {
         self.includes.push(Include {
-            file: FileId::new(0),
+            file: path.lexeme.to_string(),
             scope: self.stack.clone(),
         })
     }

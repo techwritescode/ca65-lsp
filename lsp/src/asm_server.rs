@@ -9,6 +9,7 @@ use crate::data::configuration::Configuration;
 use crate::definition::Definition;
 use crate::documentation::DOCUMENTATION_COLLECTION;
 use crate::error::file_error_to_lsp;
+use crate::include_resolver::IncludeResolver;
 use crate::index_engine::IndexEngine;
 use crate::state::State;
 use analysis::Scope;
@@ -80,7 +81,12 @@ impl Asm {
     async fn index(&self, file_id: &FileId) {
         let mut state = self.state.lock().await;
         let file = state.files.get_mut(*file_id);
-        let diagnostics = [file.parse_labels().await, file.lint().await].concat();
+        let diagnostics = file.parse_labels().await;
+        drop(state);
+        
+        let mut state = self.state.lock().await;
+        let file = state.files.get(*file_id);
+        let diagnostics = [diagnostics, file.lint(&state.files, &state.sources).await].concat();
         state.publish_diagnostics(*file_id, diagnostics).await;
     }
 
