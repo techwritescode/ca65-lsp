@@ -5,7 +5,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp_server::lsp_types::request::WorkDoneProgressCreate;
-use tower_lsp_server::lsp_types::{ProgressToken, Uri, WorkDoneProgressCreateParams};
+use tower_lsp_server::lsp_types::{
+    InlayHintWorkspaceClientCapabilities, ProgressToken, Uri, WorkDoneProgressCreateParams,
+    WorkspaceClientCapabilities,
+};
 use tower_lsp_server::Client;
 use uuid::Uuid;
 
@@ -78,16 +81,16 @@ impl IndexEngine {
             state.publish_diagnostics(*id, diags).await;
         }
 
-        if state
-            .client_capabilities
-            .workspace
-            .as_ref()
-            .is_some_and(|w| {
-                w.inlay_hint
-                    .as_ref()
-                    .is_some_and(|i| i.refresh_support.is_some_and(|r| r))
+        if matches!(
+            &state.client_capabilities.workspace,
+            Some(WorkspaceClientCapabilities {
+                inlay_hint: Some(InlayHintWorkspaceClientCapabilities {
+                    refresh_support: Some(true),
+                    ..
+                }),
+                ..
             })
-        {
+        ) {
             state.client.inlay_hint_refresh().await.unwrap();
         }
 
