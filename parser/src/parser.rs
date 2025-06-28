@@ -177,7 +177,8 @@ pub enum StatementKind {
     Macro,
     SetCPU(String),
     Segment(Segment),
-    Reserve(Expression),
+    Tag(Expression),
+    Reserve(Expression, Option<Expression>),
 
     MacroInvocation(MacroInvocation),
     MacroPack(String),
@@ -483,14 +484,29 @@ impl<'a> Parser<'a> {
                         span: Span::new(start, end),
                     }));
                 }
-                ".res" | ".tag" => {
+                ".tag" => {
                     let right = self.parse_expression()?;
                     let end = self.mark_end();
                     self.consume_newline()?;
 
                     // Todo: add type
                     Ok(Some(Statement {
-                        kind: StatementKind::Reserve(right),
+                        kind: StatementKind::Tag(right),
+                        span: Span::new(start, end),
+                    }))
+                }
+                ".res" => {
+                    let amount = self.parse_expression()?;
+                    let val = if match_token!(self.tokens, TokenType::Comma) {
+                        Some(self.parse_expression()?)
+                    } else {
+                        None
+                    };
+                    let end = self.mark_end();
+                    self.consume_newline()?;
+
+                    Ok(Some(Statement {
+                        kind: StatementKind::Reserve(amount, val),
                         span: Span::new(start, end),
                     }))
                 }
@@ -1286,7 +1302,9 @@ impl<'a> Parser<'a> {
         }
         let end = self.mark_end();
 
-        if matches!(token_string.to_lowercase().as_str(), "z" | "a" | "f") && match_token!(self.tokens, TokenType::Colon) {
+        if matches!(token_string.to_lowercase().as_str(), "z" | "a" | "f")
+            && match_token!(self.tokens, TokenType::Colon)
+        {
             // TODO: Handle addressing modes?
             self.parse_expression()
         } else if matches!(token_string.to_lowercase().as_str(), "y" | "x" | "a" | "s") {

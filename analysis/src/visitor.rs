@@ -24,7 +24,8 @@ pub trait ASTVisitor {
             StatementKind::Macro => self.visit_macro(statement.span),
             StatementKind::SetCPU(cpu) => self.visit_set_cpu(cpu, statement.span),
             StatementKind::Segment(segment) => self.visit_segment(segment, statement.span),
-            StatementKind::Reserve(expression) => self.visit_reserve(expression, statement.span),
+            StatementKind::Tag(expression) => self.visit_tag(expression, statement.span),
+            StatementKind::Reserve(amount, val) => self.visit_reserve(amount, val, statement.span),
             StatementKind::MacroInvocation(macro_invocation) => {
                 self.visit_macro_invocation(macro_invocation, statement.span)
             }
@@ -91,8 +92,14 @@ pub trait ASTVisitor {
     fn visit_macro(&mut self, _span: Span) {}
     fn visit_set_cpu(&mut self, _cpu: &str, _span: Span) {}
     fn visit_segment(&mut self, _segment: &Segment, _span: Span) {}
-    fn visit_reserve(&mut self, expression: &Expression, _span: Span) {
+    fn visit_tag(&mut self, expression: &Expression, _span: Span) {
         self.visit_expression(expression);
+    }
+    fn visit_reserve(&mut self, amount: &Expression, val: &Option<Expression>, _span: Span) {
+        self.visit_expression(amount);
+        if let Some(val) = val {
+            self.visit_expression(val);
+        }
     }
     fn visit_macro_invocation(&mut self, macro_invocation: &MacroInvocation, _span: Span) {
         for param in macro_invocation.parameters.iter() {
