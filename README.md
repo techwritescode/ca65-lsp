@@ -12,8 +12,8 @@ TBD
 
 ## Editor Setup
 
-- [VSCode](https://github.com/simonhochrein/ca65-code)
-- [Zed](https://github.com/simonhochrein/ca65-zed)
+- [VSCode](https://github.com/techwritescode/ca65-code)
+- [Zed](https://github.com/techwritescode/ca65-zed)
 - Neovim
   ```lua
   -- init.lua

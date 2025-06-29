@@ -429,7 +429,7 @@ impl LanguageServer for Asm {
         //     )
         //     .await;
         // let config_uri = Uri::from_str(
-        //     "file:///home/simonhochrein/Documents/ca65-lsp/project.toml",
+        //     "file:///home/tech/Documents/ca65-lsp/project.toml",
         // )
         //     .unwrap();
         //
