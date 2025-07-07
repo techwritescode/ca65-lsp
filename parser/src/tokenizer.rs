@@ -159,7 +159,7 @@ impl<'a> Tokenizer<'a> {
                     ".loword" | ".hiword" | ".bankbyte" | ".lobyte" | ".hibyte" => {
                         self.make_token(TokenType::WordOp)
                     }
-                    ".match" => self.make_token(TokenType::Match),
+                    ".match" | ".xmatch" => self.make_token(TokenType::Match),
                     ".def" | ".defined" => self.make_token(TokenType::Def),
                     ".left" | ".mid" | ".right" => self.make_token(TokenType::Extract),
                     _ => self.make_token(TokenType::Macro),
