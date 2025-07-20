@@ -1,15 +1,20 @@
-use crate::cache_file::CacheFile;
+use crate::cache_file::{CacheFile, ResolvedInclude};
 use crate::data::path::diff_paths;
 use codespan::{File, FileId, Position};
 use lazy_static::lazy_static;
-use parser::{Ast, Instructions, ParseError, Token, TokenizerError};
-use std::path::Path;
+use parser::{Instructions, ParseError, Token, TokenizerError};
+use path_clean::PathClean;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use tower_lsp_server::lsp_types::Uri;
+use tower_lsp_server::lsp_types::{Diagnostic, Uri};
 
 pub struct Files {
     files: Vec<CacheFile>,
+    pub sources: HashMap<Uri, FileId>,
 }
+
+impl Files {}
 
 impl Files {
     pub fn get_uri_relative(&self, id: FileId, root: FileId) -> Option<String> {
@@ -36,7 +41,10 @@ lazy_static! {
 
 impl Files {
     pub fn new() -> Self {
-        Self { files: vec![] }
+        Self {
+            files: vec![],
+            sources: HashMap::new(),
+        }
     }
 
     pub fn add(&mut self, uri: Uri, contents: String) -> FileId {
@@ -82,5 +90,83 @@ impl Files {
         let tokens = self.line_tokens(id, position);
         let offset = self.get(id).file.position_to_byte_index(position).unwrap();
         tokens.is_empty() || tokens[0].span.end >= offset // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
+    }
+
+    pub fn resolve_import(&self, parent: FileId, path: &str) -> anyhow::Result<Option<FileId>> {
+        let parent_uri = self.get_uri(parent);
+
+        if !path.ends_with(".asm") && !path.ends_with(".s") && !path.ends_with(".inc") {
+            return Ok(None);
+        }
+
+        let parent = PathBuf::from_str(parent_uri.path().as_str())?
+            .parent()
+            .ok_or_else(|| anyhow::anyhow!("parent folder not found"))?
+            .join(path)
+            .clean();
+        let parent = Uri::from_str(url::Url::from_file_path(parent).unwrap().as_ref())?;
+
+        let id = self
+            .sources
+            .iter()
+            .find_map(|(uri, id)| if *uri == parent { Some(*id) } else { None });
+
+        Ok(Some(id.ok_or_else(|| anyhow::anyhow!("file not found"))?))
+    }
+
+    pub fn resolve_import_paths(&self, parent: FileId) -> (Vec<ResolvedInclude>, Vec<Diagnostic>) {
+        let mut results = vec![];
+        let mut diagnostics = vec![];
+        let parent_file = self.get(parent);
+
+        for include in parent_file.includes.iter() {
+            match self.resolve_import(
+                parent,
+                &include.path.lexeme[1..include.path.lexeme.len() - 1],
+            ) {
+                Ok(Some(resolved)) => results.push(ResolvedInclude {
+                    file: resolved,
+                    scope: include.scope.clone(),
+                    token: include.path.clone(),
+                }),
+                Ok(None) => {}
+                Err(e) => diagnostics.push(Diagnostic::new_simple(
+                    parent_file
+                        .file
+                        .byte_span_to_range(include.path.span.into())
+                        .unwrap()
+                        .into(),
+                    e.to_string(),
+                )),
+            }
+        }
+
+        (results, diagnostics)
+    }
+
+    pub fn resolve_imports_for_file(&self, parent: FileId) -> HashSet<FileId> {
+        // eprintln!("Crawling {:?}", parent);
+        let mut all_files = HashSet::new();
+        for include in self.get(parent).resolved_includes.iter() {
+            // eprintln!("Including {:?}", include);
+            // eprintln!(
+            //     "Including {:?} from {:?}",
+            //     state.files.get_uri(include.file).as_str(),
+            //     state.files.get_uri(parent).as_str()
+            // );
+            if !all_files.contains(&include.file) && include.file != parent {
+                all_files.extend(self.resolve_imports_for_file(include.file));
+            }
+        }
+
+        all_files
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &CacheFile> {
+        self.files.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut CacheFile> {
+        self.files.iter_mut()
     }
 }

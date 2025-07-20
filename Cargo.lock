@@ -18,15 +18,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "512761e0bb2578dd7380c6baaa0f4ce03e84f95e960231d1dec8bf4d7d6e2627"
 
 [[package]]
-name = "analysis"
-version = "0.1.0"
-dependencies = [
- "codespan",
- "indexmap",
- "parser",
-]
-
-[[package]]
 name = "anyhow"
 version = "1.0.97"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -81,11 +72,11 @@ checksum = "f61dac84819c6588b558454b194026eb1f09c293b9036ae9b159e74e73ab6cf9"
 name = "ca65-lsp"
 version = "0.1.0"
 dependencies = [
- "analysis",
  "anyhow",
  "codespan",
  "lazy_static",
  "parser",
+ "path-clean",
  "serde",
  "serde_json",
  "streaming-iterator",
@@ -569,6 +560,12 @@ version = "0.1.0"
 dependencies = [
  "codespan",
 ]
+
+[[package]]
+name = "path-clean"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17359afc20d7ab31fdb42bb844c8b3bb1dabd7dcf7e68428492da7f16966fcef"
 
 [[package]]
 name = "percent-encoding"

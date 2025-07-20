@@ -1,3 +1,4 @@
+use crate::analysis::scope_analyzer::Scope;
 use crate::cache_file::CacheFile;
 use crate::codespan::Files;
 use crate::completion::{
@@ -11,23 +12,21 @@ use crate::documentation::DOCUMENTATION_COLLECTION;
 use crate::error::file_error_to_lsp;
 use crate::index_engine::IndexEngine;
 use crate::state::State;
-use analysis::Scope;
 use codespan::FileId;
 use codespan::{File, Span};
-use std::collections::HashMap;
 use std::path::Path;
 use std::process::Output;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp_server::lsp_types::{
-    ClientCapabilities, CodeActionParams, CodeActionProviderCapability, CodeActionResponse,
-    CompletionItem, CompletionOptions, CompletionParams, CompletionResponse, Diagnostic,
-    DiagnosticSeverity, DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams,
-    DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse, FileOperationRegistrationOptions,
-    FoldingRange, FoldingRangeParams, FoldingRangeProviderCapability, HoverContents,
-    HoverProviderCapability, InitializedParams, InlayHint, InlayHintLabel, InlayHintParams,
-    LocationLink, MarkupContent, MarkupKind, MessageType, OneOf, Registration, SymbolKind,
+    CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionItem,
+    CompletionOptions, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
+    DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams, DocumentSymbol,
+    DocumentSymbolParams, DocumentSymbolResponse, FileOperationRegistrationOptions, FoldingRange,
+    FoldingRangeParams, FoldingRangeProviderCapability, HoverContents, HoverProviderCapability,
+    InitializedParams, InlayHint, InlayHintLabel, InlayHintParams, LocationLink, MarkupContent,
+    MarkupKind, MessageType, OneOf, Registration, SymbolKind,
     WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities,
 };
@@ -53,13 +52,7 @@ pub struct Asm {
 
 impl Asm {
     pub fn new(client: Client) -> Self {
-        let state = Arc::new(Mutex::new(State {
-            sources: HashMap::new(),
-            files: Files::new(),
-            workspace_folder: None,
-            client: client.clone(),
-            client_capabilities: ClientCapabilities::default(),
-        }));
+        let state = Arc::new(Mutex::new(State::new(client.clone())));
         Asm {
             client,
             state: state.clone(),
@@ -77,11 +70,23 @@ impl Asm {
         }
     }
 
-    async fn index(&self, file_id: &FileId) {
+    async fn index(&self, file_id: FileId) {
         let mut state = self.state.lock().await;
-        let file = state.files.get_mut(*file_id);
-        let diagnostics = [file.parse_labels().await, file.lint().await].concat();
-        state.publish_diagnostics(*file_id, diagnostics).await;
+        let file = state.files.get_mut(file_id);
+        let mut diagnostics = file.parse_labels().await;
+        diagnostics.extend(IndexEngine::invalidate(&mut state, file_id).await);
+
+        eprintln!(
+            "Affected Files: {:#?}",
+            state
+                .units
+                .find_related(file_id)
+                .iter()
+                .map(|id| { state.files.get_uri(*id).as_str().to_owned() })
+                .collect::<Vec<_>>()
+        );
+
+        state.publish_diagnostics(file_id, diagnostics).await;
     }
 
     async fn load_config(&self, path: &Path) -> Result<()> {
@@ -222,13 +227,6 @@ impl LanguageServer for Asm {
             .await
             .unwrap();
         }
-        // _ = self
-        //     .client
-        //     .progress(ProgressToken::String("load".to_string()), "Loading")
-        //     .with_message("Indexing")
-        //     .with_percentage(50)
-        //     .begin()
-        //     .await;
     }
 
     async fn shutdown(&self) -> Result<()> {
@@ -240,7 +238,7 @@ impl LanguageServer for Asm {
         let id = state.get_or_insert_source(params.text_document.uri, params.text_document.text);
         drop(state);
 
-        self.index(&id).await;
+        self.index(id).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -248,7 +246,7 @@ impl LanguageServer for Asm {
         let id = state.reload_source(&params.text_document, params.content_changes);
         drop(state);
 
-        self.index(&id).await;
+        self.index(id).await;
     }
 
     async fn goto_definition(
@@ -258,6 +256,7 @@ impl LanguageServer for Asm {
         let state = self.state.lock().await;
 
         if let Some(id) = state
+            .files
             .sources
             .get(&params.text_document_position_params.text_document.uri)
         {
@@ -308,6 +307,7 @@ impl LanguageServer for Asm {
         let state = self.state.lock().await;
 
         if let Some(id) = state
+            .files
             .sources
             .get(&params.text_document_position_params.text_document.uri)
         {
@@ -363,7 +363,7 @@ impl LanguageServer for Asm {
     ) -> Result<Option<DocumentSymbolResponse>> {
         let state = self.state.lock().await;
 
-        if let Some(id) = state.sources.get(&params.text_document.uri) {
+        if let Some(id) = state.files.sources.get(&params.text_document.uri) {
             let mut symbols = vec![];
             let file = state.files.get(*id);
 
@@ -404,6 +404,7 @@ impl LanguageServer for Asm {
         let state = self.state.lock().await;
 
         if let Some(id) = state
+            .files
             .sources
             .get(&params.text_document_position.text_document.uri)
         {
@@ -494,7 +495,7 @@ impl LanguageServer for Asm {
     async fn folding_range(&self, params: FoldingRangeParams) -> Result<Option<Vec<FoldingRange>>> {
         let state = self.state.lock().await;
 
-        if let Some(id) = state.sources.get(&params.text_document.uri) {
+        if let Some(id) = state.files.sources.get(&params.text_document.uri) {
             let file = &state.files.get(*id);
             Ok(Some(
                 file.scopes
@@ -509,7 +510,7 @@ impl LanguageServer for Asm {
     async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
         let state = self.state.lock().await;
 
-        if let Some(id) = state.sources.get(&params.text_document.uri) {
+        if let Some(id) = state.files.sources.get(&params.text_document.uri) {
             let file = &state.files.get(*id);
             Ok(Some(
                 file.scopes

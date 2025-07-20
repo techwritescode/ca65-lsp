@@ -1,3 +1,4 @@
+mod analysis;
 mod asm_server;
 mod cache_file;
 mod codespan;

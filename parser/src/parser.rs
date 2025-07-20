@@ -1,4 +1,4 @@
-use crate::tokenizer::{Token, TokenType};
+use crate::{Token, TokenType};
 use codespan::Span;
 use std::fmt::{Display, Formatter};
 

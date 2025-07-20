@@ -1,8 +1,10 @@
+use crate::analysis::scope_analyzer;
+use crate::analysis::scope_analyzer::{Scope, ScopeAnalyzer};
+use crate::analysis::symbol_resolver::SymbolResolver;
 use crate::{
     codespan::IndexError,
     data::symbol::{Symbol, SymbolType},
 };
-use analysis::{Include, Scope, ScopeAnalyzer, SymbolResolver};
 use codespan::{File, FileId};
 use parser::{Ast, ParseError, Token};
 use tower_lsp_server::lsp_types::{Diagnostic, DiagnosticSeverity, Range};
@@ -16,7 +18,31 @@ pub struct CacheFile {
     pub ast: Ast,
     pub scopes: Vec<Scope>,
     pub includes: Vec<Include>,
+    pub resolved_includes: Vec<ResolvedInclude>,
     pub symbols: Vec<Symbol>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Include {
+    pub path: Token,
+    pub scope: Vec<Scope>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ResolvedInclude {
+    pub token: Token,
+    pub file: FileId,
+    pub scope: Vec<Scope>,
+}
+
+impl PartialEq for ResolvedInclude {
+    fn eq(&self, other: &Self) -> bool {
+        if self.file != other.file {
+            false
+        } else {
+            self.scope.iter().eq(other.scope.iter())
+        }
+    }
 }
 
 impl CacheFile {
@@ -28,6 +54,7 @@ impl CacheFile {
             ast: Ast::new(),
             scopes: vec![],
             includes: vec![],
+            resolved_includes: vec![],
             symbols: vec![],
         }
     }
@@ -52,11 +79,11 @@ impl CacheFile {
                         file_id: self.id,
                         comment: scope.get_description(),
                         sym_type: match &scope {
-                            analysis::Symbol::Macro { .. } => SymbolType::Macro,
-                            analysis::Symbol::Label { .. } => SymbolType::Label,
-                            analysis::Symbol::Constant { .. } => SymbolType::Constant,
-                            analysis::Symbol::Parameter { .. } => SymbolType::Constant,
-                            analysis::Symbol::Scope { .. } => SymbolType::Scope,
+                            scope_analyzer::Symbol::Macro { .. } => SymbolType::Macro,
+                            scope_analyzer::Symbol::Label { .. } => SymbolType::Label,
+                            scope_analyzer::Symbol::Constant { .. } => SymbolType::Constant,
+                            scope_analyzer::Symbol::Parameter { .. } => SymbolType::Constant,
+                            scope_analyzer::Symbol::Scope { .. } => SymbolType::Scope,
                         },
                     });
                 }
@@ -91,16 +118,14 @@ impl CacheFile {
                     }
                 }
             }
-            Err(err) => match err {
-                IndexError::TokenizerError(err) => {
-                    let pos = self.file.byte_index_to_position(err.offset).unwrap();
-                    diagnostics.push(Diagnostic::new_simple(
-                        Range::new(pos.into(), pos.into()),
-                        "Unexpected character".to_string(),
-                    ));
-                }
-                _ => {}
-            },
+            Err(IndexError::TokenizerError(err)) => {
+                let pos = self.file.byte_index_to_position(err.offset).unwrap();
+                diagnostics.push(Diagnostic::new_simple(
+                    Range::new(pos.into(), pos.into()),
+                    "Unexpected character".to_string(),
+                ));
+            }
+            _ => unreachable!(),
         }
 
         diagnostics

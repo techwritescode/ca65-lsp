@@ -1,13 +1,13 @@
+use crate::analysis::scope_analyzer::ScopeAnalyzer;
 use crate::documentation::{DocumentationKind, COMPLETION_ITEMS_COLLECTION};
-use crate::{
-    data::symbol::SymbolType,
-    state::State,
-};
-use analysis::ScopeAnalyzer;
+use crate::{data::symbol::SymbolType, state::State};
 use codespan::FileId;
 use codespan::Position;
 use parser::TokenType;
-use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionTextEdit, Range, InsertReplaceEdit};
+use tower_lsp_server::lsp_types::{
+    CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionTextEdit,
+    InsertReplaceEdit, Range,
+};
 
 pub trait CompletionProvider {
     fn completions_for(&self, state: &State, id: FileId, position: Position)
@@ -119,14 +119,14 @@ impl CompletionProvider for Ca65DotOperatorCompletionProvider {
         let insert_range = Range {
             start: tower_lsp_server::lsp_types::Position {
                 line: position.line as u32,
-                character: (position.character - curr_word.len()) as u32
+                character: (position.character - curr_word.len()) as u32,
             },
             end: tower_lsp_server::lsp_types::Position {
                 line: position.line as u32,
-                character: position.character as u32
+                character: position.character as u32,
             },
         };
-        
+
         COMPLETION_ITEMS_COLLECTION
             .get()
             .expect("Could not get completion items collection for ca65 dot operators")
@@ -135,11 +135,16 @@ impl CompletionProvider for Ca65DotOperatorCompletionProvider {
             .iter()
             .map(|item| {
                 let mut new_item = item.clone();
-                new_item.text_edit = Some(CompletionTextEdit::InsertAndReplace(InsertReplaceEdit {
-                    new_text: item.insert_text.as_ref().expect("ca65 dot operator completion item did not have insert_text").clone(),
-                    insert: insert_range,
-                    replace: insert_range,
-                }));
+                new_item.text_edit =
+                    Some(CompletionTextEdit::InsertAndReplace(InsertReplaceEdit {
+                        new_text: item
+                            .insert_text
+                            .as_ref()
+                            .expect("ca65 dot operator completion item did not have insert_text")
+                            .clone(),
+                        insert: insert_range,
+                        replace: insert_range,
+                    }));
                 new_item
             })
             .collect()
@@ -165,11 +170,11 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
         let insert_range = Range {
             start: tower_lsp_server::lsp_types::Position {
                 line: position.line as u32,
-                character: (position.character - curr_word.len()) as u32
+                character: (position.character - curr_word.len()) as u32,
             },
             end: tower_lsp_server::lsp_types::Position {
                 line: position.line as u32,
-                character: position.character as u32
+                character: position.character as u32,
             },
         };
 
@@ -181,15 +186,19 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
             .iter()
             .map(|item| {
                 let mut new_item = item.clone();
-                new_item.text_edit = Some(CompletionTextEdit::InsertAndReplace(InsertReplaceEdit {
-                    new_text: item.insert_text.as_ref().expect("ca65 keyword completion item did not have insert_text").clone(),
-                    insert: insert_range,
-                    replace: insert_range,
-                }));
+                new_item.text_edit =
+                    Some(CompletionTextEdit::InsertAndReplace(InsertReplaceEdit {
+                        new_text: item
+                            .insert_text
+                            .as_ref()
+                            .expect("ca65 keyword completion item did not have insert_text")
+                            .clone(),
+                        insert: insert_range,
+                        replace: insert_range,
+                    }));
                 new_item
             })
             .collect()
-        
     }
 }
 

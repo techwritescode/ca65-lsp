@@ -1,8 +1,5 @@
-use crate::{
-    state::State,
-    data::symbol::Symbol
-};
-use analysis::ScopeAnalyzer;
+use crate::analysis::scope_analyzer::ScopeAnalyzer;
+use crate::{data::symbol::Symbol, state::State};
 use codespan::{FileError, FileId, Position, Span};
 use std::cmp::Ordering;
 

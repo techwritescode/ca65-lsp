@@ -1,5 +1,6 @@
-use crate::visitor::ASTVisitor;
-use codespan::{FileId, Span};
+use crate::analysis::visitor::ASTVisitor;
+use crate::cache_file::Include;
+use codespan::Span;
 use parser::{
     Ast, ConstantAssign, EnumMember, Expression, ImportExport, Statement, StructMember, Token,
 };
@@ -75,12 +76,6 @@ pub struct Scope {
     pub children: Vec<Scope>,
 }
 
-#[derive(Clone, Debug)]
-pub struct Include {
-    pub file: FileId,
-    pub scope: Vec<Scope>,
-}
-
 impl Scope {
     fn find_inner_scope(&self, index: usize) -> Option<Vec<Scope>> {
         if index < self.span.start || index >= self.span.end {
@@ -94,6 +89,12 @@ impl Scope {
         }
 
         Some(vec![self.clone()])
+    }
+}
+
+impl PartialEq for Scope {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
     }
 }
 
@@ -354,9 +355,9 @@ impl ASTVisitor for ScopeAnalyzer {
         }
     }
 
-    fn visit_include(&mut self, _path: &Token, _span: Span) {
+    fn visit_include(&mut self, path: &Token, _span: Span) {
         self.includes.push(Include {
-            file: FileId::new(0),
+            path: path.clone(),
             scope: self.stack.clone(),
         })
     }

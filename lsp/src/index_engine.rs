@@ -1,13 +1,15 @@
+use crate::codespan::Files;
 use crate::state::State;
-use std::collections::HashMap;
+use codespan::FileId;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp_server::lsp_types::request::WorkDoneProgressCreate;
 use tower_lsp_server::lsp_types::{
-    InlayHintWorkspaceClientCapabilities, ProgressToken, Uri, WorkDoneProgressCreateParams,
-    WorkspaceClientCapabilities,
+    Diagnostic, InlayHintWorkspaceClientCapabilities, ProgressToken, Uri,
+    WorkDoneProgressCreateParams, WorkspaceClientCapabilities,
 };
 use tower_lsp_server::Client;
 use uuid::Uuid;
@@ -22,7 +24,7 @@ impl IndexEngine {
     }
 
     pub async fn crawl_fs(slf: Arc<Mutex<IndexEngine>>, root_uri: Uri, client: Client) {
-        let slf = slf.lock().await;
+        let data = slf.lock().await;
         let token = ProgressToken::String(Uuid::new_v4().to_string());
         client
             .send_request::<WorkDoneProgressCreate>(WorkDoneProgressCreateParams {
@@ -56,7 +58,7 @@ impl IndexEngine {
             }
         }
 
-        let mut state = slf.state.lock().await;
+        let mut state = data.state.lock().await;
         let mut diagnostics = HashMap::new();
         let mut parsed_files = vec![];
 
@@ -75,12 +77,6 @@ impl IndexEngine {
             parsed_files.push(id);
         }
 
-        for id in parsed_files.iter() {
-            let mut diags = diagnostics.get(id).unwrap().clone();
-            diags.extend(state.files.get_mut(*id).lint().await);
-            state.publish_diagnostics(*id, diags).await;
-        }
-
         if matches!(
             &state.client_capabilities.workspace,
             Some(WorkspaceClientCapabilities {
@@ -94,6 +90,59 @@ impl IndexEngine {
             state.client.inlay_hint_refresh().await.unwrap();
         }
 
+        for id in parsed_files.iter() {
+            let diags = IndexEngine::invalidate(&mut state, *id).await;
+            state.publish_diagnostics(*id, diags).await;
+        }
+
+        for id in parsed_files.iter() {
+            let deps = IndexEngine::calculate_deps(&mut state, *id);
+            state.units.insert(*id, deps);
+        }
+
         progress.finish().await;
+    }
+
+    pub async fn invalidate(state: &mut State, file: FileId) -> Vec<Diagnostic> {
+        let mut diagnostics = vec![];
+
+        let (resolved_imports, import_diagnostics) = state.files.resolve_import_paths(file);
+        diagnostics.extend(import_diagnostics);
+
+        diagnostics.extend(state.files.get_mut(file).lint().await);
+
+        let file = state.files.get_mut(file);
+        if resolved_imports.iter().ne(&file.resolved_includes) {
+            // eprintln!("Changed {:#?}", file.resolved_includes);
+            file.resolved_includes = resolved_imports;
+        } else {
+            // eprintln!("No changes");
+        }
+
+        diagnostics
+    }
+
+    pub fn calculate_deps(state: &mut State, file: FileId) -> Vec<FileId> {
+        let mut deps = HashSet::new();
+        IndexEngine::flatten_dependencies(&mut state.files, file, &mut deps);
+        if deps.contains(&file) {
+            eprintln!("Circular dependency");
+        }
+
+        deps.into_iter().collect()
+    }
+
+    fn flatten_dependencies(files: &mut Files, file: FileId, dependencies: &mut HashSet<FileId>) {
+        let includes = {
+            let file_data = files.get(file);
+            file_data.resolved_includes.clone()
+        };
+
+        for include in includes.iter() {
+            if !dependencies.contains(&include.file) {
+                dependencies.insert(include.file);
+                Self::flatten_dependencies(files, include.file, dependencies);
+            }
+        }
     }
 }
