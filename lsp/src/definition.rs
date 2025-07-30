@@ -65,7 +65,7 @@ impl Definition {
                 if let Some(m) = file
                     .symbols
                     .iter()
-                    .find(|Symbol { fqn, .. }| fqn == &target_fqn)
+                    .find(|Symbol { fqn, .. }| fqn.as_str() == &target_fqn)
                 {
                     definitions.push(m.clone());
                     break;

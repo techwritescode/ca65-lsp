@@ -1,16 +1,19 @@
-use crate::analysis::scope_analyzer;
-use crate::analysis::scope_analyzer::{Scope, ScopeAnalyzer};
+use crate::analysis::scope_analyzer::Scope;
 use crate::analysis::symbol_resolver::SymbolResolver;
-use crate::{
-    codespan::IndexError,
-    data::symbol::{Symbol, SymbolType},
-};
+use crate::data::files::IndexError;
+use crate::data::symbol::Symbol;
 use codespan::{File, FileId};
-use parser::{Ast, ParseError, Token};
+use lazy_static::lazy_static;
+use parser::{Ast, Instructions, ParseError, Token};
 use tower_lsp_server::lsp_types::{Diagnostic, DiagnosticSeverity, Range};
+
+lazy_static! {
+    pub static ref INSTRUCTIONS: Instructions = Instructions::load();
+}
 
 type IndexResult<T> = Result<T, IndexError>;
 
+#[derive(Debug, Clone)]
 pub struct CacheFile {
     pub id: FileId,
     pub file: File,
@@ -26,6 +29,12 @@ pub struct CacheFile {
 pub struct Include {
     pub path: Token,
     pub scope: Vec<Scope>,
+}
+
+impl PartialEq for Include {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path && self.scope.iter().eq(other.scope.iter())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -59,80 +68,8 @@ impl CacheFile {
         }
     }
 
-    pub async fn parse_labels(&mut self) -> Vec<Diagnostic> {
-        let mut diagnostics = vec![];
-
-        match self.index() {
-            Ok(parse_errors) => {
-                self.symbols.clear();
-                let mut analyzer = ScopeAnalyzer::new(self.ast.clone());
-                let (scopes, symtab, includes) = analyzer.analyze();
-                self.scopes = scopes;
-                self.includes = includes;
-                // let symbols = analysis::DefAnalyzer::new(state.files.ast(id).clone()).parse();
-
-                for (symbol, scope) in symtab.iter() {
-                    self.symbols.push(Symbol {
-                        fqn: symbol.clone(),
-                        label: symbol.clone(),
-                        span: scope.get_span(),
-                        file_id: self.id,
-                        comment: scope.get_description(),
-                        sym_type: match &scope {
-                            scope_analyzer::Symbol::Macro { .. } => SymbolType::Macro,
-                            scope_analyzer::Symbol::Label { .. } => SymbolType::Label,
-                            scope_analyzer::Symbol::Constant { .. } => SymbolType::Constant,
-                            scope_analyzer::Symbol::Parameter { .. } => SymbolType::Constant,
-                            scope_analyzer::Symbol::Scope { .. } => SymbolType::Scope,
-                        },
-                    });
-                }
-
-                for err in parse_errors.iter() {
-                    match err {
-                        ParseError::UnexpectedToken(token) => {
-                            diagnostics.push(Diagnostic::new_simple(
-                                self.file.byte_span_to_range(token.span).unwrap().into(),
-                                format!("Unexpected Token {:?}", token.token_type),
-                            ));
-                        }
-                        ParseError::Expected { expected, received } => {
-                            diagnostics.push(Diagnostic::new_simple(
-                                self.file.byte_span_to_range(received.span).unwrap().into(),
-                                format!(
-                                    "Expected {:?} but received {:?}",
-                                    expected, received.token_type
-                                ),
-                            ));
-                        }
-                        ParseError::EOF => {
-                            let pos = self
-                                .file
-                                .byte_index_to_position(self.file.source.len() - 1)
-                                .unwrap();
-                            diagnostics.push(Diagnostic::new_simple(
-                                Range::new(pos.into(), pos.into()),
-                                "Unexpected EOF".to_string(),
-                            ));
-                        }
-                    }
-                }
-            }
-            Err(IndexError::TokenizerError(err)) => {
-                let pos = self.file.byte_index_to_position(err.offset).unwrap();
-                diagnostics.push(Diagnostic::new_simple(
-                    Range::new(pos.into(), pos.into()),
-                    "Unexpected character".to_string(),
-                ));
-            }
-            _ => unreachable!(),
-        }
-
-        diagnostics
-    }
-
-    pub fn index(&mut self) -> IndexResult<Vec<ParseError>> {
-        match parser::Tokenizer::new(&self.file.source, &crate::codespan::INSTRUCTIONS).parse() {
+    pub fn parse(&mut self) -> IndexResult<Vec<ParseError>> {
+        match parser::Tokenizer::new(&self.file.source, &INSTRUCTIONS).parse() {
             Ok(tokens) => {
                 self.tokens = tokens;
 
@@ -203,6 +140,42 @@ impl CacheFile {
                     message: format!("Unknown symbol: {}", identifier_access.name),
                     ..Default::default()
                 });
+            }
+        }
+
+        diagnostics
+    }
+
+    pub fn format_parse_errors(&self, errors: Vec<ParseError>) -> Vec<Diagnostic> {
+        let mut diagnostics = vec![];
+
+        for err in errors.iter() {
+            match err {
+                ParseError::UnexpectedToken(token) => {
+                    diagnostics.push(Diagnostic::new_simple(
+                        self.file.byte_span_to_range(token.span).unwrap().into(),
+                        format!("Unexpected Token {:?}", token.token_type),
+                    ));
+                }
+                ParseError::Expected { expected, received } => {
+                    diagnostics.push(Diagnostic::new_simple(
+                        self.file.byte_span_to_range(received.span).unwrap().into(),
+                        format!(
+                            "Expected {:?} but received {:?}",
+                            expected, received.token_type
+                        ),
+                    ));
+                }
+                ParseError::EOF => {
+                    let pos = self
+                        .file
+                        .byte_index_to_position(self.file.source.len() - 1)
+                        .unwrap();
+                    diagnostics.push(Diagnostic::new_simple(
+                        Range::new(pos.into(), pos.into()),
+                        "Unexpected EOF".to_string(),
+                    ));
+                }
             }
         }
 

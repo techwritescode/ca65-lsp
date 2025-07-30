@@ -1,12 +1,12 @@
 use crate::analysis::scope_analyzer::Scope;
 use crate::cache_file::CacheFile;
-use crate::codespan::Files;
 use crate::completion::{
     Ca65DotOperatorCompletionProvider, Ca65KeywordCompletionProvider, CompletionProvider,
     FeatureCompletionProvider, InstructionCompletionProvider, MacpackCompletionProvider,
     SymbolCompletionProvider,
 };
 use crate::data::configuration::Configuration;
+use crate::data::files::Files;
 use crate::definition::Definition;
 use crate::documentation::DOCUMENTATION_COLLECTION;
 use crate::error::file_error_to_lsp;
@@ -31,13 +31,13 @@ use tower_lsp_server::lsp_types::{
     WorkspaceServerCapabilities,
 };
 use tower_lsp_server::{
+    Client, LanguageServer,
     jsonrpc::Result,
     lsp_types::{
         DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
         GotoDefinitionResponse, Hover, HoverParams, InitializeParams, InitializeResult,
         MarkedString, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Uri,
     },
-    Client, LanguageServer,
 };
 
 #[allow(dead_code)]
@@ -72,21 +72,37 @@ impl Asm {
 
     async fn index(&self, file_id: FileId) {
         let mut state = self.state.lock().await;
-        let file = state.files.get_mut(file_id);
-        let mut diagnostics = file.parse_labels().await;
-        diagnostics.extend(IndexEngine::invalidate(&mut state, file_id).await);
+        let indexing_state = state.files.index(file_id).await;
 
-        eprintln!(
-            "Affected Files: {:#?}",
-            state
-                .units
-                .find_related(file_id)
-                .iter()
-                .map(|id| { state.files.get_uri(*id).as_str().to_owned() })
-                .collect::<Vec<_>>()
-        );
+        if indexing_state.includes_changed {
+            let units = state.units.find_related(file_id);
+            eprintln!(
+                "Includes changed: {:?}",
+                units.iter().map(|u| state.units.get(u)).collect::<Vec<_>>()
+            );
 
-        state.publish_diagnostics(file_id, diagnostics).await;
+            for unit in units {
+                // TODO: handle diagnostics
+                let (deps, _diagnostics) = IndexEngine::calculate_deps(&mut state, unit);
+                state.units.insert(file_id, deps);
+            }
+        }
+
+        // diagnostics.extend(IndexEngine::invalidate(&mut state, file_id).await);
+
+        // eprintln!(
+        //     "Affected Files: {:#?}",
+        //     state
+        //         .units
+        //         .find_related(file_id)
+        //         .iter()
+        //         .map(|id| { state.files.get_uri(*id).as_str().to_owned() })
+        //         .collect::<Vec<_>>()
+        // );
+
+        state
+            .publish_diagnostics(file_id, indexing_state.diagnostics)
+            .await;
     }
 
     async fn load_config(&self, path: &Path) -> Result<()> {
@@ -367,33 +383,10 @@ impl LanguageServer for Asm {
             let mut symbols = vec![];
             let file = state.files.get(*id);
 
-            fn scope_to_symbol(scope: &Scope, file: &CacheFile) -> DocumentSymbol {
-                let range = file.file.byte_span_to_range(scope.span).unwrap().into();
-                DocumentSymbol {
-                    name: scope.name.clone(),
-                    detail: None,
-                    kind: SymbolKind::NAMESPACE,
-                    tags: None,
-                    deprecated: None,
-                    range,
-                    selection_range: range,
-                    children: {
-                        let children: Vec<DocumentSymbol> = scope
-                            .children
-                            .iter()
-                            .map(|child| scope_to_symbol(child, file))
-                            .collect();
-                        if children.is_empty() {
-                            None
-                        } else {
-                            Some(children)
-                        }
-                    },
-                }
-            }
-
             for symbol in file.scopes.iter() {
-                symbols.push(scope_to_symbol(symbol, file));
+                if let Some(symbol) = scope_to_symbol(symbol, file) {
+                    symbols.push(symbol);
+                }
             }
             return Ok(Some(DocumentSymbolResponse::Nested(symbols)));
         }
@@ -525,45 +518,80 @@ impl LanguageServer for Asm {
 }
 
 fn scope_to_folding_range(file: &File, scope: &Scope) -> Vec<FoldingRange> {
-    let range = file.byte_span_to_range(scope.span).unwrap();
-    let mut results = vec![FoldingRange {
-        start_line: range.start.line as u32,
-        start_character: None,
-        end_line: (range.end.line - 1) as u32,
-        end_character: None,
-        kind: None,
-        collapsed_text: None,
-    }];
+    if let Ok(range) = file.byte_span_to_range(scope.span) {
+        let mut results = vec![FoldingRange {
+            start_line: range.start.line as u32,
+            start_character: None,
+            end_line: (range.end.line - 1) as u32,
+            end_character: None,
+            kind: None,
+            collapsed_text: None,
+        }];
 
-    results.extend(
-        scope
-            .children
-            .iter()
-            .flat_map(|scope| scope_to_folding_range(file, scope)),
-    );
+        results.extend(
+            scope
+                .children
+                .iter()
+                .flat_map(|scope| scope_to_folding_range(file, scope)),
+        );
 
-    results
+        results
+    } else {
+        Vec::new()
+    }
 }
 
 fn scope_to_inlay_hint(file: &File, scope: &Scope) -> Vec<InlayHint> {
-    let range = file.byte_span_to_range(scope.span).unwrap();
-    let mut results = vec![InlayHint {
-        position: range.end.into(),
-        label: InlayHintLabel::String(scope.name.clone()),
-        kind: None,
-        text_edits: None,
-        tooltip: None,
-        padding_left: Some(true),
-        padding_right: None,
-        data: None,
-    }];
+    if let Ok(range) = file.byte_span_to_range(scope.span) {
+        let mut results = vec![InlayHint {
+            position: range.end.into(),
+            label: InlayHintLabel::String(scope.name.clone()),
+            kind: None,
+            text_edits: None,
+            tooltip: None,
+            padding_left: Some(true),
+            padding_right: None,
+            data: None,
+        }];
 
-    results.extend(
-        scope
-            .children
-            .iter()
-            .flat_map(|scope| scope_to_inlay_hint(file, scope)),
-    );
+        results.extend(
+            scope
+                .children
+                .iter()
+                .flat_map(|scope| scope_to_inlay_hint(file, scope)),
+        );
 
-    results
+        results
+    } else {
+        Vec::new()
+    }
+}
+
+fn scope_to_symbol(scope: &Scope, file: &CacheFile) -> Option<DocumentSymbol> {
+    if let Ok(range) = file.file.byte_span_to_range(scope.span) {
+        let range = range.into();
+        Some(DocumentSymbol {
+            name: scope.name.clone(),
+            detail: None,
+            kind: SymbolKind::NAMESPACE,
+            tags: None,
+            deprecated: None,
+            range,
+            selection_range: range,
+            children: {
+                let children: Vec<DocumentSymbol> = scope
+                    .children
+                    .iter()
+                    .filter_map(|child| scope_to_symbol(child, file))
+                    .collect();
+                if children.is_empty() {
+                    None
+                } else {
+                    Some(children)
+                }
+            },
+        })
+    } else {
+        None
+    }
 }

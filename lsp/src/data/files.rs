@@ -1,22 +1,35 @@
+use crate::analysis::scope_analyzer;
+use crate::analysis::scope_analyzer::ScopeAnalyzer;
 use crate::cache_file::{CacheFile, ResolvedInclude};
+use crate::data::indexing_state::IndexingState;
 use crate::data::path::diff_paths;
+use crate::data::symbol::{Symbol, SymbolType};
 use codespan::{File, FileId, Position};
-use lazy_static::lazy_static;
-use parser::{Instructions, ParseError, Token, TokenizerError};
+use parser::{ParseError, Token, TokenizerError};
 use path_clean::PathClean;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use tower_lsp_server::lsp_types::{Diagnostic, Uri};
+use tower_lsp_server::lsp_types::{Diagnostic, Range, Uri};
+
+pub enum IndexError {
+    TokenizerError(TokenizerError),
+    ParseError(ParseError),
+}
 
 pub struct Files {
     files: Vec<CacheFile>,
     pub sources: HashMap<Uri, FileId>,
 }
 
-impl Files {}
-
 impl Files {
+    pub fn new() -> Self {
+        Self {
+            files: vec![],
+            sources: HashMap::new(),
+        }
+    }
+
     pub fn get_uri_relative(&self, id: FileId, root: FileId) -> Option<String> {
         let target_uri = self.get_uri(id);
         let relative_uri = self.get_uri(root);
@@ -27,24 +40,6 @@ impl Files {
         )?;
 
         Some(path.to_string_lossy().to_string())
-    }
-}
-
-pub enum IndexError {
-    TokenizerError(TokenizerError),
-    ParseError(ParseError),
-}
-
-lazy_static! {
-    pub static ref INSTRUCTIONS: Instructions = Instructions::load();
-}
-
-impl Files {
-    pub fn new() -> Self {
-        Self {
-            files: vec![],
-            sources: HashMap::new(),
-        }
     }
 
     pub fn add(&mut self, uri: Uri, contents: String) -> FileId {
@@ -114,7 +109,10 @@ impl Files {
         Ok(Some(id.ok_or_else(|| anyhow::anyhow!("file not found"))?))
     }
 
-    pub fn resolve_import_paths(&self, parent: FileId) -> (Vec<ResolvedInclude>, Vec<Diagnostic>) {
+    pub fn resolve_import_paths(
+        &mut self,
+        parent: FileId,
+    ) -> (Vec<ResolvedInclude>, Vec<Diagnostic>) {
         let mut results = vec![];
         let mut diagnostics = vec![];
         let parent_file = self.get(parent);
@@ -168,5 +166,64 @@ impl Files {
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut CacheFile> {
         self.files.iter_mut()
+    }
+
+    pub async fn index(&mut self, file_id: FileId) -> IndexingState {
+        let mut diagnostics = vec![];
+        let mut includes_changed = false;
+        let parse_result = {
+            let mut file = self.get_mut(file_id);
+            file.parse()
+        };
+
+        let file = self.get_mut(file_id);
+
+        if let Ok(parse_errors) = parse_result {
+            diagnostics.extend_from_slice(&file.format_parse_errors(parse_errors));
+
+            file.symbols.clear();
+            let mut analyzer = ScopeAnalyzer::new(file.ast.clone());
+            let (scopes, symtab, includes) = analyzer.analyze();
+            file.scopes = scopes;
+
+            for (symbol, scope) in symtab.iter() {
+                file.symbols.push(Symbol {
+                    fqn: symbol.clone(),
+                    label: symbol.clone(),
+                    span: scope.get_span(),
+                    file_id: file.id,
+                    comment: scope.get_description(),
+                    sym_type: match &scope {
+                        scope_analyzer::Symbol::Macro { .. } => SymbolType::Macro,
+                        scope_analyzer::Symbol::Label { .. } => SymbolType::Label,
+                        scope_analyzer::Symbol::Constant { .. } => SymbolType::Constant,
+                        scope_analyzer::Symbol::Parameter { .. } => SymbolType::Constant,
+                        scope_analyzer::Symbol::Scope { .. } => SymbolType::Scope,
+                    },
+                });
+            }
+
+            let file_includes = file.includes.clone();
+            if !file_includes.iter().eq(includes.iter()) {
+                file.includes = includes;
+
+                let (resolved_imports, import_diagnostics) = self.resolve_import_paths(file_id);
+                let file = self.get_mut(file_id);
+                diagnostics.extend(import_diagnostics);
+                file.resolved_includes = resolved_imports;
+                includes_changed = true;
+            }
+        } else if let Err(IndexError::TokenizerError(err)) = parse_result {
+            let pos = file.file.byte_index_to_position(err.offset).unwrap();
+            diagnostics.push(Diagnostic::new_simple(
+                Range::new(pos.into(), pos.into()),
+                "Unexpected character".to_string(),
+            ));
+        }
+
+        IndexingState {
+            diagnostics,
+            includes_changed,
+        }
     }
 }

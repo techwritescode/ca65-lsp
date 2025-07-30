@@ -4,6 +4,7 @@ use core::panic;
 use std::fmt::{Display, Formatter};
 
 #[allow(dead_code)]
+#[derive(Debug, Clone)]
 pub struct File {
     pub name: String,
     pub source: String,

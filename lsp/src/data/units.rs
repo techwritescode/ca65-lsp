@@ -1,5 +1,6 @@
 use codespan::FileId;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::ops::Index;
 
 #[derive(Debug, Default)]
 pub struct Units(HashMap<FileId, Vec<FileId>>);
@@ -13,26 +14,24 @@ impl Units {
     }
     pub fn find_related(&self, file_id: FileId) -> Vec<FileId> {
         // TODO: Make sure this is a hashset, and don't include self
-        let this = {
-            if let Some(ids) = self.get(&file_id) {
-                ids.clone()
-            } else {
-                vec![]
-            }
-        };
-
-        let others: Vec<FileId> = self
-            .0
+        self.0
             .iter()
-            .filter_map(|(id, ids)| {
-                if ids.contains(&file_id) {
-                    Some(*id)
+            .filter_map(|(k, v)| {
+                if *k == file_id || v.contains(&file_id) {
+                    Some(*k)
                 } else {
                     None
                 }
             })
-            .collect();
+            .collect::<HashSet<FileId>>()
+            .into_iter()
+            .collect()
+    }
+}
 
-        [this, others].concat()
+impl Index<FileId> for Units {
+    type Output = Vec<FileId>;
+    fn index(&self, file_id: FileId) -> &Self::Output {
+        &self.0[&file_id]
     }
 }

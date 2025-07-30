@@ -1,17 +1,18 @@
-use crate::codespan::Files;
+use crate::data::files::Files;
 use crate::state::State;
 use codespan::FileId;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tower_lsp_server::Client;
 use tower_lsp_server::lsp_types::request::WorkDoneProgressCreate;
 use tower_lsp_server::lsp_types::{
     Diagnostic, InlayHintWorkspaceClientCapabilities, ProgressToken, Uri,
     WorkDoneProgressCreateParams, WorkspaceClientCapabilities,
 };
-use tower_lsp_server::Client;
 use uuid::Uuid;
 
 pub struct IndexEngine {
@@ -73,7 +74,7 @@ impl IndexEngine {
             let uri = Uri::from_str(url::Url::from_file_path(file).unwrap().as_ref()).unwrap();
             let contents = std::fs::read_to_string(file).unwrap();
             let id = state.get_or_insert_source(uri, contents);
-            diagnostics.insert(id, state.files.get_mut(id).parse_labels().await);
+            diagnostics.insert(id, state.files.index(id).await.diagnostics);
             parsed_files.push(id);
         }
 
@@ -91,13 +92,36 @@ impl IndexEngine {
         }
 
         for id in parsed_files.iter() {
-            let diags = IndexEngine::invalidate(&mut state, *id).await;
-            state.publish_diagnostics(*id, diags).await;
+            let uri = state.files.get_uri(*id);
+            let path = PathBuf::from_str(uri.path().as_str()).unwrap();
+            if let Some(ext) = path.extension()
+                && ext.to_str() == Some("s")
+            {
+                let (deps, dep_diagnostics) = IndexEngine::calculate_deps(&mut state, *id);
+                diagnostics.insert(*id, dep_diagnostics);
+                eprintln!(
+                    "{:?}: {:#?}",
+                    uri.to_owned().path().to_string(),
+                    deps.iter()
+                        .map(|d| state.files.get_uri(*d).to_owned().path().to_string())
+                        .collect::<Vec<_>>()
+                );
+
+                state.units.insert(*id, deps);
+            }
         }
 
         for id in parsed_files.iter() {
-            let deps = IndexEngine::calculate_deps(&mut state, *id);
-            state.units.insert(*id, deps);
+            // let diags = IndexEngine::invalidate(&mut state, *id).await;
+            state
+                .publish_diagnostics(
+                    *id,
+                    diagnostics
+                        .get(id)
+                        .and_then(|d| Some(d.clone()))
+                        .unwrap_or_default(),
+                )
+                .await;
         }
 
         progress.finish().await;
@@ -122,26 +146,31 @@ impl IndexEngine {
         diagnostics
     }
 
-    pub fn calculate_deps(state: &mut State, file: FileId) -> Vec<FileId> {
+    pub fn calculate_deps(state: &mut State, file: FileId) -> (Vec<FileId>, Vec<Diagnostic>) {
         let mut deps = HashSet::new();
-        IndexEngine::flatten_dependencies(&mut state.files, file, &mut deps);
+        let mut diagnostics = vec![];
+        IndexEngine::flatten_dependencies(&mut state.files, file, &mut deps, &mut diagnostics);
         if deps.contains(&file) {
             eprintln!("Circular dependency");
         }
 
-        deps.into_iter().collect()
+        (deps.into_iter().collect(), diagnostics)
     }
 
-    fn flatten_dependencies(files: &mut Files, file: FileId, dependencies: &mut HashSet<FileId>) {
-        let includes = {
-            let file_data = files.get(file);
-            file_data.resolved_includes.clone()
-        };
+    fn flatten_dependencies(
+        files: &mut Files,
+        file: FileId,
+        dependencies: &mut HashSet<FileId>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let (resolved_imports, import_diagnostics) = files.resolve_import_paths(file);
 
-        for include in includes.iter() {
+        diagnostics.extend(import_diagnostics);
+
+        for include in resolved_imports.iter() {
             if !dependencies.contains(&include.file) {
                 dependencies.insert(include.file);
-                Self::flatten_dependencies(files, include.file, dependencies);
+                Self::flatten_dependencies(files, include.file, dependencies, diagnostics);
             }
         }
     }

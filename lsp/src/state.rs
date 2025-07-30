@@ -1,12 +1,11 @@
-use crate::codespan::Files;
-use crate::data::units::Units;
+use crate::{data::files::Files, data::units::Units};
 use codespan::FileId;
 use std::str::FromStr;
+use tower_lsp_server::Client;
 use tower_lsp_server::lsp_types::{
     ClientCapabilities, Diagnostic, TextDocumentContentChangeEvent, Uri,
     VersionedTextDocumentIdentifier,
 };
-use tower_lsp_server::Client;
 
 pub struct State {
     pub files: Files,
