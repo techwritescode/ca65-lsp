@@ -1,5 +1,5 @@
 use crate::analysis::scope_analyzer::ScopeAnalyzer;
-use crate::documentation::{DocumentationKind, COMPLETION_ITEMS_COLLECTION};
+use crate::documentation::{COMPLETION_ITEMS_COLLECTION, DocumentationKind};
 use crate::{data::symbol::SymbolType, state::State};
 use codespan::FileId;
 use codespan::Position;
@@ -11,7 +11,7 @@ use tower_lsp_server::lsp_types::{
 
 pub trait CompletionProvider {
     fn completions_for(&self, state: &State, id: FileId, position: Position)
-        -> Vec<CompletionItem>;
+    -> Vec<CompletionItem>;
 }
 
 pub struct InstructionCompletionProvider;
@@ -46,6 +46,12 @@ impl CompletionProvider for SymbolCompletionProvider {
         position: Position,
     ) -> Vec<CompletionItem> {
         let file = &state.files.get(id);
+        let units = state.units.find_related(id);
+        if units.len() == 0 {
+            // TODO: Not included
+            return Vec::new();
+        }
+
         let show_instructions = state.files.show_instructions(id, position); // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
         let byte_position = file.file.position_to_byte_index(position).unwrap_or(0);
         let scope = ScopeAnalyzer::search(&file.scopes, byte_position);
@@ -53,7 +59,8 @@ impl CompletionProvider for SymbolCompletionProvider {
         let word_at_position = file.file.get_word_at_position(position).unwrap_or("");
         let has_namespace = word_at_position.contains(":");
 
-        file.symbols
+        state.units[units[0]]
+            .symbols
             .iter()
             .filter_map(|symbol| {
                 if show_instructions

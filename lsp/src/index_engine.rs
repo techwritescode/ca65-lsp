@@ -1,4 +1,6 @@
+use crate::analysis::scope_analyzer::Scope;
 use crate::data::files::Files;
+use crate::data::symbol::Symbol;
 use crate::state::State;
 use codespan::FileId;
 use std::collections::{HashMap, HashSet};
@@ -74,7 +76,8 @@ impl IndexEngine {
             let uri = Uri::from_str(url::Url::from_file_path(file).unwrap().as_ref()).unwrap();
             let contents = std::fs::read_to_string(file).unwrap();
             let id = state.get_or_insert_source(uri, contents);
-            diagnostics.insert(id, state.files.index(id).await.diagnostics);
+            let file = state.files.index(id).await;
+            diagnostics.insert(id, file.diagnostics);
             parsed_files.push(id);
         }
 
@@ -97,18 +100,16 @@ impl IndexEngine {
             if let Some(ext) = path.extension()
                 && ext.to_str() == Some("s")
             {
-                let (deps, dep_diagnostics) = IndexEngine::calculate_deps(&mut state, *id);
+                let (deps, dep_diagnostics) = IndexEngine::calculate_deps(&mut state.files, *id);
                 diagnostics.insert(*id, dep_diagnostics);
-                eprintln!(
-                    "{:?}: {:#?}",
-                    uri.to_owned().path().to_string(),
-                    deps.iter()
-                        .map(|d| state.files.get_uri(*d).to_owned().path().to_string())
-                        .collect::<Vec<_>>()
-                );
-
                 state.units.insert(*id, deps);
             }
+        }
+
+        let units = state.units.0.keys().cloned().collect::<Vec<_>>();
+        for unit in units {
+            let symbols = IndexEngine::get_symbol_tree(&mut state.files, unit);
+            state.units[unit].symbols = symbols;
         }
 
         for id in parsed_files.iter() {
@@ -146,10 +147,10 @@ impl IndexEngine {
         diagnostics
     }
 
-    pub fn calculate_deps(state: &mut State, file: FileId) -> (Vec<FileId>, Vec<Diagnostic>) {
+    pub fn calculate_deps(files: &mut Files, file: FileId) -> (Vec<FileId>, Vec<Diagnostic>) {
         let mut deps = HashSet::new();
         let mut diagnostics = vec![];
-        IndexEngine::flatten_dependencies(&mut state.files, file, &mut deps, &mut diagnostics);
+        IndexEngine::flatten_dependencies(files, file, &mut deps, &mut diagnostics);
         if deps.contains(&file) {
             eprintln!("Circular dependency");
         }
@@ -172,6 +173,46 @@ impl IndexEngine {
                 dependencies.insert(include.file);
                 Self::flatten_dependencies(files, include.file, dependencies, diagnostics);
             }
+        }
+    }
+
+    pub fn get_symbol_tree(files: &mut Files, file_id: FileId) -> Vec<Symbol> {
+        let mut stack = vec!["".to_owned()];
+        let mut symbols = Vec::new();
+        Self::get_symbols_for_file(files, file_id, &mut symbols, &mut stack);
+
+        symbols
+    }
+
+    fn get_symbols_for_file(
+        files: &mut Files,
+        file_id: FileId,
+        symbols: &mut Vec<Symbol>,
+        stack: &mut Vec<String>,
+    ) {
+        let file = &files.get(file_id);
+        let resolved_includes = file.resolved_includes.clone();
+        let file_symbols = file.symbols.clone();
+
+        for include in resolved_includes {
+            let backup = stack.clone();
+            stack.extend_from_slice(
+                &include.scope[1..]
+                    .iter()
+                    .map(|s| s.name.to_owned())
+                    .collect::<Vec<_>>(),
+            );
+            Self::get_symbols_for_file(files, include.file, symbols, stack);
+            *stack = backup;
+        }
+
+        for symbol in file_symbols {
+            let mut symbol = symbol.clone();
+            let fqn = [stack.clone(), vec![symbol.fqn[2..].to_string()]]
+                .concat()
+                .join("::");
+            symbol.fqn = fqn;
+            symbols.push(symbol);
         }
     }
 }

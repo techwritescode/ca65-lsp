@@ -1,6 +1,6 @@
 use crate::analysis::scope_analyzer;
 use crate::analysis::scope_analyzer::ScopeAnalyzer;
-use crate::cache_file::{CacheFile, ResolvedInclude};
+use crate::cache_file::{CacheFile, Include, ResolvedInclude};
 use crate::data::indexing_state::IndexingState;
 use crate::data::path::diff_paths;
 use crate::data::symbol::{Symbol, SymbolType};
@@ -202,11 +202,9 @@ impl Files {
                     },
                 });
             }
+            file.includes = includes;
 
-            let file_includes = file.includes.clone();
-            if !file_includes.iter().eq(includes.iter()) {
-                file.includes = includes;
-
+            if !is_includes_same(&file.includes, &file.resolved_includes) {
                 let (resolved_imports, import_diagnostics) = self.resolve_import_paths(file_id);
                 let file = self.get_mut(file_id);
                 diagnostics.extend(import_diagnostics);
@@ -226,4 +224,18 @@ impl Files {
             includes_changed,
         }
     }
+}
+
+fn is_includes_same(includes: &[Include], resolved_includes: &[ResolvedInclude]) -> bool {
+    if includes.len() != resolved_includes.len() {
+        return false;
+    }
+
+    for (include, resolved) in includes.iter().zip(resolved_includes.iter()) {
+        if include.path.lexeme != resolved.token.lexeme {
+            return false;
+        }
+    }
+    
+    true
 }

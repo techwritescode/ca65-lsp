@@ -73,19 +73,19 @@ impl Asm {
     async fn index(&self, file_id: FileId) {
         let mut state = self.state.lock().await;
         let indexing_state = state.files.index(file_id).await;
+        let units = state.units.find_related(file_id);
 
         if indexing_state.includes_changed {
-            let units = state.units.find_related(file_id);
-            eprintln!(
-                "Includes changed: {:?}",
-                units.iter().map(|u| state.units.get(u)).collect::<Vec<_>>()
-            );
-
-            for unit in units {
+            for unit in units.iter() {
                 // TODO: handle diagnostics
-                let (deps, _diagnostics) = IndexEngine::calculate_deps(&mut state, unit);
+                let (deps, _diagnostics) = IndexEngine::calculate_deps(&mut state.files, *unit);
                 state.units.insert(file_id, deps);
             }
+        }
+
+        for unit in units.iter() {
+            let symbols = IndexEngine::get_symbol_tree(&mut state.files, *unit);
+            state.units[*unit].symbols = symbols;
         }
 
         // diagnostics.extend(IndexEngine::invalidate(&mut state, file_id).await);
