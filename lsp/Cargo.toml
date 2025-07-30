@@ -1,7 +1,7 @@
 [package]
 name = "ca65-lsp"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 anyhow = "1.0.93"
@@ -15,9 +15,9 @@ toml = "0.8.19"
 tempfile = "3.14.0"
 streaming-iterator = "0.1.9"
 parser = { path = "../parser" }
-analysis = { path = "../analysis" }
 codespan = { path = "../codespan", features = ["lsp"] }
 lazy_static = "1.5.0"
 walkdir = "2.5.0"
 uuid = { version = "1.17.0", features = ["v4"] }
 url = "2.5.4"
+path-clean = "1.0.1"

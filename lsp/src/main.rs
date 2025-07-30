@@ -1,13 +1,12 @@
+mod analysis;
 mod asm_server;
 mod cache_file;
-mod codespan;
 mod completion;
 mod data;
 mod definition;
 mod documentation;
 mod error;
 mod index_engine;
-mod logger;
 mod state;
 
 use asm_server::Asm;

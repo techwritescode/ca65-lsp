@@ -1,17 +1,17 @@
-use crate::documentation::{DocumentationKind, COMPLETION_ITEMS_COLLECTION};
-use crate::{
-    data::symbol::SymbolType,
-    state::State,
-};
-use analysis::ScopeAnalyzer;
+use crate::analysis::scope_analyzer::ScopeAnalyzer;
+use crate::documentation::{COMPLETION_ITEMS_COLLECTION, DocumentationKind};
+use crate::{data::symbol::SymbolType, state::State};
 use codespan::FileId;
 use codespan::Position;
 use parser::TokenType;
-use tower_lsp_server::lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionTextEdit, Range, InsertReplaceEdit};
+use tower_lsp_server::lsp_types::{
+    CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionTextEdit,
+    InsertReplaceEdit, Range,
+};
 
 pub trait CompletionProvider {
     fn completions_for(&self, state: &State, id: FileId, position: Position)
-        -> Vec<CompletionItem>;
+    -> Vec<CompletionItem>;
 }
 
 pub struct InstructionCompletionProvider;
@@ -46,6 +46,12 @@ impl CompletionProvider for SymbolCompletionProvider {
         position: Position,
     ) -> Vec<CompletionItem> {
         let file = &state.files.get(id);
+        let units = state.units.find_related(id);
+        if units.len() == 0 {
+            // TODO: Not included
+            return Vec::new();
+        }
+
         let show_instructions = state.files.show_instructions(id, position); // Makes a naive guess at whether the current line contains an instruction. Doesn't work on lines with labels
         let byte_position = file.file.position_to_byte_index(position).unwrap_or(0);
         let scope = ScopeAnalyzer::search(&file.scopes, byte_position);
@@ -53,7 +59,8 @@ impl CompletionProvider for SymbolCompletionProvider {
         let word_at_position = file.file.get_word_at_position(position).unwrap_or("");
         let has_namespace = word_at_position.contains(":");
 
-        file.symbols
+        state.units[units[0]]
+            .symbols
             .iter()
             .filter_map(|symbol| {
                 if show_instructions
@@ -119,14 +126,14 @@ impl CompletionProvider for Ca65DotOperatorCompletionProvider {
         let insert_range = Range {
             start: tower_lsp_server::lsp_types::Position {
                 line: position.line as u32,
-                character: (position.character - curr_word.len()) as u32
+                character: (position.character - curr_word.len()) as u32,
             },
             end: tower_lsp_server::lsp_types::Position {
                 line: position.line as u32,
-                character: position.character as u32
+                character: position.character as u32,
             },
         };
-        
+
         COMPLETION_ITEMS_COLLECTION
             .get()
             .expect("Could not get completion items collection for ca65 dot operators")
@@ -135,11 +142,16 @@ impl CompletionProvider for Ca65DotOperatorCompletionProvider {
             .iter()
             .map(|item| {
                 let mut new_item = item.clone();
-                new_item.text_edit = Some(CompletionTextEdit::InsertAndReplace(InsertReplaceEdit {
-                    new_text: item.insert_text.as_ref().expect("ca65 dot operator completion item did not have insert_text").clone(),
-                    insert: insert_range,
-                    replace: insert_range,
-                }));
+                new_item.text_edit =
+                    Some(CompletionTextEdit::InsertAndReplace(InsertReplaceEdit {
+                        new_text: item
+                            .insert_text
+                            .as_ref()
+                            .expect("ca65 dot operator completion item did not have insert_text")
+                            .clone(),
+                        insert: insert_range,
+                        replace: insert_range,
+                    }));
                 new_item
             })
             .collect()
@@ -165,11 +177,11 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
         let insert_range = Range {
             start: tower_lsp_server::lsp_types::Position {
                 line: position.line as u32,
-                character: (position.character - curr_word.len()) as u32
+                character: (position.character - curr_word.len()) as u32,
             },
             end: tower_lsp_server::lsp_types::Position {
                 line: position.line as u32,
-                character: position.character as u32
+                character: position.character as u32,
             },
         };
 
@@ -181,15 +193,19 @@ impl CompletionProvider for Ca65KeywordCompletionProvider {
             .iter()
             .map(|item| {
                 let mut new_item = item.clone();
-                new_item.text_edit = Some(CompletionTextEdit::InsertAndReplace(InsertReplaceEdit {
-                    new_text: item.insert_text.as_ref().expect("ca65 keyword completion item did not have insert_text").clone(),
-                    insert: insert_range,
-                    replace: insert_range,
-                }));
+                new_item.text_edit =
+                    Some(CompletionTextEdit::InsertAndReplace(InsertReplaceEdit {
+                        new_text: item
+                            .insert_text
+                            .as_ref()
+                            .expect("ca65 keyword completion item did not have insert_text")
+                            .clone(),
+                        insert: insert_range,
+                        replace: insert_range,
+                    }));
                 new_item
             })
             .collect()
-        
     }
 }
 

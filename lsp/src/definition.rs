@@ -1,8 +1,5 @@
-use crate::{
-    state::State,
-    data::symbol::Symbol
-};
-use analysis::ScopeAnalyzer;
+use crate::analysis::scope_analyzer::ScopeAnalyzer;
+use crate::{data::symbol::Symbol, state::State};
 use codespan::{FileError, FileId, Position, Span};
 use std::cmp::Ordering;
 
@@ -46,6 +43,12 @@ impl Definition {
         position: Position,
     ) -> Result<Option<(Vec<Symbol>, Span)>, FileError> {
         let file = &state.files.get(id);
+        let units = state.units.find_related(id);
+        if units.len() == 0 {
+            // TODO: Not included
+            return Ok(None);
+        }
+
         let (word, span) = file.file.get_word_span_at_position(position)?;
         let index = file.file.position_to_byte_index(position)?;
         let scopes = &file.scopes;
@@ -55,9 +58,11 @@ impl Definition {
         let slice = &word[0..new_span.end];
 
         let mut definitions = vec![];
+        
+        let symbols = &state.units[units[0]].symbols;
 
         if slice.starts_with("::") {
-            if let Some(m) = file.symbols.iter().find(|Symbol { fqn, .. }| fqn == slice) {
+            if let Some(m) = symbols.iter().find(|Symbol { fqn, .. }| fqn == slice) {
                 definitions.push(m.clone());
             }
         } else {
@@ -65,10 +70,9 @@ impl Definition {
                 let target_fqn = [&current_scopes[0..=idx], &[slice.to_string()]]
                     .concat()
                     .join("::");
-                if let Some(m) = file
-                    .symbols
+                if let Some(m) = symbols
                     .iter()
-                    .find(|Symbol { fqn, .. }| fqn == &target_fqn)
+                    .find(|Symbol { fqn, .. }| fqn.as_str() == &target_fqn)
                 {
                     definitions.push(m.clone());
                     break;

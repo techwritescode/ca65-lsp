@@ -1,6 +1,9 @@
 [workspace]
-members = ["analysis", "codespan", "lsp", "parser"]
+members = ["codespan", "lsp", "parser"]
 resolver = "2"
+
+[workspace.package]
+edition = "2024"
 
 [workspace.dependencies]
 lsp-types = { version = "^0.97.0" }
