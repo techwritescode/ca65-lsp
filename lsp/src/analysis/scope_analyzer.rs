@@ -355,6 +355,17 @@ impl ASTVisitor for ScopeAnalyzer {
         }
     }
 
+    fn visit_global(&mut self, identifiers: &[Token], _zero_page: &bool, _span: Span) {
+        for identifier in identifiers {
+            self.insert_symbol(
+                identifier,
+                Symbol::Constant {
+                    name: identifier.clone(),
+                },
+            );
+        }
+    }
+
     fn visit_include(&mut self, path: &Token, _span: Span) {
         self.includes.push(Include {
             path: path.clone(),
