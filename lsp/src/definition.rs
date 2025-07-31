@@ -42,7 +42,7 @@ impl Definition {
         id: FileId,
         position: Position,
     ) -> Result<Option<(Vec<Symbol>, Span)>, FileError> {
-        let file = &state.files.get(id);
+        let file = state.files.get(id);
         let units = state.units.find_related(id);
         if units.len() == 0 {
             // TODO: Not included

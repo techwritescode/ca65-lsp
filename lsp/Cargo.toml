@@ -20,4 +20,5 @@ lazy_static = "1.5.0"
 walkdir = "2.5.0"
 uuid = { version = "1.17.0", features = ["v4"] }
 url = "2.5.4"
+urlencoding = "2.1.3"
 path-clean = "1.0.1"

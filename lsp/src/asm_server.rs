@@ -31,14 +31,15 @@ use tower_lsp_server::lsp_types::{
     WorkspaceServerCapabilities,
 };
 use tower_lsp_server::{
-    Client, LanguageServer,
-    jsonrpc::Result,
-    lsp_types::{
+    jsonrpc::Result, lsp_types::{
         DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
         GotoDefinitionResponse, Hover, HoverParams, InitializeParams, InitializeResult,
         MarkedString, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Uri,
     },
+    Client,
+    LanguageServer,
 };
+use crate::data::convert_uri::convert_uri;
 
 #[allow(dead_code)]
 pub struct Asm {
@@ -235,13 +236,11 @@ impl LanguageServer for Asm {
                     .expect("Failed to read config");
             }
 
-            tokio::spawn(IndexEngine::crawl_fs(
+            IndexEngine::crawl_fs(
                 self.index_engine.clone(),
                 workspace_folder,
                 self.client.clone(),
-            ))
-            .await
-            .unwrap();
+            ).await;
         }
     }
 
@@ -251,7 +250,10 @@ impl LanguageServer for Asm {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let mut state = self.state.lock().await;
-        let id = state.get_or_insert_source(params.text_document.uri, params.text_document.text);
+        let id = state.get_or_insert_source(
+            convert_uri(params.text_document.uri).unwrap(),
+            params.text_document.text,
+        );
         drop(state);
 
         self.index(id).await;

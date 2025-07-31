@@ -1,16 +1,19 @@
 use crate::analysis::scope_analyzer;
 use crate::analysis::scope_analyzer::ScopeAnalyzer;
 use crate::cache_file::{CacheFile, Include, ResolvedInclude};
+use crate::data::convert_uri::convert_uri;
 use crate::data::indexing_state::IndexingState;
 use crate::data::path::diff_paths;
 use crate::data::symbol::{Symbol, SymbolType};
+use anyhow::anyhow;
 use codespan::{File, FileId, Position};
 use parser::{ParseError, Token, TokenizerError};
 use path_clean::PathClean;
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::str::FromStr;
 use tower_lsp_server::lsp_types::{Diagnostic, Range, Uri};
+use url::Url;
 
 pub enum IndexError {
     TokenizerError(TokenizerError),
@@ -94,17 +97,22 @@ impl Files {
             return Ok(None);
         }
 
-        let parent = PathBuf::from_str(parent_uri.path().as_str())?
+        let parent = Url::from_str(parent_uri.as_str())?
+            .to_file_path()
+            .map_err(|_| anyhow!("Failed to create pathbuf"))?
             .parent()
             .ok_or_else(|| anyhow::anyhow!("parent folder not found"))?
             .join(path)
             .clean();
-        let parent = Uri::from_str(url::Url::from_file_path(parent).unwrap().as_ref())?;
+
+        let parent = convert_uri(Uri::from_str(Url::from_file_path(parent).unwrap().as_ref())?)?;
 
         let id = self
             .sources
             .iter()
-            .find_map(|(uri, id)| if *uri == parent { Some(*id) } else { None });
+            .find_map(|(uri, id)| {
+                if uri.as_str() == parent.as_str() { Some(*id) } else { None }
+            });
 
         Ok(Some(id.ok_or_else(|| anyhow::anyhow!("file not found"))?))
     }
@@ -143,15 +151,8 @@ impl Files {
     }
 
     pub fn resolve_imports_for_file(&self, parent: FileId) -> HashSet<FileId> {
-        // eprintln!("Crawling {:?}", parent);
         let mut all_files = HashSet::new();
         for include in self.get(parent).resolved_includes.iter() {
-            // eprintln!("Including {:?}", include);
-            // eprintln!(
-            //     "Including {:?} from {:?}",
-            //     state.files.get_uri(include.file).as_str(),
-            //     state.files.get_uri(parent).as_str()
-            // );
             if !all_files.contains(&include.file) && include.file != parent {
                 all_files.extend(self.resolve_imports_for_file(include.file));
             }
@@ -236,6 +237,6 @@ fn is_includes_same(includes: &[Include], resolved_includes: &[ResolvedInclude])
             return false;
         }
     }
-    
+
     true
 }
