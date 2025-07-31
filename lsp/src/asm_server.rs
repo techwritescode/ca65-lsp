@@ -251,7 +251,7 @@ impl LanguageServer for Asm {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let mut state = self.state.lock().await;
         let id = state.get_or_insert_source(
-            convert_uri(params.text_document.uri).unwrap(),
+            params.text_document.uri,
             params.text_document.text,
         );
         drop(state);
