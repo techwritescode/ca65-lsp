@@ -1,4 +1,4 @@
-use crate::analysis::scope_analyzer::Scope;
+use crate::data::convert_uri::convert_uri;
 use crate::data::files::Files;
 use crate::data::symbol::Symbol;
 use crate::state::State;
@@ -9,12 +9,12 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tower_lsp_server::Client;
 use tower_lsp_server::lsp_types::request::WorkDoneProgressCreate;
 use tower_lsp_server::lsp_types::{
     Diagnostic, InlayHintWorkspaceClientCapabilities, ProgressToken, Uri,
     WorkDoneProgressCreateParams, WorkspaceClientCapabilities,
 };
+use tower_lsp_server::Client;
 use uuid::Uuid;
 
 pub struct IndexEngine {
@@ -73,9 +73,9 @@ impl IndexEngine {
                     ((idx as f32) / (sources.len() as f32) * 100.0) as u32,
                 )
                 .await;
-            let uri = Uri::from_str(url::Url::from_file_path(file).unwrap().as_ref()).unwrap();
+            let uri = Uri::from_str(url::Url::from_file_path(file).unwrap().as_str()).unwrap();
             let contents = std::fs::read_to_string(file).unwrap();
-            let id = state.get_or_insert_source(uri, contents);
+            let id = state.get_or_insert_source(convert_uri(uri).unwrap(), contents);
             let file = state.files.index(id).await;
             diagnostics.insert(id, file.diagnostics);
             parsed_files.push(id);
@@ -113,7 +113,6 @@ impl IndexEngine {
         }
 
         for id in parsed_files.iter() {
-            // let diags = IndexEngine::invalidate(&mut state, *id).await;
             state
                 .publish_diagnostics(
                     *id,
@@ -138,10 +137,7 @@ impl IndexEngine {
 
         let file = state.files.get_mut(file);
         if resolved_imports.iter().ne(&file.resolved_includes) {
-            // eprintln!("Changed {:#?}", file.resolved_includes);
             file.resolved_includes = resolved_imports;
-        } else {
-            // eprintln!("No changes");
         }
 
         diagnostics

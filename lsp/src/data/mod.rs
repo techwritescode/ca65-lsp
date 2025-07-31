@@ -5,3 +5,4 @@ pub mod path;
 pub mod symbol;
 pub mod units;
 pub mod files;
+pub mod convert_uri;
