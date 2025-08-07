@@ -45,6 +45,8 @@ pub enum TokenType {
     Bank,
     SizeOf,
     Match,
+    Ident,
+    Sprintf,
     Def,
     UnnamedLabelReference,
     Extract,

@@ -218,7 +218,9 @@ pub trait ASTVisitor {
             ExpressionKind::TokenList(toks) => self.visit_token_list(toks, expression.span),
             ExpressionKind::Call(callee, arguments) => {
                 self.visit_call(callee, arguments, expression.span)
-            }
+            },
+            ExpressionKind::Ident(expr) => self.visit_ident(expr, expression.span),
+            ExpressionKind::Sprintf(str, args) => self.visit_sprintf(str, args, expression.span),
         }
     }
 
@@ -303,6 +305,12 @@ pub trait ASTVisitor {
         self.visit_expression(expr);
     }
     fn visit_match(&mut self, _expr1: &Expression, _expr2: &Expression, _span: Span) {}
+    fn visit_ident(&mut self, _ident: &Expression, _span: Span) {}
+    fn visit_sprintf(&mut self, _str: &Expression, args: &[Expression], _span: Span) {
+        for arg in args.iter() {
+            self.visit_expression(arg);
+        }
+    }
     fn visit_def(&mut self, _tok: &Token, _span: Span) {}
     fn visit_identifier(&mut self, _ident: &str, _span: Span) {}
     fn visit_unnamed_label_reference(&mut self, _reference: &i8, _span: Span) {}

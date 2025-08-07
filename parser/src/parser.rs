@@ -131,6 +131,8 @@ pub enum ExpressionKind {
     TokenList(Vec<Token>),
     Call(String, Vec<Expression>),
     WordOp(Token, Box<Expression>),
+    Ident(Box<Expression>),
+    Sprintf(Box<Expression>, Vec<Expression>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1095,6 +1097,32 @@ impl<'a> Parser<'a> {
 
             return Ok(Expression {
                 kind: ExpressionKind::Match(Box::new(expr1), Box::new(expr2)),
+                span: Span::new(start, end),
+            });
+        }
+        if match_token!(self.tokens, TokenType::Ident) {
+            self.consume_token(TokenType::LeftParen)?;
+            let expr = self.parse_expression()?;
+            self.consume_token(TokenType::RightParen)?;
+            let end = self.mark_end();
+
+            return Ok(Expression {
+                kind: ExpressionKind::Ident(Box::from(expr)),
+                span: Span::new(start, end),
+            });
+        }
+        if match_token!(self.tokens, TokenType::Sprintf) {
+            self.consume_token(TokenType::LeftParen)?;
+            let expr = self.parse_expression()?;
+            let mut args = vec![];
+            while match_token!(self.tokens, TokenType::Comma) {
+                args.push(self.parse_expression()?);
+            }
+            self.consume_token(TokenType::RightParen)?;
+            let end = self.mark_end();
+
+            return Ok(Expression {
+                kind: ExpressionKind::Sprintf(Box::from(expr), args),
                 span: Span::new(start, end),
             });
         }
