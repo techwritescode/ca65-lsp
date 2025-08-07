@@ -224,19 +224,33 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn number(&mut self) {
-        while self.input.peek().is_some_and(|c| c.is_numeric()) {
+        while self
+            .input
+            .peek()
+            .is_some_and(|c| c.is_numeric() || c == '_')
+        {
             self.input.advance();
         }
     }
 
     fn hex_number(&mut self) {
-        while !self.input.at_end() && self.input.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
+        while !self.input.at_end()
+            && self
+                .input
+                .peek()
+                .is_some_and(|c| c.is_ascii_hexdigit() || c == '_')
+        {
             self.input.advance();
         }
     }
 
     fn bin_number(&mut self) {
-        while !self.input.at_end() && self.input.peek().is_some_and(|c| matches!(c, '0' | '1')) {
+        while !self.input.at_end()
+            && self
+                .input
+                .peek()
+                .is_some_and(|c| matches!(c, '0' | '1' | '_'))
+        {
             self.input.advance();
         }
     }
