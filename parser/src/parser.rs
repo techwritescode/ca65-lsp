@@ -1177,7 +1177,7 @@ impl<'a> Parser<'a> {
                 ".addrsize" | ".bank" | ".bankbyte" | ".blank" | ".cap" | ".capability"
                 | ".concat" | ".const" | ".def" | ".defined" | ".definedmacro" | ".hibyte"
                 | ".hiword" | ".ident" | ".ismnem" | ".ismnemonic" | ".max" | ".min" | ".ref"
-                | ".referenced" | ".sizeof" | ".strat" | ".string" | ".strlen" | "tcount" => {
+                | ".referenced" | ".sizeof" | ".sprintf" | ".strat" | ".string" | ".strlen" | "tcount" => {
                     self.parse_pseudo_function()
                 }
                 ".asize" | ".isize" => {
