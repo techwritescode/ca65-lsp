@@ -203,10 +203,8 @@ pub trait ASTVisitor {
                 self.visit_term(tok, expr1, expr2, expression.span)
             }
             ExpressionKind::Bank(expr) => self.visit_bank(expr, expression.span),
-            ExpressionKind::SizeOf(expr) => self.visit_sizeof(expr, expression.span),
             ExpressionKind::WordOp(tok, expr) => self.visit_word_op(tok, expr, expression.span),
             ExpressionKind::Match(expr1, expr2) => self.visit_match(expr1, expr2, expression.span),
-            ExpressionKind::Def(tok) => self.visit_def(tok, expression.span),
             ExpressionKind::Identifier(ident) => self.visit_identifier(ident, expression.span),
             ExpressionKind::UnnamedLabelReference(reference) => {
                 self.visit_unnamed_label_reference(reference, expression.span)
@@ -219,8 +217,7 @@ pub trait ASTVisitor {
             ExpressionKind::Call(callee, arguments) => {
                 self.visit_call(callee, arguments, expression.span)
             },
-            ExpressionKind::Ident(expr) => self.visit_ident(expr, expression.span),
-            ExpressionKind::Sprintf(str, args) => self.visit_sprintf(str, args, expression.span),
+            ExpressionKind::PseudoFunction(name, args) => self.visit_pseudo_function(name, args, expression.span),
         }
     }
 
@@ -298,20 +295,16 @@ pub trait ASTVisitor {
     fn visit_bank(&mut self, tok: &Expression, _span: Span) {
         self.visit_expression(tok);
     }
-    fn visit_sizeof(&mut self, expr: &Expression, _span: Span) {
-        self.visit_expression(expr);
-    }
     fn visit_word_op(&mut self, _tok: &Token, expr: &Expression, _span: Span) {
         self.visit_expression(expr);
     }
     fn visit_match(&mut self, _expr1: &Expression, _expr2: &Expression, _span: Span) {}
-    fn visit_ident(&mut self, _ident: &Expression, _span: Span) {}
-    fn visit_sprintf(&mut self, _str: &Expression, args: &[Expression], _span: Span) {
+    fn visit_pseudo_function(&mut self, _name: &Token, args: &[Expression], _span: Span) {
         for arg in args.iter() {
             self.visit_expression(arg);
         }
     }
-    fn visit_def(&mut self, _tok: &Token, _span: Span) {}
+
     fn visit_identifier(&mut self, _ident: &str, _span: Span) {}
     fn visit_unnamed_label_reference(&mut self, _reference: &i8, _span: Span) {}
     fn visit_string(&mut self, _str: &str, _span: Span) {}

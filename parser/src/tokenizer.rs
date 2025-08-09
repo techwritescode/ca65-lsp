@@ -78,14 +78,10 @@ impl<'a> Tokenizer<'a> {
                     ".xor" => self.make_token(TokenType::Xor),
                     ".not" => self.make_token(TokenType::Not),
                     ".bank" => self.make_token(TokenType::Bank),
-                    ".sizeof" => self.make_token(TokenType::SizeOf),
                     ".loword" | ".hiword" | ".bankbyte" | ".lobyte" | ".hibyte" => {
                         self.make_token(TokenType::WordOp)
                     }
                     ".match" | ".xmatch" => self.make_token(TokenType::Match),
-                    ".ident" => self.make_token(TokenType::Ident),
-                    ".sprintf" => self.make_token(TokenType::Sprintf),
-                    ".def" | ".defined" => self.make_token(TokenType::Def),
                     ".left" | ".mid" | ".right" => self.make_token(TokenType::Extract),
                     _ => self.make_token(TokenType::Macro),
                 }))

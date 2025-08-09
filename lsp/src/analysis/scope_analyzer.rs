@@ -318,10 +318,10 @@ impl ASTVisitor for ScopeAnalyzer {
         _max: &Expression,
         incr: &Option<Token>,
         statements: &[Statement],
-        span: Span,
+        _span: Span,
     ) {
         // TODO: figure out how to have "invisible scopes"
-        // self.push_scope("__repeat".to_owned(), span);
+        // self.push_scope("__repeat".to_owned(), _span);
         if let Some(incr) = incr {
             self.insert_symbol(incr, Symbol::Constant { name: incr.clone() });
         }

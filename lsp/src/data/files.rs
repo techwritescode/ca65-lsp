@@ -173,7 +173,7 @@ impl Files {
         let mut diagnostics = vec![];
         let mut includes_changed = false;
         let parse_result = {
-            let mut file = self.get_mut(file_id);
+            let file = self.get_mut(file_id);
             file.parse()
         };
 
