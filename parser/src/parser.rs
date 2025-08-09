@@ -122,17 +122,14 @@ pub enum ExpressionKind {
     SimpleExpression(Token, Box<Expression>, Box<Expression>),
     Term(TokenType, Box<Expression>, Box<Expression>),
     Bank(Box<Expression>),
-    SizeOf(Box<Expression>),
     Identifier(String),
     Match(Box<Expression>, Box<Expression>),
-    Def(Token),
     String(String),
     Extract(Token, Box<Expression>, Box<Expression>),
     TokenList(Vec<Token>),
     Call(String, Vec<Expression>),
     WordOp(Token, Box<Expression>),
-    Ident(Box<Expression>),
-    Sprintf(Box<Expression>, Vec<Expression>),
+    PseudoFunction(Token, Vec<Expression>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1064,17 +1061,6 @@ impl<'a> Parser<'a> {
                 span: Span::new(start, end),
             });
         }
-        if match_token!(self.tokens, TokenType::SizeOf) {
-            self.consume_token(TokenType::LeftParen)?;
-            let expr = self.parse_expression()?;
-            self.consume_token(TokenType::RightParen)?;
-            let end = self.mark_end();
-
-            return Ok(Expression {
-                kind: ExpressionKind::SizeOf(Box::from(expr)),
-                span: Span::new(start, end),
-            });
-        }
         if match_token!(self.tokens, TokenType::WordOp) {
             let variant = self.last();
             self.consume_token(TokenType::LeftParen)?;
@@ -1100,46 +1086,8 @@ impl<'a> Parser<'a> {
                 span: Span::new(start, end),
             });
         }
-        if match_token!(self.tokens, TokenType::Ident) {
-            self.consume_token(TokenType::LeftParen)?;
-            let expr = self.parse_expression()?;
-            self.consume_token(TokenType::RightParen)?;
-            let end = self.mark_end();
-
-            return Ok(Expression {
-                kind: ExpressionKind::Ident(Box::from(expr)),
-                span: Span::new(start, end),
-            });
-        }
-        if match_token!(self.tokens, TokenType::Sprintf) {
-            self.consume_token(TokenType::LeftParen)?;
-            let expr = self.parse_expression()?;
-            let mut args = vec![];
-            while match_token!(self.tokens, TokenType::Comma) {
-                args.push(self.parse_expression()?);
-            }
-            self.consume_token(TokenType::RightParen)?;
-            let end = self.mark_end();
-
-            return Ok(Expression {
-                kind: ExpressionKind::Sprintf(Box::from(expr), args),
-                span: Span::new(start, end),
-            });
-        }
         if match_token!(self.tokens, TokenType::Extract) {
             return self.parse_extract();
-        }
-        if match_token!(self.tokens, TokenType::Def) {
-            self.consume_token(TokenType::LeftParen)?;
-            self.tokens.advance();
-            let tok = self.last();
-            self.consume_token(TokenType::RightParen)?;
-            let end = self.mark_end();
-
-            return Ok(Expression {
-                kind: ExpressionKind::Def(tok),
-                span: Span::new(start, end),
-            });
         }
         if match_token!(self.tokens, TokenType::Caret) {
             let right = self.parse_factor()?;
@@ -1223,18 +1171,46 @@ impl<'a> Parser<'a> {
             });
         }
         if check_token!(self.tokens, TokenType::Macro) {
-            let start = self.mark_start();
-            let macro_name = self.consume_token(TokenType::Macro)?.lexeme;
-            let end = self.mark_end();
-            return match macro_name.as_str() {
-                ".asize" | ".isize" => Ok(Expression {
-                    kind: ExpressionKind::Literal(macro_name),
-                    span: Span::new(start, end),
-                }),
+            let next = self.tokens.peek().unwrap();
+
+            return match next.lexeme.as_str() {
+                ".addrsize" | ".bank" | ".bankbyte" | ".blank" | ".cap" | ".capability"
+                | ".concat" | ".const" | ".def" | ".defined" | ".definedmacro" | ".hibyte"
+                | ".hiword" | ".ident" | ".ismnem" | ".ismnemonic" | ".max" | ".min" | ".ref"
+                | ".referenced" | ".sizeof" | ".strat" | ".string" | ".strlen" | "tcount" => {
+                    self.parse_pseudo_function()
+                }
+                ".asize" | ".isize" => {
+                    let start = self.mark_start();
+                    let macro_name = self.consume_token(TokenType::Macro)?.lexeme;
+                    let end = self.mark_end();
+                    Ok(Expression {
+                        kind: ExpressionKind::Literal(macro_name),
+                        span: Span::new(start, end),
+                    })
+                }
                 _ => Err(ParseError::UnexpectedToken(self.peek()?)),
             };
         }
         Err(ParseError::UnexpectedToken(self.peek()?))
+    }
+
+    fn parse_pseudo_function(&mut self) -> Result<Expression> {
+        let start = self.mark_start();
+        let macro_name = self.consume_token(TokenType::Macro)?;
+        self.consume_token(TokenType::LeftParen)?;
+        let mut args = vec![];
+        args.push(self.parse_expression()?);
+        while match_token!(self.tokens, TokenType::Comma) {
+            args.push(self.parse_expression()?);
+        }
+        self.consume_token(TokenType::RightParen)?;
+        let end = self.mark_end();
+
+        Ok(Expression {
+            kind: ExpressionKind::PseudoFunction(macro_name, args),
+            span: Span::new(start, end),
+        })
     }
 
     fn parse_macro_parameters(&mut self) -> Result<Vec<MacroParameter>> {
