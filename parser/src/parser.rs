@@ -523,7 +523,7 @@ impl<'a> Parser<'a> {
                         span: Span::new(start, end),
                     }))
                 }
-                ".db" | ".dw" | ".byte" | ".word" | ".lobytes" => {
+                ".db" | ".dw" | ".byte" | ".word" | ".dword" | ".lobytes" => {
                     let parameters = self.parse_parameters()?;
                     let end = self.mark_end();
                     self.consume_newline()?;
@@ -711,7 +711,7 @@ impl<'a> Parser<'a> {
                         return Err(ParseError::Expected {
                             received: self.peek()?,
                             expected: TokenType::Macro,
-                        })
+                        });
                     }
                 }
             } else {
