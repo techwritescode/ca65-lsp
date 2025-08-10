@@ -106,6 +106,7 @@ impl State {
 
     #[cfg(not(target_os = "windows"))]
     fn detect_uri_mode(&mut self) {
-        self.uri_mode = UriMode::VSCode; // Should work for helix on mac & linux
+        // Should work for helix on mac & linux as well
+        // URI_MODE defaults to VS Code, so no changes needed
     }
 }
