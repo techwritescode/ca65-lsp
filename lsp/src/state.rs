@@ -1,11 +1,19 @@
 use crate::{data::files::Files, data::units::Units};
 use codespan::FileId;
 use std::str::FromStr;
+use std::sync::Mutex;
+use lazy_static::lazy_static;
 use tower_lsp_server::Client;
 use tower_lsp_server::lsp_types::{
     ClientCapabilities, Diagnostic, TextDocumentContentChangeEvent, Uri,
     VersionedTextDocumentIdentifier,
 };
+
+#[derive(Debug)]
+pub enum UriMode {
+    VSCode,
+    Helix,
+}
 
 pub struct State {
     pub files: Files,
@@ -13,6 +21,10 @@ pub struct State {
     pub client: Client,
     pub client_capabilities: ClientCapabilities,
     pub units: Units,
+}
+
+lazy_static! {
+    pub static ref URI_MODE: Mutex<UriMode> = Mutex::new(UriMode::VSCode);
 }
 
 impl State {
@@ -66,5 +78,35 @@ impl State {
                 None,
             )
             .await;
+    }
+
+    pub fn set_workspace_folder(&mut self, workspace_folder: Uri) {
+        self.workspace_folder = Some(workspace_folder);
+        self.detect_uri_mode();
+    }
+
+    #[cfg(target_os = "windows")]
+    fn detect_uri_mode(&mut self) {
+        let root = self.workspace_folder.clone().unwrap();
+        let segments = root.path().segments();
+        let mut segments = segments
+            .map(|segments| segments.to_string())
+            .collect::<Vec<_>>();
+        
+        let drive_letter = segments[0].to_owned();
+
+        if matches!(drive_letter.chars().nth(1), Some(':')) {
+            // Helix mode: drive letters are C:
+            *URI_MODE.lock().unwrap() = UriMode::Helix;
+        } else {
+            // VS Code mode: drive letters are c%3A
+            *URI_MODE.lock().unwrap() = UriMode::VSCode;
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn detect_uri_mode(&mut self) {
+        // Should work for helix on mac & linux as well
+        // URI_MODE defaults to VS Code, so no changes needed
     }
 }

@@ -9,12 +9,12 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tower_lsp_server::Client;
 use tower_lsp_server::lsp_types::request::WorkDoneProgressCreate;
 use tower_lsp_server::lsp_types::{
     Diagnostic, InlayHintWorkspaceClientCapabilities, ProgressToken, Uri,
     WorkDoneProgressCreateParams, WorkspaceClientCapabilities,
 };
-use tower_lsp_server::Client;
 use uuid::Uuid;
 
 pub struct IndexEngine {

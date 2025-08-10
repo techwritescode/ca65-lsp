@@ -171,7 +171,7 @@ impl LanguageServer for Asm {
         let mut state = self.state.lock().await;
         if let Some(workspace_folders) = params.workspace_folders {
             if !workspace_folders.is_empty() {
-                state.workspace_folder = Some(workspace_folders.first().unwrap().clone().uri)
+                state.set_workspace_folder(workspace_folders.first().unwrap().clone().uri);
             }
         }
 
