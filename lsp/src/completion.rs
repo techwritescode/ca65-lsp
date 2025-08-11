@@ -76,14 +76,9 @@ impl CompletionProvider for SymbolCompletionProvider {
                         ScopeAnalyzer::remove_denominator(&scope, symbol.fqn.clone())
                     };
 
-                    let postfix = if matches!(symbol.sym_type, SymbolType::Scope) {
-                        "::"
-                    } else {
-                        ""
-                    };
 
                     Some(CompletionItem {
-                        label: format!("{name}{postfix}"),
+                        label: name,
                         filter_text: if has_namespace {
                             Some(symbol.fqn.clone())
                         } else {
